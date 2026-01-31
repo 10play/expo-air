@@ -41,7 +41,7 @@ export function BubbleContent({
         </TouchableOpacity>
       </View>
       <View style={styles.body}>
-        <Text style={styles.bodyText}>Dev ToolSSs</Text>
+        <Text style={styles.bodyText}>Dev Tool</Text>
       </View>
     </View>
   );

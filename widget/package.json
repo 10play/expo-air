@@ -1,0 +1,16 @@
+{
+  "name": "expo-flow-widget",
+  "version": "0.0.1",
+  "main": "index.ts",
+  "private": true,
+  "scripts": {
+    "start": "expo start --port 8082"
+  },
+  "dependencies": {
+    "expo": "~54.0.32"
+  },
+  "devDependencies": {
+    "@types/react": "~19.1.0",
+    "typescript": "~5.9.2"
+  }
+}
