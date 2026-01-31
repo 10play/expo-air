@@ -19,10 +19,15 @@ Pod::Spec.new do |s|
   s.static_framework = true
 
   s.dependency 'ExpoModulesCore'
+  s.dependency 'React-RCTAppDelegate'
+
+  s.resource = 'widget.jsbundle'
 
   # Swift/Objective-C compatibility
   s.pod_target_xcconfig = {
     'DEFINES_MODULE' => 'YES',
+    'CLANG_CXX_LANGUAGE_STANDARD' => 'c++20',
+    'HEADER_SEARCH_PATHS' => '"$(PODS_ROOT)/Headers/Public/React-RCTAppDelegate" "$(PODS_ROOT)/Headers/Public/ReactAppDependencyProvider" "$(PODS_ROOT)/Headers/Public/React-defaultsnativemodule" "$(PODS_ROOT)/Headers/Public/ReactCommon" "$(PODS_ROOT)/Headers/Public/React-NativeModulesApple" "$(PODS_ROOT)/Headers/Public/React-callinvoker"',
   }
 
   s.source_files = "**/*.{h,m,mm,swift,hpp,cpp}"

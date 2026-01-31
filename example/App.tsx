@@ -1,10 +1,8 @@
-import { useEvent } from 'expo';
-import ExpoFlow, { ExpoFlowView } from '@10play/expo-flow';
-import { useEffect, useRef, useState } from 'react';
-import { Button, SafeAreaView, ScrollView, Text, View } from 'react-native';
+import ExpoFlow from "@10play/expo-flow";
+import { useEffect, useRef, useState } from "react";
+import { Button, SafeAreaView, ScrollView, Text, View } from "react-native";
 
 export default function App() {
-  const onChangePayload = useEvent(ExpoFlow, 'onChange');
   const [events, setEvents] = useState<string[]>([]);
   const addEventRef = useRef((name: string, data?: Record<string, unknown>) => {
     const entry = data ? `${name}: ${JSON.stringify(data)}` : name;
@@ -12,11 +10,17 @@ export default function App() {
   });
 
   useEffect(() => {
-    const s1 = ExpoFlow.addListener('onPress', () => addEventRef.current('onPress'));
-    const s2 = ExpoFlow.addListener('onExpand', () => addEventRef.current('onExpand'));
-    const s3 = ExpoFlow.addListener('onCollapse', () => addEventRef.current('onCollapse'));
-    const s4 = ExpoFlow.addListener('onDragEnd', (params) =>
-      addEventRef.current('onDragEnd', params)
+    const s1 = ExpoFlow.addListener("onPress", () =>
+      addEventRef.current("onPress"),
+    );
+    const s2 = ExpoFlow.addListener("onExpand", () =>
+      addEventRef.current("onExpand"),
+    );
+    const s3 = ExpoFlow.addListener("onCollapse", () =>
+      addEventRef.current("onCollapse"),
+    );
+    const s4 = ExpoFlow.addListener("onDragEnd", (params) =>
+      addEventRef.current("onDragEnd", params),
     );
     return () => {
       s1.remove();
@@ -34,7 +38,7 @@ export default function App() {
           <View style={styles.buttonRow}>
             <Button
               title="Show"
-              onPress={() => ExpoFlow.show({ size: 60, color: '#007AFF' })}
+              onPress={() => ExpoFlow.show({ size: 60, color: "#007AFF" })}
             />
             <Button title="Hide" onPress={() => ExpoFlow.hide()} />
           </View>
@@ -52,30 +56,6 @@ export default function App() {
               ))}
             </View>
           )}
-        </Group>
-        <Group name="Constants">
-          <Text>{ExpoFlow.PI}</Text>
-        </Group>
-        <Group name="Functions">
-          <Text>{ExpoFlow.hello()}</Text>
-        </Group>
-        <Group name="Async functions">
-          <Button
-            title="Set value"
-            onPress={async () => {
-              await ExpoFlow.setValueAsync('Hello from JS!');
-            }}
-          />
-        </Group>
-        <Group name="Events">
-          <Text>{onChangePayload?.value}</Text>
-        </Group>
-        <Group name="Views">
-          <ExpoFlowView
-            url="https://www.example.com"
-            onLoad={({ nativeEvent: { url } }) => console.log(`Loaded: ${url}`)}
-            style={styles.view}
-          />
         </Group>
       </ScrollView>
     </SafeAreaView>
@@ -102,36 +82,36 @@ const styles = {
   },
   group: {
     margin: 20,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderRadius: 10,
     padding: 20,
   },
   container: {
     flex: 1,
-    backgroundColor: '#eee',
+    backgroundColor: "#eee",
   },
   view: {
     flex: 1,
     height: 200,
   },
   buttonRow: {
-    flexDirection: 'row' as const,
+    flexDirection: "row" as const,
     gap: 12,
     marginBottom: 8,
   },
   eventLog: {
     marginTop: 12,
     padding: 8,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: "#f5f5f5",
     borderRadius: 8,
   },
   eventLogTitle: {
-    fontWeight: '600' as const,
+    fontWeight: "600" as const,
     marginBottom: 4,
   },
   eventEntry: {
     fontSize: 12,
-    color: '#555',
+    color: "#555",
     marginBottom: 2,
   },
 };

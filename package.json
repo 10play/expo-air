@@ -12,6 +12,7 @@
     "prepare": "expo-module prepare",
     "prepublishOnly": "expo-module prepublishOnly",
     "expo-module": "expo-module",
+    "widget:start": "cd widget && ../example/node_modules/.bin/metro serve --config metro.config.js --port 8082",
     "open:ios": "xed example/ios",
     "open:android": "open -a \"Android Studio\" example/android"
   },

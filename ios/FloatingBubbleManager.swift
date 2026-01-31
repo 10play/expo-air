@@ -17,7 +17,7 @@ class FloatingBubbleWindow: UIWindow {
 
 class FloatingBubbleViewController: UIViewController {
     private var bubbleContainer: UIView!
-    private var label: UILabel!
+    private var reactSurfaceView: UIView?
 
     var bubbleSize: CGFloat = 60
     var bubbleColor: String = "#007AFF"
@@ -46,6 +46,10 @@ class FloatingBubbleViewController: UIViewController {
         )
     }
 
+    func setSurfaceView(_ surfaceView: UIView) {
+        reactSurfaceView = surfaceView
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .clear
@@ -70,14 +74,11 @@ class FloatingBubbleViewController: UIViewController {
 
         view.addSubview(bubbleContainer)
 
-        label = UILabel()
-        label.text = "F"
-        label.textColor = .white
-        label.font = .systemFont(ofSize: 22, weight: .bold)
-        label.textAlignment = .center
-        label.frame = bubbleContainer.bounds
-        label.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-        bubbleContainer.addSubview(label)
+        if let surfaceView = reactSurfaceView {
+            surfaceView.frame = bubbleContainer.bounds
+            surfaceView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+            bubbleContainer.addSubview(surfaceView)
+        }
 
         let pan = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
         bubbleContainer.addGestureRecognizer(pan)
@@ -112,9 +113,6 @@ class FloatingBubbleViewController: UIViewController {
         newFrame.origin.x = max(8, min(newFrame.origin.x, screenBounds.width - expandedWidth - 8))
         newFrame.origin.y = max(50, min(newFrame.origin.y, screenBounds.height - expandedHeight - 8))
 
-        label.text = "Expo Flow"
-        label.font = .systemFont(ofSize: 18, weight: .semibold)
-
         UIView.animate(
             withDuration: 0.35,
             delay: 0,
@@ -138,9 +136,6 @@ class FloatingBubbleViewController: UIViewController {
             width: bubbleSize,
             height: bubbleSize
         )
-
-        label.text = "F"
-        label.font = .systemFont(ofSize: 22, weight: .bold)
 
         UIView.animate(
             withDuration: 0.35,
@@ -196,6 +191,7 @@ class FloatingBubbleManager {
 
     private var bubbleWindow: FloatingBubbleWindow?
     private var bubbleVC: FloatingBubbleViewController?
+    private var widgetRuntime: WidgetRuntime?
 
     var onPress: (() -> Void)?
     var onExpand: (() -> Void)?
@@ -204,7 +200,7 @@ class FloatingBubbleManager {
 
     private init() {}
 
-    func show(size: CGFloat, color: String) {
+    func show(size: CGFloat, color: String, bundleURL: URL?) {
         DispatchQueue.main.async {
             // Inline hide to avoid re-dispatching to main
             self.bubbleWindow?.isHidden = true
@@ -227,6 +223,27 @@ class FloatingBubbleManager {
             let vc = FloatingBubbleViewController()
             vc.bubbleSize = size
             vc.bubbleColor = color
+
+            // Create the widget runtime and surface view if we have a bundle URL
+            NSLog("[FloatingBubbleManager] bundleURL = %@", bundleURL?.absoluteString ?? "nil")
+            if let bundleURL = bundleURL {
+                if self.widgetRuntime == nil {
+                    if let runtime = WidgetRuntime(bundleURL: bundleURL) {
+                        runtime.start()
+                        self.widgetRuntime = runtime
+                    }
+                }
+
+                if let surfaceView = self.widgetRuntime?.createSurfaceView(
+                    withModuleName: "ExpoFlowBubble",
+                    initialProperties: [
+                        "size": size,
+                        "color": color,
+                    ]
+                ) {
+                    vc.setSurfaceView(surfaceView)
+                }
+            }
 
             vc.onPress = { [weak self] in self?.onPress?() }
             vc.onExpand = { [weak self] in self?.onExpand?() }
@@ -256,6 +273,7 @@ class FloatingBubbleManager {
             self.bubbleWindow?.rootViewController = nil
             self.bubbleWindow = nil
             self.bubbleVC = nil
+            // Note: widgetRuntime is kept alive intentionally so it survives app reloads
         }
     }
 

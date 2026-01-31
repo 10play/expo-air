@@ -6,6 +6,15 @@ struct ShowBubbleOptions: Record {
 }
 
 public class ExpoFlowModule: Module {
+  private static func widgetBundleURL() -> URL? {
+    // If a pre-built bundle exists in the pod resources, use it (production)
+    if let bundled = Bundle(for: ExpoFlowModule.self).url(forResource: "widget", withExtension: "jsbundle") {
+      return bundled
+    }
+    // Otherwise, fall back to the widget's dedicated Metro dev server on port 8082
+    return URL(string: "http://localhost:8082/index.bundle?platform=ios&dev=false&minify=false")
+  }
+
   private func wireManagerEvents() {
     let manager = FloatingBubbleManager.shared
     manager.onPress = { [weak self] in
@@ -45,7 +54,8 @@ public class ExpoFlowModule: Module {
       self.wireManagerEvents()
       FloatingBubbleManager.shared.show(
         size: CGFloat(options.size),
-        color: options.color
+        color: options.color,
+        bundleURL: Self.widgetBundleURL()
       )
     }
 
