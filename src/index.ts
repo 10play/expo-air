@@ -2,4 +2,4 @@
 // and on native platforms to ExpoFlowModule.ts
 export { default } from './ExpoFlowModule';
 export { default as ExpoFlowView } from './ExpoFlowView';
-export * from  './ExpoFlow.types';
+export * from './ExpoFlow.types';

@@ -1,41 +1,67 @@
 import ExpoModulesCore
 
+struct ShowBubbleOptions: Record {
+  @Field var size: Double = 60
+  @Field var color: String = "#007AFF"
+}
+
 public class ExpoFlowModule: Module {
-  // Each module class must implement the definition function. The definition consists of components
-  // that describes the module's functionality and behavior.
-  // See https://docs.expo.dev/modules/module-api for more details about available components.
+  private func wireManagerEvents() {
+    let manager = FloatingBubbleManager.shared
+    manager.onPress = { [weak self] in
+      self?.sendEvent("onPress", [:])
+    }
+    manager.onExpand = { [weak self] in
+      self?.sendEvent("onExpand", [:])
+    }
+    manager.onCollapse = { [weak self] in
+      self?.sendEvent("onCollapse", [:])
+    }
+    manager.onDragEnd = { [weak self] x, y in
+      self?.sendEvent("onDragEnd", ["x": x, "y": y])
+    }
+  }
+
   public func definition() -> ModuleDefinition {
-    // Sets the name of the module that JavaScript code will use to refer to the module. Takes a string as an argument.
-    // Can be inferred from module's class name, but it's recommended to set it explicitly for clarity.
-    // The module will be accessible from `requireNativeModule('ExpoFlow')` in JavaScript.
     Name("ExpoFlow")
 
-    // Defines constant property on the module.
     Constant("PI") {
       Double.pi
     }
 
-    // Defines event names that the module can send to JavaScript.
-    Events("onChange")
+    Events("onChange", "onPress", "onExpand", "onCollapse", "onDragEnd")
 
-    // Defines a JavaScript synchronous function that runs the native code on the JavaScript thread.
     Function("hello") {
       return "Hello world! 👋"
     }
 
-    // Defines a JavaScript function that always returns a Promise and whose native code
-    // is by default dispatched on the different thread than the JavaScript runtime runs on.
     AsyncFunction("setValueAsync") { (value: String) in
-      // Send an event to JavaScript.
       self.sendEvent("onChange", [
         "value": value
       ])
     }
 
-    // Enables the module to be used as a native view. Definition components that are accepted as part of the
-    // view definition: Prop, Events.
+    Function("show") { (options: ShowBubbleOptions) in
+      self.wireManagerEvents()
+      FloatingBubbleManager.shared.show(
+        size: CGFloat(options.size),
+        color: options.color
+      )
+    }
+
+    Function("hide") {
+      FloatingBubbleManager.shared.hide()
+    }
+
+    Function("expand") {
+      FloatingBubbleManager.shared.expand()
+    }
+
+    Function("collapse") {
+      FloatingBubbleManager.shared.collapse()
+    }
+
     View(ExpoFlowView.self) {
-      // Defines a setter for the `url` prop.
       Prop("url") { (view: ExpoFlowView, url: URL) in
         if view.webView.url != url {
           view.webView.load(URLRequest(url: url))
