@@ -15,11 +15,13 @@
     "chalk": "^4.1.2",
     "commander": "^12.1.0",
     "localtunnel": "^2.0.2",
+    "plist": "^3.1.0",
     "ws": "^8.18.0"
   },
   "devDependencies": {
     "@types/localtunnel": "^2.0.4",
     "@types/node": "^20.0.0",
+    "@types/plist": "^3.0.5",
     "@types/ws": "^8.5.12",
     "ts-node": "^10.9.2",
     "tsx": "^4.21.0",

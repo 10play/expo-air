@@ -4,6 +4,7 @@ import * as path from "path";
 import * as fs from "fs";
 import { fileURLToPath } from "url";
 import { CloudflareTunnel } from "../tunnel/cloudflare.js";
+import plist from "plist";
 
 interface ExpoFlowConfig {
   autoShow?: boolean;
@@ -18,6 +19,65 @@ interface ExpoFlowConfig {
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+/**
+ * Directly update Info.plist with tunnel URLs.
+ * This allows URL changes without running `npx expo prebuild`.
+ * Just rebuild the app (Cmd+R in Xcode) after this.
+ */
+function updateInfoPlist(projectRoot: string, config: Partial<ExpoFlowConfig>): boolean {
+  // Find the ios directory
+  const iosDir = path.join(projectRoot, "ios");
+  if (!fs.existsSync(iosDir)) {
+    console.log(chalk.yellow(`  ⚠ No ios directory found at ${iosDir}`));
+    return false;
+  }
+
+  // Find the project name by looking for Info.plist
+  const entries = fs.readdirSync(iosDir, { withFileTypes: true });
+  let infoPlistPath: string | null = null;
+
+  for (const entry of entries) {
+    if (entry.isDirectory() && !entry.name.startsWith(".") && entry.name !== "Pods") {
+      const potentialPath = path.join(iosDir, entry.name, "Info.plist");
+      if (fs.existsSync(potentialPath)) {
+        infoPlistPath = potentialPath;
+        break;
+      }
+    }
+  }
+
+  if (!infoPlistPath) {
+    console.log(chalk.yellow(`  ⚠ Could not find Info.plist in ios directory`));
+    return false;
+  }
+
+  try {
+    // Read and parse the plist
+    const plistContent = fs.readFileSync(infoPlistPath, "utf-8");
+    const plistData = plist.parse(plistContent) as Record<string, unknown>;
+
+    // Get or create ExpoFlow dictionary
+    const expoFlow = (plistData.ExpoFlow as Record<string, unknown>) || {};
+
+    // Update with new tunnel URLs
+    if (config.serverUrl) expoFlow.serverUrl = config.serverUrl;
+    if (config.widgetMetroUrl) expoFlow.widgetMetroUrl = config.widgetMetroUrl;
+    if (config.appMetroUrl) expoFlow.appMetroUrl = config.appMetroUrl;
+
+    // Write back
+    plistData.ExpoFlow = expoFlow;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const updatedPlist = plist.build(plistData as any);
+    fs.writeFileSync(infoPlistPath, updatedPlist);
+
+    return true;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.log(chalk.yellow(`  ⚠ Failed to update Info.plist: ${message}`));
+    return false;
+  }
+}
 
 interface StartOptions {
   port: string;
@@ -166,32 +226,24 @@ export async function startCommand(options: StartOptions): Promise<void> {
       console.log(chalk.red(`  ✗ App tunnel failed: ${message}`));
     }
 
-    // Update .expo-flow.json with tunnel URLs
+    // Update config files with tunnel URLs
     if (promptTunnelUrl || widgetTunnelUrl || appTunnelUrl) {
-      const configPath = path.join(projectRoot, ".expo-flow.json");
-      let config: ExpoFlowConfig = {};
+      // 1. Write to .expo-flow.local.json (gitignored, for reference)
+      const localConfigPath = path.join(projectRoot, ".expo-flow.local.json");
+      const localConfig: Partial<ExpoFlowConfig> = {};
 
-      try {
-        if (fs.existsSync(configPath)) {
-          config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
-        }
-      } catch {
-        // Ignore parse errors, start fresh
-      }
+      if (promptTunnelUrl) localConfig.serverUrl = promptTunnelUrl;
+      if (widgetTunnelUrl) localConfig.widgetMetroUrl = widgetTunnelUrl;
+      if (appTunnelUrl) localConfig.appMetroUrl = appTunnelUrl;
 
-      // Update with tunnel URLs
-      if (promptTunnelUrl) {
-        config.serverUrl = promptTunnelUrl;
-      }
-      if (widgetTunnelUrl) {
-        config.widgetMetroUrl = widgetTunnelUrl;
-      }
-      if (appTunnelUrl) {
-        config.appMetroUrl = appTunnelUrl;
-      }
+      fs.writeFileSync(localConfigPath, JSON.stringify(localConfig, null, 2) + "\n");
+      console.log(chalk.green(`  ✓ Updated .expo-flow.local.json with tunnel URLs`));
 
-      fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + "\n");
-      console.log(chalk.green(`  ✓ Updated ${path.basename(configPath)} with tunnel URLs`));
+      // 2. Directly update Info.plist (no prebuild needed!)
+      const infoPlistUpdated = updateInfoPlist(projectRoot, localConfig);
+      if (infoPlistUpdated) {
+        console.log(chalk.green(`  ✓ Updated Info.plist - just rebuild (Cmd+R), no prebuild needed!`));
+      }
     }
   }
 

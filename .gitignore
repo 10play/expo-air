@@ -55,3 +55,13 @@ yarn-error.log
 
 # Expo
 .expo/*
+
+# CLI build output
+cli/dist/
+
+# TypeScript build info
+*.tsbuildinfo
+
+# Local config (contains tunnel URLs, not committed)
+.expo-flow.local.json
+*/.expo-flow.local.json

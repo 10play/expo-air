@@ -79,18 +79,39 @@ const withExpoFlow: ConfigPlugin = (config) => {
 
   // Then modify Info.plist
   return withInfoPlist(config, (config) => {
-    // Try to read .expo-flow.json from project root
     const projectRoot = config.modRequest.projectRoot;
+
+    // Read base config from .expo-flow.json (committed, UI settings)
     const configPath = path.join(projectRoot, ".expo-flow.json");
+    // Read local config from .expo-flow.local.json (gitignored, URLs/secrets)
+    const localConfigPath = path.join(projectRoot, ".expo-flow.local.json");
 
     let expoFlowConfig: ExpoFlowConfig = {};
 
+    // Load base config
     if (fs.existsSync(configPath)) {
       try {
         const content = fs.readFileSync(configPath, "utf-8");
         expoFlowConfig = JSON.parse(content);
       } catch (e) {
         console.warn("[expo-flow] Failed to parse .expo-flow.json:", e);
+      }
+    }
+
+    // Merge local config (overrides base config)
+    if (fs.existsSync(localConfigPath)) {
+      try {
+        const localContent = fs.readFileSync(localConfigPath, "utf-8");
+        const localConfig = JSON.parse(localContent);
+        // Merge: local values override base values
+        expoFlowConfig = {
+          ...expoFlowConfig,
+          ...localConfig,
+          ui: { ...expoFlowConfig.ui, ...localConfig.ui },
+        };
+        console.log("[expo-flow] Merged local config from .expo-flow.local.json");
+      } catch (e) {
+        console.warn("[expo-flow] Failed to parse .expo-flow.local.json:", e);
       }
     }
 
