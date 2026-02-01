@@ -1,5 +1,8 @@
 #import "WidgetRuntime.h"
+#import "WidgetBridge.h"
 
+#import <React/RCTBridge.h>
+#import <React/RCTBridgeModule.h>
 #import <RCTRootViewFactory.h>
 #import <RCTAppSetupUtils.h>
 #import <react/runtime/JSRuntimeFactoryCAPI.h>
@@ -8,6 +11,7 @@
 #import <ReactAppDependencyProvider/RCTAppDependencyProvider.h>
 #import <ReactCommon/RCTHost.h>
 #import <react/nativemodule/defaults/DefaultTurboModules.h>
+#import <React/RCTBridge+Private.h>
 #import <objc/runtime.h>
 
 // ---------------------------------------------------------------------------
@@ -119,10 +123,19 @@ static void swizzleReloadOnce(void) {
 #pragma mark - RCTTurboModuleManagerDelegate
 
 - (Class)getModuleClassFromName:(const char *)name {
+    // Provide WidgetBridge for the widget runtime
+    if (strcmp(name, "WidgetBridge") == 0) {
+        return [WidgetBridge class];
+    }
     return RCTCoreModulesClassProvider(name);
 }
 
 - (id<RCTTurboModule>)getModuleInstanceFromClass:(Class)moduleClass {
+    // Handle WidgetBridge specially - instantiate it directly
+    // Cast is safe because WidgetBridge conforms to RCTTurboModule in its .mm file
+    if (moduleClass == [WidgetBridge class]) {
+        return (id<RCTTurboModule>)[[WidgetBridge alloc] init];
+    }
     return RCTAppSetupDefaultModuleFromClass(moduleClass, _dependencyProvider);
 }
 

@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from "react";
-import { View, Text, StyleSheet, NativeModules, TouchableOpacity } from "react-native";
+import React, { useState, useEffect, useCallback, useRef } from "react";
+import { View, Text, StyleSheet, NativeModules, TouchableOpacity, Animated, Easing } from "react-native";
 import { PromptInput } from "./components/PromptInput";
 import { ResponseArea } from "./components/ResponseArea";
 import {
@@ -9,11 +9,20 @@ import {
   type ConnectionStatus,
 } from "./services/websocket";
 
-const { ExpoFlow } = NativeModules;
+// WidgetBridge is a simple native module available in the widget runtime
+// ExpoFlow is the main app's module (fallback)
+const { WidgetBridge, ExpoFlow } = NativeModules;
 
 function handleCollapse() {
   try {
-    ExpoFlow?.collapse?.();
+    // Try WidgetBridge first (widget runtime), then ExpoFlow (main app)
+    if (WidgetBridge?.collapse) {
+      WidgetBridge.collapse();
+    } else if (ExpoFlow?.collapse) {
+      ExpoFlow.collapse();
+    } else {
+      console.warn("[expo-flow] No collapse method available");
+    }
   } catch (e) {
     console.warn("[expo-flow] Failed to collapse:", e);
   }
@@ -28,7 +37,7 @@ interface BubbleContentProps {
 
 export function BubbleContent({
   size = 60,
-  color = "#007AFF",
+  color = "#000000",  // Black to match Dynamic Island
   expanded = false,
   serverUrl = "ws://localhost:3847",
 }: BubbleContentProps) {
@@ -36,12 +45,9 @@ export function BubbleContent({
   const [messages, setMessages] = useState<ServerMessage[]>([]);
   const [currentResponse, setCurrentResponse] = useState("");
 
-  // Initialize WebSocket connection when expanded
+  // Initialize WebSocket connection immediately (even when collapsed)
+  // so it's already connected when user expands the widget
   useEffect(() => {
-    if (!expanded) {
-      return;
-    }
-
     console.log("[expo-flow] Connecting to:", serverUrl);
     const client = createWebSocketClient({
       url: serverUrl,
@@ -56,7 +62,7 @@ export function BubbleContent({
     return () => {
       client.disconnect();
     };
-  }, [expanded, serverUrl]);
+  }, [serverUrl]);
 
   const handleMessage = useCallback((message: ServerMessage) => {
     switch (message.type) {
@@ -94,27 +100,18 @@ export function BubbleContent({
     }
   }, []);
 
+  // Collapsed: Just a pulsing indicator, no text
   if (!expanded) {
     return (
-      <View
-        style={[
-          styles.collapsed,
-          {
-            width: size,
-            height: size,
-            borderRadius: size / 2,
-            backgroundColor: color,
-          },
-        ]}
-      >
-        <StatusDot status={status} />
-        <Text style={styles.collapsedText}>F</Text>
+      <View style={styles.collapsedPill}>
+        <PulsingIndicator status={status} />
       </View>
     );
   }
 
+  // Expanded: Full panel dropping down from Dynamic Island position
   return (
-    <View style={[styles.expanded, { backgroundColor: color }]}>
+    <View style={styles.expanded}>
       <Header status={status} />
       <View style={styles.body}>
         <ResponseArea messages={messages} currentResponse={currentResponse} />
@@ -131,9 +128,9 @@ export function BubbleContent({
 function Header({ status }: { status: ConnectionStatus }) {
   const statusConfig = {
     disconnected: { text: "Disconnected", color: "#FF3B30" },
-    connecting: { text: "Connecting...", color: "#FFB800" },
-    connected: { text: "Connected", color: "#34C759" },
-    processing: { text: "Claude is working...", color: "#FFB800" },
+    connecting: { text: "Connecting...", color: "#007AFF" },
+    connected: { text: "Connected", color: "#30D158" },
+    processing: { text: "Claude is working...", color: "#007AFF" },
   };
 
   const { text, color } = statusConfig[status];
@@ -152,76 +149,150 @@ function Header({ status }: { status: ConnectionStatus }) {
   );
 }
 
-function StatusDot({ status }: { status: ConnectionStatus }) {
+function PulsingIndicator({ status }: { status: ConnectionStatus }) {
   const colors = {
     disconnected: "#FF3B30",
-    connecting: "#FFB800",
-    connected: "#34C759",
-    processing: "#FFB800",
+    connecting: "#007AFF",
+    connected: "#30D158",
+    processing: "#007AFF",
   };
 
+  const isAnimating = status === "processing" || status === "connecting";
+
+  // Animated values for the pulsing ring
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const opacityAnim = useRef(new Animated.Value(0.4)).current;
+
+  useEffect(() => {
+    if (isAnimating) {
+      // Create a soft pulsing animation
+      const pulseAnimation = Animated.loop(
+        Animated.sequence([
+          Animated.parallel([
+            Animated.timing(scaleAnim, {
+              toValue: 1.3,
+              duration: 1200,
+              easing: Easing.inOut(Easing.ease),
+              useNativeDriver: true,
+            }),
+            Animated.timing(opacityAnim, {
+              toValue: 0,
+              duration: 1200,
+              easing: Easing.inOut(Easing.ease),
+              useNativeDriver: true,
+            }),
+          ]),
+          Animated.parallel([
+            Animated.timing(scaleAnim, {
+              toValue: 1,
+              duration: 0,
+              useNativeDriver: true,
+            }),
+            Animated.timing(opacityAnim, {
+              toValue: 0.4,
+              duration: 0,
+              useNativeDriver: true,
+            }),
+          ]),
+        ])
+      );
+      pulseAnimation.start();
+      return () => pulseAnimation.stop();
+    } else {
+      // Reset when not animating
+      scaleAnim.setValue(1);
+      opacityAnim.setValue(0.4);
+    }
+  }, [isAnimating, scaleAnim, opacityAnim]);
+
   return (
-    <View
-      style={[
-        styles.statusDot,
-        { backgroundColor: colors[status] },
-      ]}
-    />
+    <View style={styles.indicatorContainer}>
+      <View
+        style={[
+          styles.indicator,
+          { backgroundColor: colors[status] },
+        ]}
+      />
+      {isAnimating && (
+        <Animated.View
+          style={[
+            styles.indicatorRing,
+            {
+              borderColor: colors[status],
+              transform: [{ scale: scaleAnim }],
+              opacity: opacityAnim,
+            },
+          ]}
+        />
+      )}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  collapsed: {
+  // Collapsed: just show centered indicator
+  collapsedPill: {
+    width: 100,
+    height: 32,
+    backgroundColor: "transparent",
     alignItems: "center",
     justifyContent: "center",
   },
-  collapsedText: {
-    color: "#fff",
-    fontSize: 22,
-    fontWeight: "bold",
+  indicatorContainer: {
+    width: 20,
+    height: 20,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  statusDot: {
+  indicator: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  indicatorRing: {
     position: "absolute",
-    top: 4,
-    right: 4,
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
     borderWidth: 1.5,
-    borderColor: "rgba(255,255,255,0.8)",
+    opacity: 0.4,
   },
+  // Expanded panel - drops down from Dynamic Island position
   expanded: {
-    width: 300,
-    height: 400,
-    borderRadius: 16,
+    width: 340,
+    height: 420,
+    backgroundColor: "#000",
+    borderRadius: 32,
     overflow: "hidden",
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(255,255,255,0.1)",
+    borderBottomColor: "rgba(255,255,255,0.08)",
   },
   closeButton: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: "rgba(255,255,255,0.2)",
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    // Make invisible - native close button handles the tap
+    backgroundColor: "transparent",
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 10,
+    marginRight: 12,
   },
   closeButtonText: {
-    color: "#fff",
+    // Hide the text - native button shows the X
+    color: "transparent",
     fontSize: 14,
     fontWeight: "600",
   },
   title: {
     flex: 1,
     color: "#fff",
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: "600",
   },
   statusContainer: {
@@ -235,11 +306,11 @@ const styles = StyleSheet.create({
     marginRight: 6,
   },
   statusText: {
-    color: "rgba(255,255,255,0.8)",
-    fontSize: 12,
+    color: "rgba(255,255,255,0.6)",
+    fontSize: 13,
   },
   body: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.15)",
+    backgroundColor: "rgba(255,255,255,0.03)",
   },
 });

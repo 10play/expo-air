@@ -81,9 +81,9 @@ function ToolItem({ tool }: { tool: ToolMessage }) {
   }[tool.status];
 
   const statusColor = {
-    started: "#FFB800",
-    completed: "#34C759",
-    failed: "#FF3B30",
+    started: "#FF9500",
+    completed: "#30D158",
+    failed: "#FF453A",
   }[tool.status];
 
   // Format input for display
@@ -138,79 +138,81 @@ function ResultItem({ result }: { result: ResultMessage }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: "#000",
   },
   content: {
-    padding: 12,
-    paddingBottom: 20,
+    padding: 16,
+    paddingBottom: 24,
   },
   emptyContainer: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    padding: 20,
+    padding: 24,
   },
   emptyText: {
-    color: "rgba(255,255,255,0.5)",
-    fontSize: 14,
+    color: "rgba(255,255,255,0.4)",
+    fontSize: 15,
     textAlign: "center",
+    lineHeight: 22,
   },
   messageContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
   },
   responseText: {
-    color: "#fff",
-    fontSize: 14,
-    lineHeight: 20,
+    color: "rgba(255,255,255,0.95)",
+    fontSize: 15,
+    lineHeight: 22,
   },
   cursor: {
     width: 2,
-    height: 16,
+    height: 18,
     backgroundColor: "#fff",
     marginLeft: 2,
-    opacity: 0.8,
+    opacity: 0.7,
   },
   resultContainer: {
     marginTop: 8,
   },
   metaText: {
-    color: "rgba(255,255,255,0.5)",
-    fontSize: 11,
-    marginTop: 8,
+    color: "rgba(255,255,255,0.4)",
+    fontSize: 12,
+    marginTop: 10,
   },
   errorContainer: {
-    backgroundColor: "rgba(255,59,48,0.2)",
-    borderRadius: 8,
-    padding: 10,
-    marginVertical: 4,
+    backgroundColor: "rgba(255,59,48,0.15)",
+    borderRadius: 12,
+    padding: 12,
+    marginVertical: 6,
   },
   errorText: {
     color: "#FF6B6B",
-    fontSize: 13,
+    fontSize: 14,
   },
   toolContainer: {
-    backgroundColor: "rgba(0,0,0,0.2)",
-    borderRadius: 8,
-    padding: 10,
-    marginVertical: 4,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderRadius: 12,
+    padding: 12,
+    marginVertical: 6,
   },
   toolHeader: {
     flexDirection: "row",
     alignItems: "center",
   },
   toolStatus: {
-    fontSize: 14,
-    marginRight: 6,
+    fontSize: 15,
+    marginRight: 8,
   },
   toolName: {
-    color: "rgba(255,255,255,0.8)",
-    fontSize: 13,
+    color: "rgba(255,255,255,0.7)",
+    fontSize: 14,
     fontWeight: "500",
   },
   toolInput: {
-    color: "rgba(255,255,255,0.5)",
+    color: "rgba(255,255,255,0.4)",
     fontSize: 12,
-    marginTop: 4,
+    marginTop: 6,
     fontFamily: "monospace",
   },
 });

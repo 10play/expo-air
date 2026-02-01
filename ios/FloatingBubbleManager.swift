@@ -1,6 +1,92 @@
 import UIKit
 import React
 
+// MARK: - DynamicIslandExtensionView
+// Custom view that draws a smooth shape extending from the Dynamic Island
+// with curved "shoulders" like a mushroom cap
+
+class TrapezoidView: UIView {
+    var topWidth: CGFloat = 100      // Fits within Dynamic Island
+    var bottomWidth: CGFloat = 65    // Narrower stem
+    var cornerRadius: CGFloat = 10
+    var fillColor: UIColor = .black
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        backgroundColor = .clear
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        backgroundColor = .clear
+    }
+
+    override func draw(_ rect: CGRect) {
+        guard let context = UIGraphicsGetCurrentContext() else { return }
+
+        let width = rect.width
+        let height = rect.height
+        let centerX = width / 2
+
+        // Top edge matches Dynamic Island
+        let topHalfWidth = topWidth / 2
+        // Bottom (stem) is narrower
+        let bottomHalfWidth = bottomWidth / 2
+        // How far down the shoulders curve before straightening
+        let shoulderHeight: CGFloat = 16
+
+        let path = UIBezierPath()
+
+        // Start at top-left edge (flat, touching Dynamic Island)
+        path.move(to: CGPoint(x: centerX - topHalfWidth, y: 0))
+
+        // Top edge (flat)
+        path.addLine(to: CGPoint(x: centerX + topHalfWidth, y: 0))
+
+        // Right shoulder - sharper curve from top edge down to the stem
+        path.addCurve(
+            to: CGPoint(x: centerX + bottomHalfWidth, y: shoulderHeight),
+            controlPoint1: CGPoint(x: centerX + topHalfWidth, y: shoulderHeight * 0.8),
+            controlPoint2: CGPoint(x: centerX + bottomHalfWidth, y: shoulderHeight * 0.2)
+        )
+
+        // Right edge - straight down to bottom-right corner
+        path.addLine(to: CGPoint(x: centerX + bottomHalfWidth, y: height - cornerRadius))
+
+        // Bottom-right corner
+        path.addQuadCurve(
+            to: CGPoint(x: centerX + bottomHalfWidth - cornerRadius, y: height),
+            controlPoint: CGPoint(x: centerX + bottomHalfWidth, y: height)
+        )
+
+        // Bottom edge
+        path.addLine(to: CGPoint(x: centerX - bottomHalfWidth + cornerRadius, y: height))
+
+        // Bottom-left corner
+        path.addQuadCurve(
+            to: CGPoint(x: centerX - bottomHalfWidth, y: height - cornerRadius),
+            controlPoint: CGPoint(x: centerX - bottomHalfWidth, y: height)
+        )
+
+        // Left edge - straight up to shoulder
+        path.addLine(to: CGPoint(x: centerX - bottomHalfWidth, y: shoulderHeight))
+
+        // Left shoulder - sharper curve back up to top edge
+        path.addCurve(
+            to: CGPoint(x: centerX - topHalfWidth, y: 0),
+            controlPoint1: CGPoint(x: centerX - bottomHalfWidth, y: shoulderHeight * 0.2),
+            controlPoint2: CGPoint(x: centerX - topHalfWidth, y: shoulderHeight * 0.8)
+        )
+
+        path.close()
+
+        // Fill the path
+        context.setFillColor(fillColor.cgColor)
+        context.addPath(path.cgPath)
+        context.fillPath()
+    }
+}
+
 // MARK: - FloatingBubbleWindow
 
 class FloatingBubbleWindow: UIWindow {
@@ -20,13 +106,16 @@ class FloatingBubbleWindow: UIWindow {
 }
 
 // MARK: - FloatingBubbleViewController
+// Designed to look like a Dynamic Island extension - inverted trapezoid hanging from the island
 
 class FloatingBubbleViewController: UIViewController, UIGestureRecognizerDelegate {
     private var bubbleContainer: UIView!
+    private var shapeView: TrapezoidView!
     private var reactSurfaceView: UIView?
+    private var nativeCloseButton: UIButton!
 
     var bubbleSize: CGFloat = 60
-    var bubbleColor: String = "#007AFF"
+    var bubbleColor: String = "#000000"
     var isExpanded: Bool = false
     var serverUrl: String?
 
@@ -35,22 +124,33 @@ class FloatingBubbleViewController: UIViewController, UIGestureRecognizerDelegat
     var onCollapse: (() -> Void)?
     var onDragEnd: ((_ x: CGFloat, _ y: CGFloat) -> Void)?
 
-    private let expandedWidth: CGFloat = 300
-    private let expandedHeight: CGFloat = 400
-    private let expandedCornerRadius: CGFloat = 16
+    // Collapsed: Dynamic Island extension shape
+    // Top fits within island, bottom is narrower stem
+    private let collapsedTopWidth: CGFloat = 100
+    private let collapsedBottomWidth: CGFloat = 65
+    private let collapsedHeight: CGFloat = 32
 
-    private func uiColor(from hex: String) -> UIColor {
-        var hexStr = hex.trimmingCharacters(in: .whitespacesAndNewlines)
-        if hexStr.hasPrefix("#") { hexStr.removeFirst() }
-        guard hexStr.count == 6, let rgb = UInt64(hexStr, radix: 16) else {
-            return UIColor(red: 0, green: 0.478, blue: 1, alpha: 1)
+    // Expanded dimensions
+    private let expandedWidth: CGFloat = 340
+    private let expandedHeight: CGFloat = 420
+    private let expandedCornerRadius: CGFloat = 32
+
+    // Position to overlap with the Dynamic Island's bottom edge
+    private var bubbleTopY: CGFloat {
+        var insetTop: CGFloat = 59  // Default for Dynamic Island devices
+
+        // Use view's safe area insets (most accurate once view is in hierarchy)
+        if view.safeAreaInsets.top > 0 {
+            insetTop = view.safeAreaInsets.top
+        } else if let windowScene = view.window?.windowScene,
+                  let windowInsetTop = windowScene.windows.first?.safeAreaInsets.top,
+                  windowInsetTop > 0 {
+            insetTop = windowInsetTop
         }
-        return UIColor(
-            red: CGFloat((rgb >> 16) & 0xFF) / 255,
-            green: CGFloat((rgb >> 8) & 0xFF) / 255,
-            blue: CGFloat(rgb & 0xFF) / 255,
-            alpha: 1
-        )
+
+        // Position behind the Dynamic Island so top edge is hidden
+        // Only the shoulders and stem peek out below
+        return insetTop - 18
     }
 
     func setSurfaceView(_ surfaceView: UIView) {
@@ -61,40 +161,76 @@ class FloatingBubbleViewController: UIViewController, UIGestureRecognizerDelegat
         super.viewDidLoad()
         view.backgroundColor = .clear
 
+        let screenWidth = UIScreen.main.bounds.width
+
+        // Container for the bubble
         bubbleContainer = UIView()
         bubbleContainer.frame = CGRect(
-            x: UIScreen.main.bounds.width - bubbleSize - 16,
-            y: 100,
-            width: bubbleSize,
-            height: bubbleSize
+            x: (screenWidth - collapsedTopWidth) / 2,
+            y: bubbleTopY,
+            width: collapsedTopWidth,
+            height: collapsedHeight
         )
-        bubbleContainer.backgroundColor = uiColor(from: bubbleColor)
-        bubbleContainer.layer.cornerRadius = bubbleSize / 2
-        bubbleContainer.clipsToBounds = true
+        bubbleContainer.backgroundColor = .clear
 
-        // Shadow wrapper approach: add shadow to a separate layer
-        bubbleContainer.layer.masksToBounds = false
+        // Create the trapezoid shape view
+        shapeView = TrapezoidView(frame: bubbleContainer.bounds)
+        shapeView.topWidth = collapsedTopWidth
+        shapeView.bottomWidth = collapsedBottomWidth
+        shapeView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        bubbleContainer.addSubview(shapeView)
+
+        // Shadow
         bubbleContainer.layer.shadowColor = UIColor.black.cgColor
-        bubbleContainer.layer.shadowOpacity = 0.25
-        bubbleContainer.layer.shadowOffset = CGSize(width: 0, height: 2)
-        bubbleContainer.layer.shadowRadius = 6
+        bubbleContainer.layer.shadowOpacity = 0.5
+        bubbleContainer.layer.shadowOffset = CGSize(width: 0, height: 4)
+        bubbleContainer.layer.shadowRadius = 8
 
         view.addSubview(bubbleContainer)
 
+        // Add React Native surface view on top
         if let surfaceView = reactSurfaceView {
             surfaceView.frame = bubbleContainer.bounds
             surfaceView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+            surfaceView.backgroundColor = .clear
             bubbleContainer.addSubview(surfaceView)
         }
 
-        let pan = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
-        pan.delegate = self
-        bubbleContainer.addGestureRecognizer(pan)
-
+        // Tap gesture
         let tap = UITapGestureRecognizer(target: self, action: #selector(handleTap(_:)))
         tap.delegate = self
-        tap.require(toFail: pan)
         bubbleContainer.addGestureRecognizer(tap)
+
+        // Native close button (hidden by default, shown when expanded)
+        // Positioned to match the React Native close button location
+        nativeCloseButton = UIButton(type: .system)
+        nativeCloseButton.frame = CGRect(x: 16, y: 14, width: 30, height: 30)
+        nativeCloseButton.backgroundColor = UIColor.white.withAlphaComponent(0.12)
+        nativeCloseButton.layer.cornerRadius = 15
+        nativeCloseButton.setTitle("✕", for: .normal)
+        nativeCloseButton.setTitleColor(UIColor.white.withAlphaComponent(0.9), for: .normal)
+        nativeCloseButton.titleLabel?.font = .systemFont(ofSize: 14, weight: .semibold)
+        nativeCloseButton.addTarget(self, action: #selector(closeButtonTapped), for: .touchUpInside)
+        nativeCloseButton.isHidden = true
+        bubbleContainer.addSubview(nativeCloseButton)
+    }
+
+    @objc private func closeButtonTapped() {
+        collapse()
+    }
+
+    override func viewSafeAreaInsetsDidChange() {
+        super.viewSafeAreaInsetsDidChange()
+        // Reposition bubble now that we have accurate safe area insets
+        if !isExpanded {
+            let screenWidth = UIScreen.main.bounds.width
+            bubbleContainer.frame = CGRect(
+                x: (screenWidth - collapsedTopWidth) / 2,
+                y: bubbleTopY,
+                width: collapsedTopWidth,
+                height: collapsedHeight
+            )
+        }
     }
 
     func expand() {
@@ -117,7 +253,7 @@ class FloatingBubbleViewController: UIViewController, UIGestureRecognizerDelegat
         guard let surfaceView = reactSurfaceView as? RCTSurfaceHostingProxyRootView else { return }
         var props: [String: Any] = [
             "size": bubbleSize,
-            "color": bubbleColor,
+            "color": "#000000",
             "expanded": isExpanded,
         ]
         if let serverUrl = serverUrl {
@@ -127,38 +263,44 @@ class FloatingBubbleViewController: UIViewController, UIGestureRecognizerDelegat
     }
 
     private func animateToExpanded() {
-        let screenBounds = UIScreen.main.bounds
-        var newFrame = CGRect(
-            x: bubbleContainer.frame.midX - expandedWidth / 2,
-            y: bubbleContainer.frame.midY - expandedHeight / 2,
+        let screenWidth = UIScreen.main.bounds.width
+
+        let newFrame = CGRect(
+            x: (screenWidth - expandedWidth) / 2,
+            y: bubbleTopY,
             width: expandedWidth,
             height: expandedHeight
         )
-        newFrame.origin.x = max(8, min(newFrame.origin.x, screenBounds.width - expandedWidth - 8))
-        newFrame.origin.y = max(50, min(newFrame.origin.y, screenBounds.height - expandedHeight - 8))
+
+        // Show native close button and bring to front
+        bubbleContainer.bringSubviewToFront(nativeCloseButton)
+        nativeCloseButton.isHidden = false
+        nativeCloseButton.alpha = 0
 
         UIView.animate(
-            withDuration: 0.35,
+            withDuration: 0.4,
             delay: 0,
-            usingSpringWithDamping: 0.8,
+            usingSpringWithDamping: 0.75,
             initialSpringVelocity: 0.5,
-            options: .curveEaseInOut
+            options: .curveEaseOut
         ) {
             self.bubbleContainer.frame = newFrame
+            // Hide trapezoid, show rounded rect
+            self.shapeView.alpha = 0
+            self.bubbleContainer.backgroundColor = .black
             self.bubbleContainer.layer.cornerRadius = self.expandedCornerRadius
+            self.nativeCloseButton.alpha = 1
         }
     }
 
     private func animateToCollapsed() {
-        let center = CGPoint(
-            x: bubbleContainer.frame.midX,
-            y: bubbleContainer.frame.midY
-        )
+        let screenWidth = UIScreen.main.bounds.width
+
         let newFrame = CGRect(
-            x: center.x - bubbleSize / 2,
-            y: center.y - bubbleSize / 2,
-            width: bubbleSize,
-            height: bubbleSize
+            x: (screenWidth - collapsedTopWidth) / 2,
+            y: bubbleTopY,
+            width: collapsedTopWidth,
+            height: collapsedHeight
         )
 
         UIView.animate(
@@ -169,63 +311,38 @@ class FloatingBubbleViewController: UIViewController, UIGestureRecognizerDelegat
             options: .curveEaseInOut
         ) {
             self.bubbleContainer.frame = newFrame
-            self.bubbleContainer.layer.cornerRadius = self.bubbleSize / 2
+            // Show trapezoid, hide rounded rect
+            self.shapeView.alpha = 1
+            self.bubbleContainer.backgroundColor = .clear
+            self.bubbleContainer.layer.cornerRadius = 0
+            self.nativeCloseButton.alpha = 0
+        } completion: { _ in
+            self.nativeCloseButton.isHidden = true
         }
     }
 
     // MARK: - UIGestureRecognizerDelegate
 
     func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
-        // When expanded, only allow pan gesture (for dragging the whole bubble)
-        // but not tap gesture (let React Native handle taps)
-        if isExpanded && gestureRecognizer is UITapGestureRecognizer {
+        // When expanded, don't intercept taps - let React Native handle them (including close button)
+        if isExpanded {
             return false
         }
         return true
     }
 
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
-        // When expanded, check if the touch is on an interactive element
-        // If so, let React Native handle it
+        // When expanded, let React Native handle all touches
         if isExpanded {
-            // Allow pan gesture for dragging the bubble header area only
-            if gestureRecognizer is UIPanGestureRecognizer {
-                let location = touch.location(in: bubbleContainer)
-                // Only allow pan in the top 44pt (header area)
-                return location.y < 44
-            }
+            return false
         }
         return true
     }
 
     // MARK: - Gestures
 
-    @objc private func handlePan(_ gesture: UIPanGestureRecognizer) {
-        let translation = gesture.translation(in: view)
-        let screenBounds = UIScreen.main.bounds
-
-        switch gesture.state {
-        case .changed:
-            var newCenter = CGPoint(
-                x: bubbleContainer.center.x + translation.x,
-                y: bubbleContainer.center.y + translation.y
-            )
-            let halfW = bubbleContainer.bounds.width / 2
-            let halfH = bubbleContainer.bounds.height / 2
-            newCenter.x = max(halfW, min(newCenter.x, screenBounds.width - halfW))
-            newCenter.y = max(halfH + 50, min(newCenter.y, screenBounds.height - halfH))
-            bubbleContainer.center = newCenter
-            gesture.setTranslation(.zero, in: view)
-        case .ended, .cancelled:
-            onDragEnd?(bubbleContainer.frame.origin.x, bubbleContainer.frame.origin.y)
-        default:
-            break
-        }
-    }
-
     @objc private func handleTap(_ gesture: UITapGestureRecognizer) {
-        // Only toggle expand/collapse when tapping on the collapsed bubble
-        // When expanded, let the React Native content handle taps
+        // Only expand when tapping on the collapsed bubble
         if !isExpanded {
             onPress?()
             expand()

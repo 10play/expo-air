@@ -23,7 +23,9 @@
     "cli:start": "cd cli && npx tsx bin/expo-flow.ts start",
     "widget:start": "cd widget && npm start",
     "open:ios": "xed example/ios",
-    "open:android": "open -a \"Android Studio\" example/android"
+    "open:android": "open -a \"Android Studio\" example/android",
+    "android": "expo run:android",
+    "ios": "expo run:ios"
   },
   "keywords": [
     "react-native",
@@ -38,7 +40,11 @@
   "author": "Amir Angel <36531255+17Amir17@users.noreply.github.com> (https://github.com/17Amir17)",
   "license": "MIT",
   "homepage": "https://github.com/17Amir17/10play-expo-flow#readme",
-  "dependencies": {},
+  "dependencies": {
+    "expo": "~54.0.32",
+    "react": "19.1.0",
+    "react-native": "0.81.5"
+  },
   "devDependencies": {
     "@types/react": "~19.1.0",
     "expo-module-scripts": "^5.0.8",
