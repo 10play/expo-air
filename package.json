@@ -7,8 +7,12 @@
   "bin": {
     "expo-flow": "./cli/dist/bin/expo-flow.js"
   },
+  "expo": {
+    "configPlugin": "./plugin/build/index.js"
+  },
   "scripts": {
     "build": "expo-module build",
+    "build:plugin": "cd plugin && tsc",
     "build:cli": "cd cli && npm run build",
     "clean": "expo-module clean",
     "lint": "expo-module lint",
