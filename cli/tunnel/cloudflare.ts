@@ -1,26 +1,15 @@
 import { spawn, ChildProcess, execSync } from "child_process";
-import { createWriteStream, existsSync, mkdirSync, chmodSync } from "fs";
+import { createWriteStream, existsSync, mkdirSync, chmodSync, unlinkSync } from "fs";
 import { join } from "path";
 import { get } from "https";
 import { homedir, platform, arch } from "os";
 
-const BORE_VERSION = "0.6.0";
-const BORE_DEFAULT_SERVER = process.env.BORE_SERVER || "bore.pub";
-
-interface BoreConfig {
-  localPort: number;
-  server?: string;
-  remotePort?: number; // Optional fixed remote port
-  secret?: string; // Optional HMAC secret for auth
-}
-
 interface TunnelInfo {
   url: string;
   host: string;
-  port: number;
 }
 
-export class BoreTunnel {
+export class CloudflareTunnel {
   private process: ChildProcess | null = null;
   private tunnelUrl: string | null = null;
   private binPath: string;
@@ -30,18 +19,15 @@ export class BoreTunnel {
     if (!existsSync(cacheDir)) {
       mkdirSync(cacheDir, { recursive: true });
     }
-    this.binPath = join(cacheDir, "bore");
+    this.binPath = join(cacheDir, "cloudflared");
   }
 
   async ensureBinary(): Promise<void> {
-    // Check if binary exists and is correct version
+    // Check if binary exists
     if (existsSync(this.binPath)) {
       try {
-        const version = execSync(`"${this.binPath}" --version`, { encoding: "utf-8" });
-        if (version.includes(BORE_VERSION)) {
-          return;
-        }
-        console.log(`  Updating bore to v${BORE_VERSION}...`);
+        execSync(`"${this.binPath}" --version`, { encoding: "utf-8", stdio: "pipe" });
+        return;
       } catch {
         // Binary exists but can't run, re-download
       }
@@ -50,35 +36,46 @@ export class BoreTunnel {
     const os = platform();
     const architecture = arch();
 
-    let target: string;
+    let downloadUrl: string;
+    let isZip = false;
+
     if (os === "darwin") {
-      target = architecture === "arm64"
-        ? "aarch64-apple-darwin"
-        : "x86_64-apple-darwin";
+      // macOS - use .tgz
+      if (architecture === "arm64") {
+        downloadUrl = "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-darwin-arm64.tgz";
+      } else {
+        downloadUrl = "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-darwin-amd64.tgz";
+      }
     } else if (os === "linux") {
-      target = architecture === "arm64"
-        ? "aarch64-unknown-linux-musl"
-        : "x86_64-unknown-linux-musl";
+      // Linux - direct binary
+      if (architecture === "arm64") {
+        downloadUrl = "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64";
+      } else {
+        downloadUrl = "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64";
+      }
+    } else if (os === "win32") {
+      downloadUrl = "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe";
     } else {
       throw new Error(`Unsupported platform: ${os}-${architecture}`);
     }
 
-    const url = `https://github.com/ekzhang/bore/releases/download/v${BORE_VERSION}/bore-v${BORE_VERSION}-${target}.tar.gz`;
+    console.log(`  Downloading cloudflared...`);
 
-    console.log(`  Downloading bore v${BORE_VERSION}...`);
-
-    const tarPath = `${this.binPath}.tar.gz`;
-    await this.downloadFile(url, tarPath);
-
-    // Extract binary
+    const isTgz = downloadUrl.endsWith(".tgz");
     const cacheDir = join(homedir(), ".cache", "expo-flow");
-    execSync(`tar -xzf "${tarPath}" -C "${cacheDir}"`, { stdio: "ignore" });
-    execSync(`rm "${tarPath}"`, { stdio: "ignore" });
+
+    if (isTgz) {
+      const tgzPath = `${this.binPath}.tgz`;
+      await this.downloadFile(downloadUrl, tgzPath);
+      execSync(`tar -xzf "${tgzPath}" -C "${cacheDir}"`, { stdio: "ignore" });
+      unlinkSync(tgzPath);
+    } else {
+      await this.downloadFile(downloadUrl, this.binPath);
+    }
 
     // Make executable
     chmodSync(this.binPath, 0o755);
-
-    console.log(`  ✓ bore installed to ${this.binPath}`);
+    console.log(`  ✓ cloudflared installed`);
   }
 
   private downloadFile(url: string, dest: string): Promise<void> {
@@ -115,26 +112,15 @@ export class BoreTunnel {
     });
   }
 
-  async start(config: BoreConfig): Promise<TunnelInfo> {
+  async start(port: number): Promise<TunnelInfo> {
     await this.ensureBinary();
 
-    const server = config.server || BORE_DEFAULT_SERVER;
-    const secret = config.secret || process.env.BORE_SECRET;
-
     return new Promise((resolve, reject) => {
-      const args = ["local", config.localPort.toString(), "--to", server];
-
-      // Add fixed remote port if specified
-      if (config.remotePort) {
-        args.push("-p", config.remotePort.toString());
-      }
-
-      // Add secret for HMAC authentication
-      if (secret) {
-        args.push("-s", secret);
-      }
-
-      this.process = spawn(this.binPath, args, {
+      // cloudflared tunnel --url http://localhost:PORT
+      this.process = spawn(this.binPath, [
+        "tunnel",
+        "--url", `http://localhost:${port}`,
+      ], {
         stdio: ["ignore", "pipe", "pipe"],
       });
 
@@ -144,17 +130,15 @@ export class BoreTunnel {
       const parseUrl = (data: string) => {
         output += data;
 
-        // bore outputs: "listening at bore.pub:XXXXX"
-        const match = output.match(/listening at ([^\s]+):(\d+)/);
+        // cloudflared outputs something like:
+        // "https://random-words.trycloudflare.com"
+        const match = output.match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/i);
         if (match && !resolved) {
           resolved = true;
-          const [, host, portStr] = match;
-          const port = parseInt(portStr, 10);
-          this.tunnelUrl = `ws://${host}:${port}`;
+          this.tunnelUrl = match[0];
           resolve({
             url: this.tunnelUrl,
-            host: `${host}:${port}`,
-            port,
+            host: this.tunnelUrl.replace("https://", ""),
           });
         }
       };
@@ -164,13 +148,13 @@ export class BoreTunnel {
 
       this.process.on("error", (err) => {
         if (!resolved) {
-          reject(new Error(`Failed to start bore: ${err.message}`));
+          reject(new Error(`Failed to start cloudflared: ${err.message}`));
         }
       });
 
       this.process.on("exit", (code) => {
         if (!resolved) {
-          reject(new Error(`bore exited with code ${code}\nOutput: ${output}`));
+          reject(new Error(`cloudflared exited with code ${code}\nOutput: ${output}`));
         }
       });
 

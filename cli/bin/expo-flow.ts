@@ -14,6 +14,9 @@ program
   .command("start")
   .description("Start the development environment")
   .option("-p, --port <port>", "Port for prompt server", "3847")
+  .option("-w, --widget-port <port>", "Port for widget Metro server", "8082")
+  .option("-m, --metro-port <port>", "Port for main app Metro server", "8081")
+  .option("--project <path>", "Path to Expo project (where Claude makes changes)")
   .option("--no-tunnel", "Skip tunnel (local network only)")
   .option("--no-build", "Skip building and installing the app")
   .action(startCommand);

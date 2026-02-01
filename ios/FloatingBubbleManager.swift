@@ -10,27 +10,33 @@ class FloatingBubbleWindow: UIWindow {
         if hit === rootVC.view {
             return nil
         }
+        // If we have a hit inside the bubble, make this window key
+        // so that keyboard input works properly
+        if hit != nil {
+            self.makeKey()
+        }
         return hit
     }
 }
 
 // MARK: - FloatingBubbleViewController
 
-class FloatingBubbleViewController: UIViewController {
+class FloatingBubbleViewController: UIViewController, UIGestureRecognizerDelegate {
     private var bubbleContainer: UIView!
     private var reactSurfaceView: UIView?
 
     var bubbleSize: CGFloat = 60
     var bubbleColor: String = "#007AFF"
     var isExpanded: Bool = false
+    var serverUrl: String?
 
     var onPress: (() -> Void)?
     var onExpand: (() -> Void)?
     var onCollapse: (() -> Void)?
     var onDragEnd: ((_ x: CGFloat, _ y: CGFloat) -> Void)?
 
-    private let expandedWidth: CGFloat = 250
-    private let expandedHeight: CGFloat = 300
+    private let expandedWidth: CGFloat = 300
+    private let expandedHeight: CGFloat = 400
     private let expandedCornerRadius: CGFloat = 16
 
     private func uiColor(from hex: String) -> UIColor {
@@ -82,9 +88,11 @@ class FloatingBubbleViewController: UIViewController {
         }
 
         let pan = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
+        pan.delegate = self
         bubbleContainer.addGestureRecognizer(pan)
 
         let tap = UITapGestureRecognizer(target: self, action: #selector(handleTap(_:)))
+        tap.delegate = self
         tap.require(toFail: pan)
         bubbleContainer.addGestureRecognizer(tap)
     }
@@ -107,11 +115,15 @@ class FloatingBubbleViewController: UIViewController {
 
     private func updateSurfaceProps() {
         guard let surfaceView = reactSurfaceView as? RCTSurfaceHostingProxyRootView else { return }
-        surfaceView.appProperties = [
+        var props: [String: Any] = [
             "size": bubbleSize,
             "color": bubbleColor,
             "expanded": isExpanded,
         ]
+        if let serverUrl = serverUrl {
+            props["serverUrl"] = serverUrl
+        }
+        surfaceView.appProperties = props
     }
 
     private func animateToExpanded() {
@@ -161,6 +173,31 @@ class FloatingBubbleViewController: UIViewController {
         }
     }
 
+    // MARK: - UIGestureRecognizerDelegate
+
+    func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        // When expanded, only allow pan gesture (for dragging the whole bubble)
+        // but not tap gesture (let React Native handle taps)
+        if isExpanded && gestureRecognizer is UITapGestureRecognizer {
+            return false
+        }
+        return true
+    }
+
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+        // When expanded, check if the touch is on an interactive element
+        // If so, let React Native handle it
+        if isExpanded {
+            // Allow pan gesture for dragging the bubble header area only
+            if gestureRecognizer is UIPanGestureRecognizer {
+                let location = touch.location(in: bubbleContainer)
+                // Only allow pan in the top 44pt (header area)
+                return location.y < 44
+            }
+        }
+        return true
+    }
+
     // MARK: - Gestures
 
     @objc private func handlePan(_ gesture: UIPanGestureRecognizer) {
@@ -187,10 +224,10 @@ class FloatingBubbleViewController: UIViewController {
     }
 
     @objc private func handleTap(_ gesture: UITapGestureRecognizer) {
-        onPress?()
-        if isExpanded {
-            collapse()
-        } else {
+        // Only toggle expand/collapse when tapping on the collapsed bubble
+        // When expanded, let the React Native content handle taps
+        if !isExpanded {
+            onPress?()
             expand()
         }
     }
@@ -212,7 +249,7 @@ class FloatingBubbleManager {
 
     private init() {}
 
-    func show(size: CGFloat, color: String, bundleURL: URL?) {
+    func show(size: CGFloat, color: String, bundleURL: URL?, serverUrl: String? = nil) {
         DispatchQueue.main.async {
             // If already showing, just make sure it's visible and return
             if let existingWindow = self.bubbleWindow, self.bubbleVC != nil {
@@ -241,6 +278,7 @@ class FloatingBubbleManager {
             let vc = FloatingBubbleViewController()
             vc.bubbleSize = size
             vc.bubbleColor = color
+            vc.serverUrl = serverUrl
 
             // Create the widget runtime and surface view if we have a bundle URL
             NSLog("[FloatingBubbleManager] bundleURL = %@", bundleURL?.absoluteString ?? "nil")
@@ -252,13 +290,18 @@ class FloatingBubbleManager {
                     }
                 }
 
+                var initialProps: [String: Any] = [
+                    "size": size,
+                    "color": color,
+                    "expanded": false,
+                ]
+                if let serverUrl = serverUrl {
+                    initialProps["serverUrl"] = serverUrl
+                }
+
                 if let surfaceView = self.widgetRuntime?.createSurfaceView(
                     withModuleName: "ExpoFlowBubble",
-                    initialProperties: [
-                        "size": size,
-                        "color": color,
-                        "expanded": false,
-                    ]
+                    initialProperties: initialProps
                 ) {
                     vc.setSurfaceView(surfaceView)
                 }

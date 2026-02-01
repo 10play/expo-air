@@ -7,7 +7,9 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
-    "plugins": ["../plugin/build/index.js"],
+    "plugins": [
+      "../plugin/build/index.js"
+    ],
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -15,7 +17,8 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "expo.modules.expoflow.example"
+      "bundleIdentifier": "expo.modules.expoflow.example",
+      "appleTeamId": "VA2J2LGP65"
     },
     "android": {
       "adaptiveIcon": {

@@ -56,6 +56,7 @@ static void swizzleReloadOnce(void) {
     self = [super init];
     if (self) {
         _bundleURL = bundleURL;
+        NSLog(@"[WidgetRuntime] initWithBundleURL: %@", bundleURL);
     }
     return self;
 }
@@ -71,8 +72,12 @@ static void swizzleReloadOnce(void) {
     _dependencyProvider = [[RCTAppDependencyProvider alloc] init];
 
     NSURL *url = _bundleURL;
+    NSLog(@"[WidgetRuntime] Creating config with bundleURL: %@", url);
     RCTRootViewFactoryConfiguration *config =
-        [[RCTRootViewFactoryConfiguration alloc] initWithBundleURLBlock:^{ return url; }
+        [[RCTRootViewFactoryConfiguration alloc] initWithBundleURLBlock:^{
+            NSLog(@"[WidgetRuntime] bundleURLBlock called, returning: %@", url);
+            return url;
+        }
                                                          newArchEnabled:YES];
     config.jsRuntimeConfiguratorDelegate = self;
 
@@ -84,9 +89,14 @@ static void swizzleReloadOnce(void) {
 
 - (UIView *)createSurfaceViewWithModuleName:(NSString *)moduleName
                           initialProperties:(NSDictionary *)properties {
-    if (!_viewFactory) return nil;
+    NSLog(@"[WidgetRuntime] createSurfaceView moduleName: %@, viewFactory: %@", moduleName, _viewFactory);
+    if (!_viewFactory) {
+        NSLog(@"[WidgetRuntime] ERROR: viewFactory is nil!");
+        return nil;
+    }
     UIView *view = [_viewFactory viewWithModuleName:moduleName
                                   initialProperties:properties ?: @{}];
+    NSLog(@"[WidgetRuntime] Created view: %@", view);
     view.backgroundColor = [UIColor clearColor];
 
     // Mark the widget's RCTHost so it ignores global reload commands

@@ -1,7 +1,10 @@
 {
   "autoShow": true,
+  "serverUrl": "wss://wal-annotation-eligibility-wallace.trycloudflare.com",
+  "widgetMetroUrl": "https://optimum-modification-gene-independently.trycloudflare.com",
   "ui": {
     "bubbleSize": 60,
     "bubbleColor": "#007AFF"
-  }
+  },
+  "appMetroUrl": "https://gem-deliver-highlighted-helicopter.trycloudflare.com"
 }

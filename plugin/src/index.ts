@@ -1,16 +1,83 @@
-import { ConfigPlugin, withInfoPlist } from "@expo/config-plugins";
+import {
+  ConfigPlugin,
+  withInfoPlist,
+  withDangerousMod,
+} from "@expo/config-plugins";
 import * as fs from "fs";
 import * as path from "path";
 
 interface ExpoFlowConfig {
   autoShow?: boolean;
+  serverUrl?: string;
+  widgetMetroUrl?: string;
+  appMetroUrl?: string;
   ui?: {
     bubbleSize?: number;
     bubbleColor?: string;
   };
 }
 
+// Modify AppDelegate to use tunnel URL for main app bundle
+const withAppDelegatePatch: ConfigPlugin = (config) => {
+  return withDangerousMod(config, [
+    "ios",
+    async (config) => {
+      const projectRoot = config.modRequest.projectRoot;
+      const appDelegatePath = path.join(
+        projectRoot,
+        "ios",
+        config.modRequest.projectName || "",
+        "AppDelegate.swift"
+      );
+
+      if (!fs.existsSync(appDelegatePath)) {
+        console.warn("[expo-flow] AppDelegate.swift not found");
+        return config;
+      }
+
+      let content = fs.readFileSync(appDelegatePath, "utf-8");
+
+      // Check if already patched
+      if (content.includes("ExpoFlowBundleURL")) {
+        return config;
+      }
+
+      // Find the bundleURL() method and patch it
+      const bundleURLPattern =
+        /override func bundleURL\(\) -> URL\? \{[\s\S]*?#if DEBUG[\s\S]*?return RCTBundleURLProvider[\s\S]*?#else[\s\S]*?#endif[\s\S]*?\}/;
+
+      const patchedBundleURL = `override func bundleURL() -> URL? {
+#if DEBUG
+    // ExpoFlowBundleURL: Check for tunnel URL from Info.plist
+    if let expoFlow = Bundle.main.object(forInfoDictionaryKey: "ExpoFlow") as? [String: Any],
+       let appMetroUrl = expoFlow["appMetroUrl"] as? String,
+       !appMetroUrl.isEmpty,
+       let tunnelURL = URL(string: "\\(appMetroUrl)/.expo/.virtual-metro-entry.bundle?platform=ios&dev=true") {
+      print("[expo-flow] Using tunnel URL for main app: \\(tunnelURL)")
+      return tunnelURL
+    }
+    return RCTBundleURLProvider.sharedSettings().jsBundleURL(forBundleRoot: ".expo/.virtual-metro-entry")
+#else
+    return Bundle.main.url(forResource: "main", withExtension: "jsbundle")
+#endif
+  }`;
+
+      if (bundleURLPattern.test(content)) {
+        content = content.replace(bundleURLPattern, patchedBundleURL);
+        fs.writeFileSync(appDelegatePath, content);
+        console.log("[expo-flow] Patched AppDelegate for tunnel support");
+      }
+
+      return config;
+    },
+  ]);
+};
+
 const withExpoFlow: ConfigPlugin = (config) => {
+  // First patch AppDelegate
+  config = withAppDelegatePatch(config);
+
+  // Then modify Info.plist
   return withInfoPlist(config, (config) => {
     // Try to read .expo-flow.json from project root
     const projectRoot = config.modRequest.projectRoot;
@@ -32,7 +99,34 @@ const withExpoFlow: ConfigPlugin = (config) => {
       autoShow: expoFlowConfig.autoShow ?? true,
       bubbleSize: expoFlowConfig.ui?.bubbleSize ?? 60,
       bubbleColor: expoFlowConfig.ui?.bubbleColor ?? "#007AFF",
+      serverUrl: expoFlowConfig.serverUrl ?? "ws://localhost:3847",
+      widgetMetroUrl: expoFlowConfig.widgetMetroUrl ?? "http://localhost:8082",
+      appMetroUrl: expoFlowConfig.appMetroUrl ?? "",
     };
+
+    // Allow HTTP connections to bore.pub for tunnel support
+    // This is needed because iOS ATS blocks non-HTTPS by default
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const modResults = config.modResults as any;
+    const ats = modResults.NSAppTransportSecurity || {};
+    const exceptionDomains = ats.NSExceptionDomains || {};
+
+    // Add tunnel domain exceptions for various tunnel providers
+    exceptionDomains["bore.pub"] = {
+      NSExceptionAllowsInsecureHTTPLoads: true,
+      NSIncludesSubdomains: true,
+    };
+    exceptionDomains["loca.lt"] = {
+      NSExceptionAllowsInsecureHTTPLoads: true,
+      NSIncludesSubdomains: true,
+    };
+    exceptionDomains["trycloudflare.com"] = {
+      NSExceptionAllowsInsecureHTTPLoads: true,
+      NSIncludesSubdomains: true,
+    };
+
+    ats.NSExceptionDomains = exceptionDomains;
+    modResults.NSAppTransportSecurity = ats;
 
     return config;
   });

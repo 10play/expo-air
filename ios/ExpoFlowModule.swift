@@ -71,6 +71,10 @@ public class ExpoFlowModule: Module {
       FloatingBubbleManager.shared.collapse()
     }
 
+    Function("getServerUrl") { () -> String in
+      return UserDefaults.standard.string(forKey: "expo-flow-server-url") ?? "ws://localhost:3847"
+    }
+
     View(ExpoFlowView.self) {
       Prop("url") { (view: ExpoFlowView, url: URL) in
         if view.webView.url != url {
