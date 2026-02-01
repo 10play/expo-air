@@ -1,7 +1,6 @@
 import ExpoFlow from "@10play/expo-flow";
 import { useEffect, useRef, useState } from "react";
 import { Button, SafeAreaView, ScrollView, Text, View } from "react-native";
-import { WebView } from "react-native-webview";
 
 export default function App() {
   const [events, setEvents] = useState<string[]>([]);
@@ -35,12 +34,6 @@ export default function App() {
     <SafeAreaView style={styles.container}>
       <ScrollView style={styles.container}>
         <Text style={styles.header}>guy4</Text>
-        <Group name="10play.dev">
-          <WebView
-            source={{ uri: "https://10play.dev" }}
-            style={styles.webview}
-          />
-        </Group>
         <Group name="Floating Bubble">
           <View style={styles.buttonRow}>
             <Button
