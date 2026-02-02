@@ -265,12 +265,27 @@ class FloatingBubbleViewController: UIViewController, UIGestureRecognizerDelegat
     private func animateToExpanded() {
         let screenWidth = UIScreen.main.bounds.width
 
-        let newFrame = CGRect(
+        // Set the final frame immediately
+        let expandedFrame = CGRect(
             x: (screenWidth - expandedWidth) / 2,
             y: bubbleTopY,
             width: expandedWidth,
             height: expandedHeight
         )
+        bubbleContainer.frame = expandedFrame
+
+        // Scale down to collapsed size, anchored at top-center
+        let scaleX = collapsedTopWidth / expandedWidth
+        let scaleY = collapsedHeight / expandedHeight
+        // Anchor at top center: shift transform so top edge stays fixed
+        let yShift = -(expandedHeight * (1 - scaleY)) / 2
+        bubbleContainer.transform = CGAffineTransform(translationX: 0, y: yShift)
+            .scaledBy(x: scaleX, y: scaleY)
+
+        // Prepare visual state
+        self.shapeView.alpha = 0
+        self.bubbleContainer.backgroundColor = .black
+        self.bubbleContainer.layer.cornerRadius = self.expandedCornerRadius
 
         // Show native close button and bring to front
         bubbleContainer.bringSubviewToFront(nativeCloseButton)
@@ -284,11 +299,7 @@ class FloatingBubbleViewController: UIViewController, UIGestureRecognizerDelegat
             initialSpringVelocity: 0.5,
             options: .curveEaseOut
         ) {
-            self.bubbleContainer.frame = newFrame
-            // Hide trapezoid, show rounded rect
-            self.shapeView.alpha = 0
-            self.bubbleContainer.backgroundColor = .black
-            self.bubbleContainer.layer.cornerRadius = self.expandedCornerRadius
+            self.bubbleContainer.transform = .identity
             self.nativeCloseButton.alpha = 1
         }
     }
