@@ -72,7 +72,7 @@ jobs:
             -scheme expoairexample \
             -configuration Debug \
             -sdk iphonesimulator \
-            -destination 'platform=iOS Simulator,name=iPhone 15' \
+            -destination 'generic/platform=iOS Simulator' \
             build
 
       - name: Verify widget is DEBUG-only

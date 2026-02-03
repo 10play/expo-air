@@ -3,17 +3,6 @@ name: Release
 on:
   push:
     branches: [main]
-  workflow_dispatch:
-    inputs:
-      bump:
-        description: "Version bump type"
-        required: true
-        default: "patch"
-        type: choice
-        options:
-          - patch
-          - minor
-          - major
 
 jobs:
   release:
@@ -50,18 +39,14 @@ jobs:
       - name: Determine version bump
         id: bump
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "type=${{ github.event.inputs.bump }}" >> $GITHUB_OUTPUT
+          # Auto-detect from commit message
+          COMMIT_MSG="${{ github.event.head_commit.message }}"
+          if echo "$COMMIT_MSG" | grep -qiE "^(feat|feature)(\(.+\))?!:|BREAKING CHANGE"; then
+            echo "type=major" >> $GITHUB_OUTPUT
+          elif echo "$COMMIT_MSG" | grep -qiE "^(feat|feature)(\(.+\))?:"; then
+            echo "type=minor" >> $GITHUB_OUTPUT
           else
-            # Auto-detect from commit message
-            COMMIT_MSG="${{ github.event.head_commit.message }}"
-            if echo "$COMMIT_MSG" | grep -qiE "^(feat|feature)(\(.+\))?!:|BREAKING CHANGE"; then
-              echo "type=major" >> $GITHUB_OUTPUT
-            elif echo "$COMMIT_MSG" | grep -qiE "^(feat|feature)(\(.+\))?:"; then
-              echo "type=minor" >> $GITHUB_OUTPUT
-            else
-              echo "type=patch" >> $GITHUB_OUTPUT
-            fi
+            echo "type=patch" >> $GITHUB_OUTPUT
           fi
 
       - name: Bump version
@@ -78,17 +63,17 @@ jobs:
           cd cli
           npm version ${{ steps.version.outputs.version }} --no-git-tag-version --allow-same-version
 
+      - name: Publish to npm
+        # Uses OIDC trusted publishing - no token needed
+        # Configured at: https://www.npmjs.com/package/@10play/expo-air/access
+        run: npm publish --provenance --access public
+
       - name: Commit and tag
         run: |
           git add package.json package-lock.json cli/package.json cli/package-lock.json
           git commit -m "chore: release ${{ steps.version.outputs.version }}"
           git tag ${{ steps.version.outputs.version }}
           git push origin main --tags
-
-      - name: Publish to npm
-        # Uses OIDC trusted publishing - no token needed
-        # Configured at: https://www.npmjs.com/package/@10play/expo-air/access
-        run: npm publish --provenance --access public
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
