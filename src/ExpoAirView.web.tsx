@@ -1,6 +1,6 @@
-import * as React from 'react';
+import * as React from "react";
 
-import { ExpoAirViewProps } from './ExpoAir.types';
+import { ExpoAirViewProps } from "./ExpoAir.types";
 
 export default function ExpoAirView(props: ExpoAirViewProps) {
   return (
