@@ -1,5 +1,8 @@
 #import "WidgetRuntime.h"
+#import "WidgetBridge.h"
 
+#import <React/RCTBridge.h>
+#import <React/RCTBridgeModule.h>
 #import <RCTRootViewFactory.h>
 #import <RCTAppSetupUtils.h>
 #import <react/runtime/JSRuntimeFactoryCAPI.h>
@@ -8,6 +11,7 @@
 #import <ReactAppDependencyProvider/RCTAppDependencyProvider.h>
 #import <ReactCommon/RCTHost.h>
 #import <react/nativemodule/defaults/DefaultTurboModules.h>
+#import <React/RCTBridge+Private.h>
 #import <objc/runtime.h>
 
 // ---------------------------------------------------------------------------
@@ -56,6 +60,7 @@ static void swizzleReloadOnce(void) {
     self = [super init];
     if (self) {
         _bundleURL = bundleURL;
+        NSLog(@"[WidgetRuntime] initWithBundleURL: %@", bundleURL);
     }
     return self;
 }
@@ -71,8 +76,12 @@ static void swizzleReloadOnce(void) {
     _dependencyProvider = [[RCTAppDependencyProvider alloc] init];
 
     NSURL *url = _bundleURL;
+    NSLog(@"[WidgetRuntime] Creating config with bundleURL: %@", url);
     RCTRootViewFactoryConfiguration *config =
-        [[RCTRootViewFactoryConfiguration alloc] initWithBundleURLBlock:^{ return url; }
+        [[RCTRootViewFactoryConfiguration alloc] initWithBundleURLBlock:^{
+            NSLog(@"[WidgetRuntime] bundleURLBlock called, returning: %@", url);
+            return url;
+        }
                                                          newArchEnabled:YES];
     config.jsRuntimeConfiguratorDelegate = self;
 
@@ -84,9 +93,14 @@ static void swizzleReloadOnce(void) {
 
 - (UIView *)createSurfaceViewWithModuleName:(NSString *)moduleName
                           initialProperties:(NSDictionary *)properties {
-    if (!_viewFactory) return nil;
+    NSLog(@"[WidgetRuntime] createSurfaceView moduleName: %@, viewFactory: %@", moduleName, _viewFactory);
+    if (!_viewFactory) {
+        NSLog(@"[WidgetRuntime] ERROR: viewFactory is nil!");
+        return nil;
+    }
     UIView *view = [_viewFactory viewWithModuleName:moduleName
                                   initialProperties:properties ?: @{}];
+    NSLog(@"[WidgetRuntime] Created view: %@", view);
     view.backgroundColor = [UIColor clearColor];
 
     // Mark the widget's RCTHost so it ignores global reload commands
@@ -109,10 +123,19 @@ static void swizzleReloadOnce(void) {
 #pragma mark - RCTTurboModuleManagerDelegate
 
 - (Class)getModuleClassFromName:(const char *)name {
+    // Provide WidgetBridge for the widget runtime
+    if (strcmp(name, "WidgetBridge") == 0) {
+        return [WidgetBridge class];
+    }
     return RCTCoreModulesClassProvider(name);
 }
 
 - (id<RCTTurboModule>)getModuleInstanceFromClass:(Class)moduleClass {
+    // Handle WidgetBridge specially - instantiate it directly
+    // Cast is safe because WidgetBridge conforms to RCTTurboModule in its .mm file
+    if (moduleClass == [WidgetBridge class]) {
+        return (id<RCTTurboModule>)[[WidgetBridge alloc] init];
+    }
     return RCTAppSetupDefaultModuleFromClass(moduleClass, _dependencyProvider);
 }
 

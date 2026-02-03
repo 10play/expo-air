@@ -33,7 +33,7 @@ export default function App() {
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView style={styles.container}>
-        <Text style={styles.header}>Module API Example</Text>
+        <Text style={styles.header}>$$778</Text>
         <Group name="Floating Bubble">
           <View style={styles.buttonRow}>
             <Button
@@ -93,6 +93,10 @@ const styles = {
   view: {
     flex: 1,
     height: 200,
+  },
+  webview: {
+    height: 300,
+    borderRadius: 8,
   },
   buttonRow: {
     flexDirection: "row" as const,

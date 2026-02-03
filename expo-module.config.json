@@ -1,7 +1,8 @@
 {
   "platforms": ["apple", "android", "web"],
   "apple": {
-    "modules": ["ExpoFlowModule"]
+    "modules": ["ExpoFlowModule"],
+    "appDelegateSubscribers": ["ExpoFlowAppDelegateSubscriber"]
   },
   "android": {
     "modules": ["expo.modules.expoflow.ExpoFlowModule"]

@@ -1,0 +1,53 @@
+import chalk from "chalk";
+import * as path from "path";
+import * as fs from "fs";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+interface ServerOptions {
+  port: string;
+  project?: string;
+}
+
+export async function serverCommand(options: ServerOptions): Promise<void> {
+  console.log(chalk.blue("\n  expo-flow server\n"));
+  console.log(chalk.gray("  Starting WebSocket server only...\n"));
+
+  const port = parseInt(options.port, 10);
+
+  // Resolve project directory
+  let projectRoot = options.project ? path.resolve(options.project) : process.cwd();
+
+  // If running from the expo-flow package root, default to example/
+  const exampleDir = path.resolve(__dirname, "../..", "example");
+  if (!options.project && fs.existsSync(path.join(exampleDir, "app.json"))) {
+    if (!fs.existsSync(path.join(projectRoot, "app.json"))) {
+      projectRoot = exampleDir;
+      console.log(chalk.gray(`  Using example app: ${projectRoot}\n`));
+    }
+  }
+
+  // Start prompt server
+  const { PromptServer } = await import("../server/promptServer.js");
+  const server = new PromptServer(port, projectRoot);
+  await server.start();
+  console.log(chalk.green(`  ✓ Prompt server started on port ${port}`));
+  console.log(chalk.gray(`    Project root: ${projectRoot}`));
+
+  console.log(chalk.gray("\n  ─────────────────────────────────────────────"));
+  console.log(chalk.white(`    WebSocket URL: ws://localhost:${port}`));
+  console.log(chalk.gray("  ─────────────────────────────────────────────"));
+  console.log(chalk.yellow("\n  Waiting for prompts... (Ctrl+C to stop)\n"));
+
+  // Handle graceful shutdown
+  const shutdown = async () => {
+    console.log(chalk.gray("\n  Shutting down..."));
+    await server.stop();
+    process.exit(0);
+  };
+
+  process.on("SIGINT", shutdown);
+  process.on("SIGTERM", shutdown);
+}
