@@ -1,8 +1,18 @@
 import { WebSocketServer, WebSocket } from "ws";
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { randomUUID } from "crypto";
+import { execSync } from "child_process";
+import { readFileSync, writeFileSync, existsSync } from "fs";
+import { join } from "path";
 import chalk from "chalk";
-import type { PromptMessage, OutgoingMessage } from "../types/messages.js";
+import type {
+  PromptMessage,
+  NewSessionMessage,
+  StopMessage,
+  OutgoingMessage,
+  ConversationEntry,
+  GitChange,
+} from "../types/messages.js";
 
 export class PromptServer {
   private wss: WebSocketServer | null = null;
@@ -11,10 +21,160 @@ export class PromptServer {
   private currentQuery: ReturnType<typeof query> | null = null;
   private abortController: AbortController | null = null;
   private projectRoot: string;
+  private sessionId: string | null = null;
+  private conversationHistory: ConversationEntry[] = [];
+  private gitWatchInterval: ReturnType<typeof setInterval> | null = null;
+  private lastBranchName: string = "";
+  private lastGitChangesHash: string = "";
 
   constructor(port: number, projectRoot?: string) {
     this.port = port;
     this.projectRoot = projectRoot || process.cwd();
+    this.loadSession();
+  }
+
+  private getBranchName(): string {
+    try {
+      return execSync("git rev-parse --abbrev-ref HEAD", {
+        cwd: this.projectRoot,
+        encoding: "utf-8",
+        stdio: ["pipe", "pipe", "pipe"],
+      }).trim();
+    } catch {
+      return "main";
+    }
+  }
+
+  private getGitChanges(): GitChange[] {
+    try {
+      const output = execSync("git status --porcelain", {
+        cwd: this.projectRoot,
+        encoding: "utf-8",
+        stdio: ["pipe", "pipe", "pipe"],
+      });
+
+      if (!output.trim()) {
+        return [];
+      }
+
+      return output
+        .trim()
+        .split("\n")
+        .map((line) => {
+          const statusCode = line.substring(0, 2);
+          const file = line.substring(3);
+
+          let status: GitChange["status"] = "modified";
+          if (statusCode.includes("A") || statusCode === "??") {
+            status = statusCode === "??" ? "untracked" : "added";
+          } else if (statusCode.includes("D")) {
+            status = "deleted";
+          } else if (statusCode.includes("R")) {
+            status = "renamed";
+          }
+
+          return { file, status };
+        });
+    } catch {
+      return [];
+    }
+  }
+
+  private startGitWatcher(): void {
+    // Initial state
+    this.lastBranchName = this.getBranchName();
+    this.lastGitChangesHash = JSON.stringify(this.getGitChanges());
+
+    // Poll every 2 seconds for changes
+    this.gitWatchInterval = setInterval(() => {
+      const currentBranch = this.getBranchName();
+      const currentChanges = this.getGitChanges();
+      const currentChangesHash = JSON.stringify(currentChanges);
+
+      // Check if anything changed
+      if (currentBranch !== this.lastBranchName || currentChangesHash !== this.lastGitChangesHash) {
+        this.lastBranchName = currentBranch;
+        this.lastGitChangesHash = currentChangesHash;
+
+        // Broadcast to all clients
+        this.broadcastGitStatus(currentBranch, currentChanges);
+      }
+    }, 2000);
+  }
+
+  private stopGitWatcher(): void {
+    if (this.gitWatchInterval) {
+      clearInterval(this.gitWatchInterval);
+      this.gitWatchInterval = null;
+    }
+  }
+
+  private broadcastGitStatus(branchName: string, changes: GitChange[]): void {
+    const message: OutgoingMessage = {
+      type: "git_status",
+      branchName,
+      changes,
+      timestamp: Date.now(),
+    };
+
+    for (const client of this.clients) {
+      this.sendToClient(client, message);
+    }
+
+    this.log(`Git status updated: ${branchName} (${changes.length} changes)`, "info");
+  }
+
+  private getConfigPath(): string {
+    return join(this.projectRoot, ".expo-flow.local.json");
+  }
+
+  private loadSession(): void {
+    try {
+      const configPath = this.getConfigPath();
+      if (existsSync(configPath)) {
+        const config = JSON.parse(readFileSync(configPath, "utf-8"));
+        if (config.sessionId) {
+          this.sessionId = config.sessionId;
+          this.log(`Loaded session: ${this.sessionId}`, "info");
+        }
+        if (config.conversationHistory && Array.isArray(config.conversationHistory)) {
+          this.conversationHistory = config.conversationHistory;
+          this.log(`Loaded ${this.conversationHistory.length} history entries`, "info");
+        }
+      }
+    } catch (error) {
+      this.log("Failed to load session from config", "error");
+    }
+  }
+
+  private saveSession(): void {
+    try {
+      const configPath = this.getConfigPath();
+      let config: Record<string, unknown> = {};
+      if (existsSync(configPath)) {
+        config = JSON.parse(readFileSync(configPath, "utf-8"));
+      }
+      config.sessionId = this.sessionId;
+      config.conversationHistory = this.conversationHistory;
+      writeFileSync(configPath, JSON.stringify(config, null, 2));
+      this.log(`Saved session with ${this.conversationHistory.length} history entries`, "info");
+    } catch (error) {
+      this.log("Failed to save session to config", "error");
+    }
+  }
+
+  private clearSessionFromFile(): void {
+    try {
+      const configPath = this.getConfigPath();
+      if (existsSync(configPath)) {
+        const config = JSON.parse(readFileSync(configPath, "utf-8"));
+        delete config.sessionId;
+        delete config.conversationHistory;
+        writeFileSync(configPath, JSON.stringify(config, null, 2));
+      }
+    } catch (error) {
+      this.log("Failed to clear session from config", "error");
+    }
   }
 
   async start(): Promise<void> {
@@ -22,6 +182,7 @@ export class PromptServer {
       this.wss = new WebSocketServer({ port: this.port });
 
       this.wss.on("listening", () => {
+        this.startGitWatcher();
         resolve();
       });
 
@@ -36,6 +197,9 @@ export class PromptServer {
   }
 
   async stop(): Promise<void> {
+    // Stop git watcher
+    this.stopGitWatcher();
+
     // Abort any running query
     if (this.abortController) {
       this.abortController.abort();
@@ -71,6 +235,26 @@ export class PromptServer {
       timestamp: Date.now(),
     });
 
+    // Send conversation history if we have any
+    if (this.conversationHistory.length > 0) {
+      this.sendToClient(ws, {
+        type: "history",
+        entries: this.conversationHistory,
+        timestamp: Date.now(),
+      });
+      this.log(`Sent ${this.conversationHistory.length} history entries to client`, "info");
+    }
+
+    // Send initial git status
+    const branchName = this.getBranchName();
+    const changes = this.getGitChanges();
+    this.sendToClient(ws, {
+      type: "git_status",
+      branchName,
+      changes,
+      timestamp: Date.now(),
+    });
+
     ws.on("message", (data) => {
       try {
         const message = JSON.parse(data.toString());
@@ -96,24 +280,69 @@ export class PromptServer {
   }
 
   private handleMessage(ws: WebSocket, message: unknown): void {
-    if (!this.isPromptMessage(message)) {
-      this.sendToClient(ws, {
-        type: "error",
-        message:
-          'Invalid message format. Expected: {"type":"prompt","content":"..."}',
-        timestamp: Date.now(),
-      });
+    // Handle new session request
+    if (this.isNewSessionMessage(message)) {
+      this.handleNewSession(ws);
       return;
     }
 
-    const promptId = message.id || randomUUID();
-    this.log(
-      `Received prompt: ${message.content.substring(0, 50)}...`,
-      "prompt"
-    );
+    // Handle stop request
+    if (this.isStopMessage(message)) {
+      this.handleStop(ws);
+      return;
+    }
 
-    // Execute with Claude Agent SDK
-    this.executeWithSDK(ws, promptId, message.content);
+    // Handle prompt message
+    if (this.isPromptMessage(message)) {
+      const promptId = message.id || randomUUID();
+      this.log(
+        `Received prompt: ${message.content.substring(0, 50)}...`,
+        "prompt"
+      );
+      this.executeWithSDK(ws, promptId, message.content);
+      return;
+    }
+
+    // Unknown message type
+    this.sendToClient(ws, {
+      type: "error",
+      message:
+        'Invalid message format. Expected: {"type":"prompt","content":"..."} or {"type":"new_session"} or {"type":"stop"}',
+      timestamp: Date.now(),
+    });
+  }
+
+  private handleNewSession(ws: WebSocket): void {
+    // Abort any running query
+    if (this.abortController) {
+      this.abortController.abort();
+      this.abortController = null;
+    }
+    this.currentQuery = null;
+
+    // Clear session and history
+    this.sessionId = null;
+    this.conversationHistory = [];
+    this.clearSessionFromFile();
+
+    // Notify client
+    this.sendToClient(ws, {
+      type: "session_cleared",
+      timestamp: Date.now(),
+    });
+
+    this.log("Session cleared - starting fresh", "info");
+  }
+
+  private handleStop(ws: WebSocket): void {
+    if (this.abortController) {
+      this.abortController.abort();
+      this.log("Query stopped by user", "info");
+    }
+    this.sendToClient(ws, {
+      type: "stopped",
+      timestamp: Date.now(),
+    });
   }
 
   private isPromptMessage(message: unknown): message is PromptMessage {
@@ -127,11 +356,36 @@ export class PromptServer {
     );
   }
 
+  private isNewSessionMessage(message: unknown): message is NewSessionMessage {
+    return (
+      typeof message === "object" &&
+      message !== null &&
+      "type" in message &&
+      (message as NewSessionMessage).type === "new_session"
+    );
+  }
+
+  private isStopMessage(message: unknown): message is StopMessage {
+    return (
+      typeof message === "object" &&
+      message !== null &&
+      "type" in message &&
+      (message as StopMessage).type === "stop"
+    );
+  }
+
   private async executeWithSDK(
     ws: WebSocket,
     promptId: string,
     content: string
   ): Promise<void> {
+    // Add user prompt to history
+    this.conversationHistory.push({
+      role: "user",
+      content,
+      timestamp: Date.now(),
+    });
+
     // Send processing status
     this.sendToClient(ws, {
       type: "status",
@@ -162,6 +416,8 @@ export class PromptServer {
             type: "preset",
             preset: "claude_code",
           },
+          // Resume existing session if we have one
+          ...(this.sessionId && { resume: this.sessionId }),
           // Hook into tool usage for real-time updates
           hooks: {
             PreToolUse: [
@@ -230,6 +486,12 @@ export class PromptServer {
 
       // Stream messages from the SDK
       for await (const message of this.currentQuery) {
+        // Capture session_id from first message if we don't have one
+        if (!this.sessionId && "session_id" in message && message.session_id) {
+          this.sessionId = message.session_id;
+          this.saveSession();
+        }
+
         // Handle different message types
         if (message.type === "assistant") {
           // Extract text content from assistant message
@@ -286,6 +548,15 @@ export class PromptServer {
           });
 
           if (isSuccess) {
+            // Add assistant response to history
+            if (message.result) {
+              this.conversationHistory.push({
+                role: "assistant",
+                content: message.result,
+                timestamp: Date.now(),
+              });
+              this.saveSession();
+            }
             this.log(
               `Completed in ${message.duration_ms}ms, cost: $${message.total_cost_usd?.toFixed(4)}`,
               "success"

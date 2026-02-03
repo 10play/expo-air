@@ -130,8 +130,10 @@ class FloatingBubbleViewController: UIViewController, UIGestureRecognizerDelegat
     private let collapsedBottomWidth: CGFloat = 65
     private let collapsedHeight: CGFloat = 32
 
-    // Expanded dimensions
-    private let expandedWidth: CGFloat = 340
+    // Expanded dimensions - full width with 6px margins on each side
+    private var expandedWidth: CGFloat {
+        UIScreen.main.bounds.width - 12
+    }
     private let expandedHeight: CGFloat = 420
     private let expandedCornerRadius: CGFloat = 32
 

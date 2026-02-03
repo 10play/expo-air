@@ -2,6 +2,7 @@
 
 import { Command } from "commander";
 import { startCommand } from "../commands/start.js";
+import { serverCommand } from "../commands/server.js";
 
 const program = new Command();
 
@@ -19,7 +20,15 @@ program
   .option("--project <path>", "Path to Expo project (where Claude makes changes)")
   .option("--no-tunnel", "Skip tunnel (local network only)")
   .option("--no-build", "Skip building and installing the app")
+  .option("--no-server", "Skip starting the WebSocket server")
   .action(startCommand);
+
+program
+  .command("server")
+  .description("Start only the WebSocket server (for dev mode with watch)")
+  .option("-p, --port <port>", "Port for prompt server", "3847")
+  .option("--project <path>", "Path to Expo project (where Claude makes changes)")
+  .action(serverCommand);
 
 // Default command (just running `expo-flow` starts everything)
 program

@@ -9,12 +9,14 @@ import {
 
 interface PromptInputProps {
   onSubmit: (prompt: string) => void;
+  onStop?: () => void;
   disabled?: boolean;
   isProcessing?: boolean;
 }
 
 export function PromptInput({
   onSubmit,
+  onStop,
   disabled = false,
   isProcessing = false,
 }: PromptInputProps) {
@@ -45,18 +47,24 @@ export function PromptInput({
         returnKeyType="send"
         blurOnSubmit
       />
-      <TouchableOpacity
-        style={[styles.submitButton, !canSubmit && styles.submitButtonDisabled]}
-        onPress={handleSubmit}
-        disabled={!canSubmit}
-        activeOpacity={0.7}
-      >
-        {isProcessing ? (
-          <ActivityIndicator size="small" color="#fff" />
-        ) : (
+      {isProcessing ? (
+        <TouchableOpacity
+          style={[styles.submitButton, styles.stopButton]}
+          onPress={onStop}
+          activeOpacity={0.7}
+        >
+          <StopIcon />
+        </TouchableOpacity>
+      ) : (
+        <TouchableOpacity
+          style={[styles.submitButton, !canSubmit && styles.submitButtonDisabled]}
+          onPress={handleSubmit}
+          disabled={!canSubmit}
+          activeOpacity={0.7}
+        >
           <ArrowIcon />
-        )}
-      </TouchableOpacity>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
@@ -68,6 +76,10 @@ function ArrowIcon() {
       <View style={styles.arrowHead} />
     </View>
   );
+}
+
+function StopIcon() {
+  return <View style={styles.stopIcon} />;
 }
 
 const styles = StyleSheet.create({
@@ -101,6 +113,15 @@ const styles = StyleSheet.create({
   },
   submitButtonDisabled: {
     opacity: 0.4,
+  },
+  stopButton: {
+    backgroundColor: "#8E8E93",  // Muted gray instead of aggressive red
+  },
+  stopIcon: {
+    width: 12,
+    height: 12,
+    backgroundColor: "#fff",
+    borderRadius: 2,
   },
   arrowIcon: {
     width: 16,

@@ -83,6 +83,7 @@ interface StartOptions {
   port: string;
   build: boolean;
   tunnel: boolean;
+  server: boolean;
   widgetPort?: string;
   metroPort?: string;
   project?: string;
@@ -174,12 +175,18 @@ export async function startCommand(options: StartOptions): Promise<void> {
   // Start main app Metro server
   const appProcess = await startMetro("App", projectRoot, metroPort);
 
-  // Start prompt server
-  const { PromptServer } = await import("../server/promptServer.js");
-  const server = new PromptServer(port, projectRoot);
-  await server.start();
-  console.log(chalk.green(`  ✓ Prompt server started on port ${port}`));
-  console.log(chalk.gray(`    Project root: ${projectRoot}`));
+  // Start prompt server (unless --no-server)
+  let server: { start: () => Promise<void>; stop: () => Promise<void> } | null = null;
+  if (options.server) {
+    const { PromptServer } = await import("../server/promptServer.js");
+    server = new PromptServer(port, projectRoot);
+    await server.start();
+    console.log(chalk.green(`  ✓ Prompt server started on port ${port}`));
+    console.log(chalk.gray(`    Project root: ${projectRoot}`));
+  } else {
+    console.log(chalk.yellow(`  ⚠ WebSocket server skipped (--no-server)`));
+    console.log(chalk.gray(`    Run separately: npx expo-flow server`));
+  }
 
   // Start tunnels if enabled
   let promptTunnel: CloudflareTunnel | null = null;
@@ -255,7 +262,9 @@ export async function startCommand(options: StartOptions): Promise<void> {
   // Show connection info
   console.log(chalk.gray("\n  ─────────────────────────────────────────────"));
   console.log(chalk.gray("  Local (same WiFi):"));
-  console.log(chalk.white(`    Prompt Server: ws://localhost:${port}`));
+  if (options.server) {
+    console.log(chalk.white(`    Prompt Server: ws://localhost:${port}`));
+  }
   console.log(chalk.white(`    Widget Metro:  http://localhost:${widgetPort}`));
   console.log(chalk.white(`    App Metro:     http://localhost:${metroPort}`));
   if (promptTunnelUrl || widgetTunnelUrl || appTunnelUrl) {
@@ -271,7 +280,11 @@ export async function startCommand(options: StartOptions): Promise<void> {
     }
   }
   console.log(chalk.gray("  ─────────────────────────────────────────────"));
-  console.log(chalk.yellow("\n  Waiting for prompts...\n"));
+  if (options.server) {
+    console.log(chalk.yellow("\n  Waiting for prompts...\n"));
+  } else {
+    console.log(chalk.yellow("\n  Running... (Ctrl+C to stop)\n"));
+  }
 
   // Handle graceful shutdown
   const shutdown = async () => {
@@ -291,7 +304,9 @@ export async function startCommand(options: StartOptions): Promise<void> {
     if (appTunnel) {
       await appTunnel.stop();
     }
-    await server.stop();
+    if (server) {
+      await server.stop();
+    }
     process.exit(0);
   };
 

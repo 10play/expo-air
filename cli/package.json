@@ -8,6 +8,7 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsx bin/expo-flow.ts start",
+    "dev:server": "tsx watch bin/expo-flow.ts server",
     "start": "tsx bin/expo-flow.ts start"
   },
   "dependencies": {

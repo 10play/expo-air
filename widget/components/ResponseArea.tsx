@@ -1,6 +1,6 @@
 import React, { useRef, useEffect } from "react";
 import { View, Text, ScrollView, StyleSheet } from "react-native";
-import type { ServerMessage, ToolMessage, ResultMessage } from "../services/websocket";
+import type { ServerMessage, ToolMessage, ResultMessage, UserPromptMessage, HistoryResultMessage } from "../services/websocket";
 
 interface ResponseAreaProps {
   messages: ServerMessage[];
@@ -68,9 +68,31 @@ function MessageItem({ message }: { message: ServerMessage }) {
     case "status":
       return null; // Handled by header
 
+    case "user_prompt":
+      return <UserPromptItem message={message} />;
+
+    case "history_result":
+      return <HistoryResultItem message={message} />;
+
     default:
       return null;
   }
+}
+
+function UserPromptItem({ message }: { message: UserPromptMessage }) {
+  return (
+    <View style={styles.userPromptContainer}>
+      <Text style={styles.userPromptText}>{message.content}</Text>
+    </View>
+  );
+}
+
+function HistoryResultItem({ message }: { message: HistoryResultMessage }) {
+  return (
+    <View style={styles.resultContainer}>
+      <Text style={styles.responseText}>{message.content}</Text>
+    </View>
+  );
 }
 
 function ToolItem({ tool }: { tool: ToolMessage }) {
@@ -214,5 +236,18 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 6,
     fontFamily: "monospace",
+  },
+  userPromptContainer: {
+    backgroundColor: "rgba(0,122,255,0.15)",
+    borderRadius: 16,
+    padding: 12,
+    marginVertical: 8,
+    alignSelf: "flex-end",
+    maxWidth: "85%",
+  },
+  userPromptText: {
+    color: "#fff",
+    fontSize: 15,
+    lineHeight: 20,
   },
 });

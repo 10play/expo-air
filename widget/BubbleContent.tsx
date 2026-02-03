@@ -2,11 +2,13 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import { View, Text, StyleSheet, NativeModules, TouchableOpacity, Animated, Easing } from "react-native";
 import { PromptInput } from "./components/PromptInput";
 import { ResponseArea } from "./components/ResponseArea";
+import { GitChangesTab } from "./components/GitChangesTab";
 import {
   createWebSocketClient,
   getWebSocketClient,
   type ServerMessage,
   type ConnectionStatus,
+  type GitChange,
 } from "./services/websocket";
 
 // WidgetBridge is a simple native module available in the widget runtime
@@ -28,6 +30,8 @@ function handleCollapse() {
   }
 }
 
+type TabType = "chat" | "changes";
+
 interface BubbleContentProps {
   size?: number;
   color?: string;
@@ -44,6 +48,9 @@ export function BubbleContent({
   const [status, setStatus] = useState<ConnectionStatus>("disconnected");
   const [messages, setMessages] = useState<ServerMessage[]>([]);
   const [currentResponse, setCurrentResponse] = useState("");
+  const [branchName, setBranchName] = useState<string>("main");
+  const [gitChanges, setGitChanges] = useState<GitChange[]>([]);
+  const [activeTab, setActiveTab] = useState<TabType>("chat");
 
   // Initialize WebSocket connection immediately (even when collapsed)
   // so it's already connected when user expands the widget
@@ -86,18 +93,76 @@ export function BubbleContent({
       case "status":
         // Status is handled by the status indicator
         break;
+      case "session_cleared":
+        // Clear all messages for new session
+        setMessages([]);
+        setCurrentResponse("");
+        break;
+      case "stopped":
+        // Query was stopped, keep messages
+        break;
+      case "history":
+        // Convert history entries to displayable messages
+        const historyMessages: ServerMessage[] = message.entries.map((entry) => {
+          if (entry.role === "user") {
+            return {
+              type: "user_prompt" as const,
+              content: entry.content,
+              timestamp: entry.timestamp,
+            };
+          } else {
+            return {
+              type: "history_result" as const,
+              content: entry.content,
+              timestamp: entry.timestamp,
+            };
+          }
+        });
+        setMessages(historyMessages);
+        break;
+      case "git_status":
+        // Update branch name and git changes
+        setBranchName(message.branchName);
+        setGitChanges(message.changes);
+        break;
     }
   }, []);
 
   const handleSubmit = useCallback((prompt: string) => {
-    // Clear previous messages for new prompt
-    setMessages([]);
+    // Add user prompt to messages for display
+    setMessages((prev) => [
+      ...prev,
+      {
+        type: "user_prompt" as const,
+        content: prompt,
+        timestamp: Date.now(),
+      },
+    ]);
     setCurrentResponse("");
 
     const client = getWebSocketClient();
     if (client) {
       client.sendPrompt(prompt);
     }
+  }, []);
+
+  const handleNewSession = useCallback(() => {
+    const client = getWebSocketClient();
+    if (client) {
+      client.requestNewSession();
+    }
+  }, []);
+
+  const handleStop = useCallback(() => {
+    const client = getWebSocketClient();
+    if (client) {
+      client.requestStop();
+    }
+  }, []);
+
+  const handleDiscard = useCallback(() => {
+    // TODO: Implement git discard in future PR
+    console.log("[expo-flow] Discard changes requested");
   }, []);
 
   // Collapsed: Just a pulsing indicator, no text
@@ -112,39 +177,100 @@ export function BubbleContent({
   // Expanded: Full panel dropping down from Dynamic Island position
   return (
     <View style={styles.expanded}>
-      <Header status={status} />
-      <View style={styles.body}>
-        <ResponseArea messages={messages} currentResponse={currentResponse} />
-      </View>
-      <PromptInput
-        onSubmit={handleSubmit}
-        disabled={status === "disconnected"}
-        isProcessing={status === "processing"}
+      <Header
+        status={status}
+        branchName={branchName}
       />
+      <TabBar
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        onNewSession={handleNewSession}
+        canStartNew={status === "connected"}
+      />
+      <View style={styles.body}>
+        {activeTab === "chat" ? (
+          <ResponseArea messages={messages} currentResponse={currentResponse} />
+        ) : (
+          <GitChangesTab changes={gitChanges} onDiscard={handleDiscard} />
+        )}
+      </View>
+      {activeTab === "chat" && (
+        <PromptInput
+          onSubmit={handleSubmit}
+          onStop={handleStop}
+          disabled={status === "disconnected"}
+          isProcessing={status === "processing"}
+        />
+      )}
     </View>
   );
 }
 
-function Header({ status }: { status: ConnectionStatus }) {
-  const statusConfig = {
-    disconnected: { text: "Disconnected", color: "#FF3B30" },
-    connecting: { text: "Connecting...", color: "#007AFF" },
-    connected: { text: "Connected", color: "#30D158" },
-    processing: { text: "Claude is working...", color: "#007AFF" },
-  };
+interface HeaderProps {
+  status: ConnectionStatus;
+  branchName: string;
+}
 
-  const { text, color } = statusConfig[status];
+function Header({ status, branchName }: HeaderProps) {
+  const statusColors = {
+    disconnected: "#FF3B30",
+    connecting: "#007AFF",
+    connected: "#30D158",
+    processing: "#007AFF",
+  };
 
   return (
     <View style={styles.header}>
       <TouchableOpacity onPress={handleCollapse} style={styles.closeButton}>
         <Text style={styles.closeButtonText}>✕</Text>
       </TouchableOpacity>
-      <Text style={styles.title}>Expo Flow</Text>
-      <View style={styles.statusContainer}>
-        <View style={[styles.statusIndicator, { backgroundColor: color }]} />
-        <Text style={styles.statusText}>{text}</Text>
+
+      <Text style={styles.branchName} numberOfLines={1}>
+        {branchName}
+      </Text>
+
+      <View style={[styles.statusDot, { backgroundColor: statusColors[status] }]} />
+    </View>
+  );
+}
+
+interface TabBarProps {
+  activeTab: TabType;
+  onTabChange: (tab: TabType) => void;
+  onNewSession: () => void;
+  canStartNew: boolean;
+}
+
+function TabBar({ activeTab, onTabChange, onNewSession, canStartNew }: TabBarProps) {
+  return (
+    <View style={styles.tabBar}>
+      <View style={styles.tabButtons}>
+        <TouchableOpacity onPress={() => onTabChange("chat")}>
+          <Text style={[
+            styles.tabText,
+            activeTab === "chat" ? styles.tabTextActive : styles.tabTextInactive
+          ]}>
+            Chat
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => onTabChange("changes")}>
+          <Text style={[
+            styles.tabText,
+            activeTab === "changes" ? styles.tabTextActive : styles.tabTextInactive
+          ]}>
+            Changes
+          </Text>
+        </TouchableOpacity>
       </View>
+      {activeTab === "chat" && (
+        <TouchableOpacity
+          onPress={onNewSession}
+          style={[styles.newButton, !canStartNew && styles.newButtonDisabled]}
+          disabled={!canStartNew}
+        >
+          <Text style={[styles.newButtonText, !canStartNew && styles.newButtonTextDisabled]}>New</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
@@ -257,10 +383,9 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     opacity: 0.4,
   },
-  // Expanded panel - drops down from Dynamic Island position
+  // Expanded panel - fills native container (which handles width/centering)
   expanded: {
-    width: 340,
-    height: 420,
+    flex: 1,
     backgroundColor: "#000",
     borderRadius: 32,
     overflow: "hidden",
@@ -289,25 +414,56 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
   },
-  title: {
+  branchName: {
     flex: 1,
-    color: "#fff",
-    fontSize: 17,
-    fontWeight: "600",
+    color: "rgba(255,255,255,0.6)",
+    fontSize: 14,
+    fontWeight: "500",
   },
-  statusContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  statusIndicator: {
+  statusDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    marginRight: 6,
   },
-  statusText: {
-    color: "rgba(255,255,255,0.6)",
+  newButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 14,
+    backgroundColor: "rgba(255,255,255,0.15)",
+  },
+  newButtonDisabled: {
+    opacity: 0.4,
+  },
+  newButtonText: {
+    color: "#fff",
     fontSize: 13,
+    fontWeight: "600",
+  },
+  newButtonTextDisabled: {
+    opacity: 0.6,
+  },
+  tabBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.08)",
+  },
+  tabButtons: {
+    flexDirection: "row",
+    gap: 20,
+  },
+  tabText: {
+    fontSize: 15,
+    fontWeight: "500",
+  },
+  tabTextActive: {
+    color: "#fff",
+  },
+  tabTextInactive: {
+    color: "rgba(255,255,255,0.4)",
   },
   body: {
     flex: 1,

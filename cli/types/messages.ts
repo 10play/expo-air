@@ -5,11 +5,19 @@
  * - widget/services/websocket.ts (client side - Phase 4)
  */
 
-// Incoming message from widget
+// Incoming messages from widget
 export interface PromptMessage {
   type: "prompt";
   id?: string;
   content: string;
+}
+
+export interface NewSessionMessage {
+  type: "new_session";
+}
+
+export interface StopMessage {
+  type: "stop";
 }
 
 // Outgoing messages to widget
@@ -35,6 +43,19 @@ export interface StatusMessage {
   type: "status";
   status: "idle" | "processing" | "connected";
   promptId?: string;
+  branchName?: string;
+  timestamp: number;
+}
+
+export interface GitChange {
+  file: string;
+  status: "added" | "modified" | "deleted" | "renamed" | "untracked";
+}
+
+export interface GitStatusMessage {
+  type: "git_status";
+  branchName: string;
+  changes: GitChange[];
   timestamp: number;
 }
 
@@ -56,11 +77,37 @@ export interface ErrorMessage {
   timestamp: number;
 }
 
+export interface SessionClearedMessage {
+  type: "session_cleared";
+  timestamp: number;
+}
+
+export interface StoppedMessage {
+  type: "stopped";
+  timestamp: number;
+}
+
+export interface ConversationEntry {
+  role: "user" | "assistant";
+  content: string;
+  timestamp: number;
+}
+
+export interface HistoryMessage {
+  type: "history";
+  entries: ConversationEntry[];
+  timestamp: number;
+}
+
 export type OutgoingMessage =
   | StreamMessage
   | ToolMessage
   | StatusMessage
   | ResultMessage
-  | ErrorMessage;
+  | ErrorMessage
+  | SessionClearedMessage
+  | StoppedMessage
+  | HistoryMessage
+  | GitStatusMessage;
 
-export type IncomingMessage = PromptMessage;
+export type IncomingMessage = PromptMessage | NewSessionMessage | StopMessage;

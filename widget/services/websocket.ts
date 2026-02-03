@@ -48,12 +48,66 @@ export interface ErrorMessage {
   timestamp: number;
 }
 
+export interface SessionClearedMessage {
+  type: "session_cleared";
+  timestamp: number;
+}
+
+export interface StoppedMessage {
+  type: "stopped";
+  timestamp: number;
+}
+
+export interface ConversationEntry {
+  role: "user" | "assistant";
+  content: string;
+  timestamp: number;
+}
+
+export interface HistoryMessage {
+  type: "history";
+  entries: ConversationEntry[];
+  timestamp: number;
+}
+
+// Local display-only message for showing user prompts in the UI
+export interface UserPromptMessage {
+  type: "user_prompt";
+  content: string;
+  timestamp: number;
+}
+
+// Local display-only message for showing assistant responses from history
+export interface HistoryResultMessage {
+  type: "history_result";
+  content: string;
+  timestamp: number;
+}
+
+export interface GitChange {
+  file: string;
+  status: "added" | "modified" | "deleted" | "renamed" | "untracked";
+}
+
+export interface GitStatusMessage {
+  type: "git_status";
+  branchName: string;
+  changes: GitChange[];
+  timestamp: number;
+}
+
 export type ServerMessage =
   | StreamMessage
   | ToolMessage
   | StatusMessage
   | ResultMessage
-  | ErrorMessage;
+  | ErrorMessage
+  | SessionClearedMessage
+  | StoppedMessage
+  | HistoryMessage
+  | UserPromptMessage
+  | HistoryResultMessage
+  | GitStatusMessage;
 
 export interface WebSocketClientOptions {
   url: string;
@@ -148,6 +202,8 @@ export class WebSocketClient {
       }
     } else if (message.type === "result" || message.type === "error") {
       this.setStatus("connected");
+    } else if (message.type === "stopped" || message.type === "session_cleared") {
+      this.setStatus("connected");
     }
 
     this.options.onMessage(message);
@@ -204,6 +260,24 @@ export class WebSocketClient {
 
     this.ws.send(JSON.stringify(message));
     this.setStatus("processing");
+  }
+
+  requestNewSession(): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      this.options.onError(new Error("Not connected"));
+      return;
+    }
+
+    this.ws.send(JSON.stringify({ type: "new_session" }));
+  }
+
+  requestStop(): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      this.options.onError(new Error("Not connected"));
+      return;
+    }
+
+    this.ws.send(JSON.stringify({ type: "stop" }));
   }
 
   isConnected(): boolean {
