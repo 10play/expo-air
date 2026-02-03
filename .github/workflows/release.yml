@@ -71,7 +71,8 @@ jobs:
       - name: Publish to npm
         # Uses OIDC trusted publishing - no token needed
         # Configured at: https://www.npmjs.com/package/@10play/expo-air/access
-        run: npm publish --provenance --access public
+        # Note: --provenance requires public repo, removed for private repo support
+        run: npm publish --access public
 
       - name: Commit and tag
         run: |
