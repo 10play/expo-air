@@ -116,12 +116,14 @@ const withExpoAir: ConfigPlugin = (config) => {
     }
 
     // Write to Info.plist under ExpoAir key
+    // Note: Empty strings for URLs will trigger fallback logic in native code
+    // SDK developers get localhost fallback, npm users get pre-built bundle
     config.modResults.ExpoAir = {
       autoShow: expoAirConfig.autoShow ?? true,
       bubbleSize: expoAirConfig.ui?.bubbleSize ?? 60,
       bubbleColor: expoAirConfig.ui?.bubbleColor ?? "#007AFF",
-      serverUrl: expoAirConfig.serverUrl ?? "ws://localhost:3847",
-      widgetMetroUrl: expoAirConfig.widgetMetroUrl ?? "http://localhost:8082",
+      serverUrl: expoAirConfig.serverUrl ?? "",
+      widgetMetroUrl: expoAirConfig.widgetMetroUrl ?? "",
       appMetroUrl: expoAirConfig.appMetroUrl ?? "",
     };
 

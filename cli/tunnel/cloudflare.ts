@@ -126,6 +126,36 @@ export class CloudflareTunnel {
 
       let output = "";
       let resolved = false;
+      let exitCode: number | null = null;
+      let stdoutEnded = false;
+      let stderrEnded = false;
+
+      const checkComplete = () => {
+        // Only process when all streams are done and process has exited
+        if (exitCode !== null && stdoutEnded && stderrEnded && !resolved) {
+          // Check for rate limit error
+          const has429 = output.includes("429");
+          const hasTooMany = output.includes("Too Many Requests");
+          const has1015 = output.includes("1015");
+          const isRateLimit = has429 || hasTooMany || has1015;
+
+          if (isRateLimit) {
+            reject(new Error(
+              `Cloudflare rate limit reached (429 Too Many Requests).\n` +
+              `\n` +
+              `This happens when too many tunnel requests are made in a short time.\n` +
+              `Options:\n` +
+              `  1. Wait a few minutes and try again\n` +
+              `  2. Use --no-tunnel flag to run without tunnels (local network only)\n` +
+              `  3. Set up a Cloudflare account for production tunnels\n` +
+              `\n` +
+              `Learn more: https://developers.cloudflare.com/cloudflare-one/connections/connect-apps`
+            ));
+          } else {
+            reject(new Error(`cloudflared exited with code ${exitCode}\nOutput: ${output}`));
+          }
+        }
+      };
 
       const parseUrl = (data: string) => {
         output += data;
@@ -144,7 +174,9 @@ export class CloudflareTunnel {
       };
 
       this.process.stdout?.on("data", (data) => parseUrl(data.toString()));
+      this.process.stdout?.on("end", () => { stdoutEnded = true; checkComplete(); });
       this.process.stderr?.on("data", (data) => parseUrl(data.toString()));
+      this.process.stderr?.on("end", () => { stderrEnded = true; checkComplete(); });
 
       this.process.on("error", (err) => {
         if (!resolved) {
@@ -153,9 +185,8 @@ export class CloudflareTunnel {
       });
 
       this.process.on("exit", (code) => {
-        if (!resolved) {
-          reject(new Error(`cloudflared exited with code ${code}\nOutput: ${output}`));
-        }
+        exitCode = code;
+        checkComplete();
       });
 
       // Timeout after 30 seconds

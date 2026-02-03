@@ -7,12 +7,31 @@ struct ShowBubbleOptions: Record {
 
 public class ExpoAirModule: Module {
   private static func widgetBundleURL() -> URL? {
-    // If a pre-built bundle exists in the pod resources, use it (production)
+    // Production: use pre-built bundle from pod resources
     if let bundled = Bundle(for: ExpoAirModule.self).url(forResource: "widget", withExtension: "jsbundle") {
       return bundled
     }
-    // Otherwise, fall back to the widget's dedicated Metro dev server on port 8082
+
+    // Development: check for metro URL override via environment variable
+    if let metroUrl = ProcessInfo.processInfo.environment["EXPO_AIR_METRO_URL"],
+       let url = URL(string: "\(metroUrl)/index.bundle?platform=ios&dev=true&minify=false") {
+      return url
+    }
+
+    // Development: check for metro URL from Info.plist (set by CLI)
+    if let expoAir = Bundle.main.object(forInfoDictionaryKey: "ExpoAir") as? [String: Any],
+       let metroUrl = expoAir["widgetMetroUrl"] as? String,
+       !metroUrl.isEmpty,
+       let url = URL(string: "\(metroUrl)/index.bundle?platform=ios&dev=true&minify=false") {
+      return url
+    }
+
+    // Final fallback for local development only
+    #if DEBUG
     return URL(string: "http://localhost:8082/index.bundle?platform=ios&dev=true&minify=false")
+    #else
+    return nil
+    #endif
   }
 
   private func wireManagerEvents() {
@@ -72,7 +91,22 @@ public class ExpoAirModule: Module {
     }
 
     Function("getServerUrl") { () -> String in
-      return UserDefaults.standard.string(forKey: "expo-air-server-url") ?? "ws://localhost:3847"
+      // Check UserDefaults first (may be set by CLI)
+      if let cached = UserDefaults.standard.string(forKey: "expo-air-server-url"), !cached.isEmpty {
+        return cached
+      }
+      // Check Info.plist (set by plugin/CLI)
+      if let expoAir = Bundle.main.object(forInfoDictionaryKey: "ExpoAir") as? [String: Any],
+         let serverUrl = expoAir["serverUrl"] as? String,
+         !serverUrl.isEmpty {
+        return serverUrl
+      }
+      // Fallback for local development
+      #if DEBUG
+      return "ws://localhost:3847"
+      #else
+      return ""
+      #endif
     }
 
     View(ExpoAirView.self) {

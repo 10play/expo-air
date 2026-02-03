@@ -2,9 +2,52 @@ import chalk from "chalk";
 import { spawn, ChildProcess } from "child_process";
 import * as path from "path";
 import * as fs from "fs";
+import * as net from "net";
 import { fileURLToPath } from "url";
 import { CloudflareTunnel } from "../tunnel/cloudflare.js";
 import plist from "plist";
+
+/**
+ * Check if a port is listening (Metro is ready)
+ */
+function waitForPort(port: number, timeout = 30000): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const startTime = Date.now();
+
+    const tryConnect = () => {
+      const socket = new net.Socket();
+
+      socket.setTimeout(1000);
+
+      socket.on("connect", () => {
+        socket.destroy();
+        resolve();
+      });
+
+      socket.on("timeout", () => {
+        socket.destroy();
+        if (Date.now() - startTime > timeout) {
+          reject(new Error(`Timeout waiting for port ${port}`));
+        } else {
+          setTimeout(tryConnect, 500);
+        }
+      });
+
+      socket.on("error", () => {
+        socket.destroy();
+        if (Date.now() - startTime > timeout) {
+          reject(new Error(`Timeout waiting for port ${port}`));
+        } else {
+          setTimeout(tryConnect, 500);
+        }
+      });
+
+      socket.connect(port, "127.0.0.1");
+    };
+
+    tryConnect();
+  });
+}
 
 interface ExpoAirConfig {
   autoShow?: boolean;
@@ -19,6 +62,21 @@ interface ExpoAirConfig {
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+/**
+ * Check if running from an npm installation (inside node_modules)
+ */
+function isInstalledFromNpm(): boolean {
+  return __dirname.includes("node_modules");
+}
+
+/**
+ * Check if pre-built widget bundle exists
+ */
+function hasPrebuiltWidgetBundle(): boolean {
+  const bundlePath = path.resolve(__dirname, "../../..", "ios", "widget.jsbundle");
+  return fs.existsSync(bundlePath);
+}
 
 /**
  * Directly update Info.plist with tunnel URLs.
@@ -134,8 +192,9 @@ export async function startCommand(options: StartOptions): Promise<void> {
         env: { ...process.env, FORCE_COLOR: "1" },
       });
 
+      // Wait for initial Metro output
       await new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(() => resolve(), 5000);
+        const timeout = setTimeout(() => resolve(), 3000);
 
         proc.on("error", (err) => {
           clearTimeout(timeout);
@@ -159,6 +218,9 @@ export async function startCommand(options: StartOptions): Promise<void> {
         });
       });
 
+      // Wait for port to actually be listening (Metro fully ready)
+      await waitForPort(metroPortNum, 30000);
+
       console.log(chalk.green(`  ✓ ${name} Metro started on port ${metroPortNum}`));
       return proc;
     } catch (err) {
@@ -169,8 +231,14 @@ export async function startCommand(options: StartOptions): Promise<void> {
     }
   };
 
-  // Start widget Metro server
-  const widgetProcess = await startMetro("Widget", widgetDir, widgetPort);
+  // Start widget Metro server (skip for npm users with pre-built bundle)
+  let widgetProcess: ChildProcess | null = null;
+  if (isInstalledFromNpm() && hasPrebuiltWidgetBundle()) {
+    console.log(chalk.green(`  ✓ Using pre-built widget bundle (npm installation)`));
+  } else {
+    console.log(chalk.blue(`  Starting widget Metro (SDK development mode)...`));
+    widgetProcess = await startMetro("Widget", widgetDir, widgetPort);
+  }
 
   // Start main app Metro server
   const appProcess = await startMetro("App", projectRoot, metroPort);
@@ -199,6 +267,8 @@ export async function startCommand(options: StartOptions): Promise<void> {
   if (options.tunnel) {
     console.log(chalk.gray("  Starting tunnels (Cloudflare)..."));
 
+    let rateLimitHit = false;
+
     // Start prompt server tunnel
     promptTunnel = new CloudflareTunnel();
     try {
@@ -208,29 +278,53 @@ export async function startCommand(options: StartOptions): Promise<void> {
       console.log(chalk.green(`  ✓ Prompt tunnel:  ${promptTunnelUrl}`));
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      console.log(chalk.red(`  ✗ Prompt tunnel failed: ${message}`));
+      if (message.includes("rate limit") || message.includes("429")) {
+        rateLimitHit = true;
+      }
+      console.log(chalk.red(`  ✗ Prompt tunnel failed`));
     }
 
-    // Start widget Metro tunnel
-    widgetTunnel = new CloudflareTunnel();
-    try {
-      const info = await widgetTunnel.start(widgetPort);
-      widgetTunnelUrl = info.url;
-      console.log(chalk.green(`  ✓ Widget tunnel:  ${widgetTunnelUrl}`));
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      console.log(chalk.red(`  ✗ Widget tunnel failed: ${message}`));
+    // Start widget Metro tunnel (skip if rate limited or using pre-built bundle)
+    // Only needed when widget Metro is running (SDK development mode)
+    if (!rateLimitHit && widgetProcess) {
+      widgetTunnel = new CloudflareTunnel();
+      try {
+        const info = await widgetTunnel.start(widgetPort);
+        widgetTunnelUrl = info.url;
+        console.log(chalk.green(`  ✓ Widget tunnel:  ${widgetTunnelUrl}`));
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        if (message.includes("rate limit") || message.includes("429")) {
+          rateLimitHit = true;
+        }
+        console.log(chalk.red(`  ✗ Widget tunnel failed`));
+      }
     }
 
-    // Start main app Metro tunnel
-    appTunnel = new CloudflareTunnel();
-    try {
-      const info = await appTunnel.start(metroPort);
-      appTunnelUrl = info.url;
-      console.log(chalk.green(`  ✓ App tunnel:     ${appTunnelUrl}`));
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      console.log(chalk.red(`  ✗ App tunnel failed: ${message}`));
+    // Start main app Metro tunnel (skip if rate limited)
+    if (!rateLimitHit) {
+      appTunnel = new CloudflareTunnel();
+      try {
+        const info = await appTunnel.start(metroPort);
+        appTunnelUrl = info.url;
+        console.log(chalk.green(`  ✓ App tunnel:     ${appTunnelUrl}`));
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        if (message.includes("rate limit") || message.includes("429")) {
+          rateLimitHit = true;
+        }
+        console.log(chalk.red(`  ✗ App tunnel failed`));
+      }
+    }
+
+    // Show rate limit warning
+    if (rateLimitHit) {
+      console.log(chalk.yellow(`\n  ⚠ Cloudflare rate limit reached (429 Too Many Requests)`));
+      console.log(chalk.gray(`    This happens when too many tunnel requests are made.`));
+      console.log(chalk.gray(`    Options:`));
+      console.log(chalk.white(`      1. Wait a few minutes and try again`));
+      console.log(chalk.white(`      2. Use --no-tunnel to run without tunnels (local only)`));
+      console.log(chalk.white(`      3. Connect device via USB for local development\n`));
     }
 
     // Update config files with tunnel URLs
@@ -265,7 +359,11 @@ export async function startCommand(options: StartOptions): Promise<void> {
   if (options.server) {
     console.log(chalk.white(`    Prompt Server: ws://localhost:${port}`));
   }
-  console.log(chalk.white(`    Widget Metro:  http://localhost:${widgetPort}`));
+  if (widgetProcess) {
+    console.log(chalk.white(`    Widget Metro:  http://localhost:${widgetPort}`));
+  } else {
+    console.log(chalk.white(`    Widget:        (pre-built bundle)`));
+  }
   console.log(chalk.white(`    App Metro:     http://localhost:${metroPort}`));
   if (promptTunnelUrl || widgetTunnelUrl || appTunnelUrl) {
     console.log(chalk.gray("\n  Remote (anywhere):"));

@@ -37,6 +37,7 @@ jobs:
         run: |
           npm ci
           cd cli && npm ci
+          cd ../widget && npm ci
 
       - name: Build
         run: npm run build

@@ -1,6 +1,6 @@
 {
   "name": "@10play/expo-air",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Vibe Coding for React-Native",
   "main": "build/index.js",
   "types": "build/index.d.ts",
@@ -11,6 +11,7 @@
     "configPlugin": "./plugin/build/index.js"
   },
   "files": [
+    "app.plugin.js",
     "build/",
     "cli/dist/",
     "plugin/build/",
@@ -28,10 +29,11 @@
     "expo-module.config.json"
   ],
   "scripts": {
-    "build": "npm run build:module && npm run build:plugin && npm run build:cli",
+    "build": "npm run build:module && npm run build:plugin && npm run build:cli && npm run build:widget",
     "build:module": "tsc --project tsconfig.json",
     "build:plugin": "cd plugin && tsc",
     "build:cli": "cd cli && npm run build",
+    "build:widget": "cd widget && npx expo export --platform ios --output-dir ../ios/widget-export --no-bytecode && cp ../ios/widget-export/_expo/static/js/ios/*.js ../ios/widget.jsbundle && rm -rf ../ios/widget-export",
     "clean": "rm -rf build plugin/build cli/dist && expo-module clean",
     "lint": "expo-module lint",
     "typecheck": "tsc --noEmit && cd cli && tsc --noEmit && cd ../plugin && tsc --noEmit",

@@ -21,6 +21,7 @@ jobs:
         run: |
           npm ci
           cd cli && npm ci
+          cd ../widget && npm ci
 
       - name: Type check
         run: npm run typecheck
@@ -36,7 +37,8 @@ jobs:
           test -f build/index.js
           test -f cli/dist/bin/expo-air.js
           test -f plugin/build/index.js
-          echo "All build artifacts exist"
+          test -f ios/widget.jsbundle
+          echo "All build artifacts exist (including widget bundle)"
 
   test-example-ios:
     runs-on: macos-latest
@@ -52,6 +54,7 @@ jobs:
         run: |
           npm ci
           cd cli && npm ci
+          cd ../widget && npm ci
           cd ../example && npm ci
 
       - name: Build package

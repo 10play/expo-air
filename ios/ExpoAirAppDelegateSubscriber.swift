@@ -6,12 +6,12 @@ import UIKit
 public class ExpoAirAppDelegateSubscriber: ExpoAppDelegateSubscriber {
     private var hasShown = false
 
-    // Config with defaults
+    // Config with defaults (localhost fallbacks only used in SDK development)
     private var bubbleSize: CGFloat = 60
     private var bubbleColor: String = "#007AFF"
     private var autoShow: Bool = true
-    private var serverUrl: String = "ws://localhost:3847"
-    private var widgetMetroUrl: String = "http://localhost:8082"
+    private var serverUrl: String = ""
+    private var widgetMetroUrl: String = ""
 
     public func applicationDidBecomeActive(_ application: UIApplication) {
         #if DEBUG
@@ -54,21 +54,48 @@ public class ExpoAirAppDelegateSubscriber: ExpoAppDelegateSubscriber {
     }
 
     private func showBubble() {
-        // Use env var first, then config, then default
-        let metroBaseUrl = ProcessInfo.processInfo.environment["EXPO_AIR_METRO_URL"] ?? widgetMetroUrl
-        print("[expo-air] metroBaseUrl: \(metroBaseUrl)")
+        // Resolve bundle URL with priority: pre-built bundle > env var > config > localhost fallback
+        let bundleUrl: URL
 
-        let bundleUrlString = "\(metroBaseUrl)/index.bundle?platform=ios&dev=true"
-        print("[expo-air] bundleUrlString: \(bundleUrlString)")
+        // 1. Check for pre-built bundle first (production/npm installs)
+        if let prebuiltBundle = Bundle(for: ExpoAirAppDelegateSubscriber.self).url(forResource: "widget", withExtension: "jsbundle") {
+            print("[expo-air] Using pre-built widget bundle")
+            bundleUrl = prebuiltBundle
+        } else {
+            // 2. Development mode: use Metro URL
+            let metroBaseUrl: String
+            if let envUrl = ProcessInfo.processInfo.environment["EXPO_AIR_METRO_URL"], !envUrl.isEmpty {
+                metroBaseUrl = envUrl
+            } else if !widgetMetroUrl.isEmpty {
+                metroBaseUrl = widgetMetroUrl
+            } else {
+                // Final fallback for SDK development
+                metroBaseUrl = "http://localhost:8082"
+            }
 
-        guard let bundleUrl = URL(string: bundleUrlString) else {
-            print("[expo-air] ERROR: Failed to create URL from: \(bundleUrlString)")
-            return
+            print("[expo-air] metroBaseUrl: \(metroBaseUrl)")
+            let bundleUrlString = "\(metroBaseUrl)/index.bundle?platform=ios&dev=true"
+            print("[expo-air] bundleUrlString: \(bundleUrlString)")
+
+            guard let url = URL(string: bundleUrlString) else {
+                print("[expo-air] ERROR: Failed to create URL from: \(bundleUrlString)")
+                return
+            }
+            bundleUrl = url
         }
+
         print("[expo-air] bundleUrl: \(bundleUrl.absoluteString)")
 
-        // Use env var first, then config value
-        let effectiveServerUrl = ProcessInfo.processInfo.environment["EXPO_AIR_SERVER_URL"] ?? serverUrl
+        // Resolve server URL with priority: env var > config > localhost fallback
+        let effectiveServerUrl: String
+        if let envUrl = ProcessInfo.processInfo.environment["EXPO_AIR_SERVER_URL"], !envUrl.isEmpty {
+            effectiveServerUrl = envUrl
+        } else if !serverUrl.isEmpty {
+            effectiveServerUrl = serverUrl
+        } else {
+            // Final fallback for SDK development
+            effectiveServerUrl = "ws://localhost:3847"
+        }
 
         FloatingBubbleManager.shared.show(
             size: bubbleSize,
@@ -80,6 +107,6 @@ public class ExpoAirAppDelegateSubscriber: ExpoAppDelegateSubscriber {
         // Also store in UserDefaults for backward compatibility
         UserDefaults.standard.set(effectiveServerUrl, forKey: "expo-air-server-url")
 
-        print("[expo-air] Bubble auto-injected (size: \(bubbleSize), color: \(bubbleColor), server: \(effectiveServerUrl), widgetMetro: \(metroBaseUrl))")
+        print("[expo-air] Bubble auto-injected (size: \(bubbleSize), color: \(bubbleColor), server: \(effectiveServerUrl))")
     }
 }

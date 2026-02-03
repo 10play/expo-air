@@ -65,3 +65,7 @@ cli/dist/
 # Local config (contains tunnel URLs, not committed)
 .expo-air.local.json
 */.expo-air.local.json
+
+# Generated widget bundle (built at publish time)
+ios/widget.jsbundle
+ios/widget.jsbundle.meta
