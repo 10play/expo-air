@@ -86,11 +86,9 @@ jobs:
           git push origin main --tags
 
       - name: Publish to npm
-        # Uses OIDC provenance - cryptographically links package to this repo
-        # First publish requires NPM_TOKEN, subsequent can use pure OIDC
+        # Uses OIDC trusted publishing - no token needed
+        # Configured at: https://www.npmjs.com/package/@10play/expo-air/access
         run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
