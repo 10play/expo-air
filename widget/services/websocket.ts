@@ -280,6 +280,15 @@ export class WebSocketClient {
     this.ws.send(JSON.stringify({ type: "stop" }));
   }
 
+  requestDiscardChanges(): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      this.options.onError(new Error("Not connected"));
+      return;
+    }
+
+    this.ws.send(JSON.stringify({ type: "discard_changes" }));
+  }
+
   isConnected(): boolean {
     return this.ws?.readyState === WebSocket.OPEN;
   }

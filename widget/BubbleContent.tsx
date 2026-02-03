@@ -161,8 +161,10 @@ export function BubbleContent({
   }, []);
 
   const handleDiscard = useCallback(() => {
-    // TODO: Implement git discard in future PR
-    console.log("[expo-flow] Discard changes requested");
+    const client = getWebSocketClient();
+    if (client) {
+      client.requestDiscardChanges();
+    }
   }, []);
 
   // Collapsed: Just a pulsing indicator, no text

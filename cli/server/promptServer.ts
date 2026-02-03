@@ -9,6 +9,7 @@ import type {
   PromptMessage,
   NewSessionMessage,
   StopMessage,
+  DiscardChangesMessage,
   OutgoingMessage,
   ConversationEntry,
   GitChange,
@@ -292,6 +293,12 @@ export class PromptServer {
       return;
     }
 
+    // Handle discard changes request
+    if (this.isDiscardChangesMessage(message)) {
+      this.handleDiscardChanges(ws);
+      return;
+    }
+
     // Handle prompt message
     if (this.isPromptMessage(message)) {
       const promptId = message.id || randomUUID();
@@ -307,7 +314,7 @@ export class PromptServer {
     this.sendToClient(ws, {
       type: "error",
       message:
-        'Invalid message format. Expected: {"type":"prompt","content":"..."} or {"type":"new_session"} or {"type":"stop"}',
+        'Invalid message format. Expected: {"type":"prompt","content":"..."} or {"type":"new_session"} or {"type":"stop"} or {"type":"discard_changes"}',
       timestamp: Date.now(),
     });
   }
@@ -345,6 +352,40 @@ export class PromptServer {
     });
   }
 
+  private handleDiscardChanges(ws: WebSocket): void {
+    this.log("Discarding all git changes...", "info");
+
+    try {
+      // Reset tracked files to HEAD
+      execSync("git checkout -- .", {
+        cwd: this.projectRoot,
+        stdio: ["pipe", "pipe", "pipe"],
+      });
+
+      // Remove untracked files and directories
+      execSync("git clean -fd", {
+        cwd: this.projectRoot,
+        stdio: ["pipe", "pipe", "pipe"],
+      });
+
+      this.log("All changes discarded", "success");
+
+      // Broadcast updated git status to all clients
+      const branchName = this.getBranchName();
+      const changes = this.getGitChanges();
+      this.broadcastGitStatus(branchName, changes);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.log(`Failed to discard changes: ${errorMessage}`, "error");
+
+      this.sendToClient(ws, {
+        type: "error",
+        message: `Failed to discard changes: ${errorMessage}`,
+        timestamp: Date.now(),
+      });
+    }
+  }
+
   private isPromptMessage(message: unknown): message is PromptMessage {
     return (
       typeof message === "object" &&
@@ -371,6 +412,15 @@ export class PromptServer {
       message !== null &&
       "type" in message &&
       (message as StopMessage).type === "stop"
+    );
+  }
+
+  private isDiscardChangesMessage(message: unknown): message is DiscardChangesMessage {
+    return (
+      typeof message === "object" &&
+      message !== null &&
+      "type" in message &&
+      (message as DiscardChangesMessage).type === "discard_changes"
     );
   }
 

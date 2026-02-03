@@ -20,6 +20,10 @@ export interface StopMessage {
   type: "stop";
 }
 
+export interface DiscardChangesMessage {
+  type: "discard_changes";
+}
+
 // Outgoing messages to widget
 export interface StreamMessage {
   type: "stream";
@@ -110,4 +114,4 @@ export type OutgoingMessage =
   | HistoryMessage
   | GitStatusMessage;
 
-export type IncomingMessage = PromptMessage | NewSessionMessage | StopMessage;
+export type IncomingMessage = PromptMessage | NewSessionMessage | StopMessage | DiscardChangesMessage;
