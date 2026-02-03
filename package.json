@@ -29,7 +29,7 @@
   ],
   "scripts": {
     "build": "npm run build:module && npm run build:plugin && npm run build:cli",
-    "build:module": "expo-module build",
+    "build:module": "tsc --project tsconfig.json",
     "build:plugin": "cd plugin && tsc",
     "build:cli": "cd cli && npm run build",
     "clean": "rm -rf build plugin/build cli/dist && expo-module clean",
