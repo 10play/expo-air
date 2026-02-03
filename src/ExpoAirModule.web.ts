@@ -1,8 +1,8 @@
 import { registerWebModule, NativeModule } from 'expo';
 
-import { ExpoFlowModuleEvents } from './ExpoFlow.types';
+import { ExpoAirModuleEvents } from './ExpoAir.types';
 
-class ExpoFlowModule extends NativeModule<ExpoFlowModuleEvents> {
+class ExpoAirModule extends NativeModule<ExpoAirModuleEvents> {
   PI = Math.PI;
   async setValueAsync(value: string): Promise<void> {
     this.emit('onChange', { value });
@@ -12,4 +12,4 @@ class ExpoFlowModule extends NativeModule<ExpoFlowModuleEvents> {
   }
 }
 
-export default registerWebModule(ExpoFlowModule, 'ExpoFlowModule');
+export default registerWebModule(ExpoAirModule, 'ExpoAirModule');

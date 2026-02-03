@@ -3,13 +3,22 @@
 import { Command } from "commander";
 import { startCommand } from "../commands/start.js";
 import { serverCommand } from "../commands/server.js";
+import { initCommand } from "../commands/init.js";
+import { flyCommand } from "../commands/fly.js";
 
 const program = new Command();
 
 program
-  .name("expo-flow")
+  .name("expo-air")
   .description("Vibe Coding for React-Native - Mobile assistant for Claude Code")
   .version("0.1.0");
+
+program
+  .command("init")
+  .description("Initialize expo-air in your Expo project")
+  .option("-f, --force", "Overwrite existing configuration")
+  .option("--skip-prebuild", "Skip running expo prebuild")
+  .action(initCommand);
 
 program
   .command("start")
@@ -30,7 +39,18 @@ program
   .option("--project <path>", "Path to Expo project (where Claude makes changes)")
   .action(serverCommand);
 
-// Default command (just running `expo-flow` starts everything)
+program
+  .command("fly")
+  .description("✈️  Start everything + build and install on a real iOS device")
+  .option("-p, --port <port>", "Port for prompt server", "3847")
+  .option("-w, --widget-port <port>", "Port for widget Metro server", "8082")
+  .option("-m, --metro-port <port>", "Port for main app Metro server", "8081")
+  .option("--project <path>", "Path to Expo project")
+  .option("--device <id>", "Device UDID or name to use")
+  .option("--no-tunnel", "Skip tunnel (local network only)")
+  .action(flyCommand);
+
+// Default command (just running `expo-air` starts everything)
 program
   .action(() => {
     program.commands.find((cmd) => cmd.name() === "start")?.parse();

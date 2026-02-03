@@ -63,5 +63,5 @@ cli/dist/
 *.tsbuildinfo
 
 # Local config (contains tunnel URLs, not committed)
-.expo-flow.local.json
-*/.expo-flow.local.json
+.expo-air.local.json
+*/.expo-air.local.json

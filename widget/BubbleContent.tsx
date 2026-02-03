@@ -12,21 +12,21 @@ import {
 } from "./services/websocket";
 
 // WidgetBridge is a simple native module available in the widget runtime
-// ExpoFlow is the main app's module (fallback)
-const { WidgetBridge, ExpoFlow } = NativeModules;
+// ExpoAir is the main app's module (fallback)
+const { WidgetBridge, ExpoAir } = NativeModules;
 
 function handleCollapse() {
   try {
-    // Try WidgetBridge first (widget runtime), then ExpoFlow (main app)
+    // Try WidgetBridge first (widget runtime), then ExpoAir (main app)
     if (WidgetBridge?.collapse) {
       WidgetBridge.collapse();
-    } else if (ExpoFlow?.collapse) {
-      ExpoFlow.collapse();
+    } else if (ExpoAir?.collapse) {
+      ExpoAir.collapse();
     } else {
-      console.warn("[expo-flow] No collapse method available");
+      console.warn("[expo-air] No collapse method available");
     }
   } catch (e) {
-    console.warn("[expo-flow] Failed to collapse:", e);
+    console.warn("[expo-air] Failed to collapse:", e);
   }
 }
 
@@ -55,13 +55,13 @@ export function BubbleContent({
   // Initialize WebSocket connection immediately (even when collapsed)
   // so it's already connected when user expands the widget
   useEffect(() => {
-    console.log("[expo-flow] Connecting to:", serverUrl);
+    console.log("[expo-air] Connecting to:", serverUrl);
     const client = createWebSocketClient({
       url: serverUrl,
       onStatusChange: setStatus,
       onMessage: handleMessage,
       onError: (error) => {
-        console.error("[expo-flow] WebSocket error:", error);
+        console.error("[expo-air] WebSocket error:", error);
       },
     });
     client.connect();

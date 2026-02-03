@@ -1,4 +1,4 @@
-import ExpoFlow from "@10play/expo-flow";
+import ExpoAir from "@10play/expo-air";
 import { useEffect, useRef, useState } from "react";
 import { Button, SafeAreaView, ScrollView, Text, View } from "react-native";
 
@@ -10,16 +10,16 @@ export default function App() {
   });
 
   useEffect(() => {
-    const s1 = ExpoFlow.addListener("onPress", () =>
+    const s1 = ExpoAir.addListener("onPress", () =>
       addEventRef.current("onPress"),
     );
-    const s2 = ExpoFlow.addListener("onExpand", () =>
+    const s2 = ExpoAir.addListener("onExpand", () =>
       addEventRef.current("onExpand"),
     );
-    const s3 = ExpoFlow.addListener("onCollapse", () =>
+    const s3 = ExpoAir.addListener("onCollapse", () =>
       addEventRef.current("onCollapse"),
     );
-    const s4 = ExpoFlow.addListener("onDragEnd", (params) =>
+    const s4 = ExpoAir.addListener("onDragEnd", (params) =>
       addEventRef.current("onDragEnd", params),
     );
     return () => {
@@ -33,18 +33,18 @@ export default function App() {
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView style={styles.container}>
-        <Text style={styles.header}>$$778</Text>
+        <Text style={styles.header}>12345</Text>
         <Group name="Floating Bubble">
           <View style={styles.buttonRow}>
             <Button
               title="Show"
-              onPress={() => ExpoFlow.show({ size: 60, color: "#007AFF" })}
+              onPress={() => ExpoAir.show({ size: 60, color: "#007AFF" })}
             />
-            <Button title="Hide" onPress={() => ExpoFlow.hide()} />
+            <Button title="Hide" onPress={() => ExpoAir.hide()} />
           </View>
           <View style={styles.buttonRow}>
-            <Button title="Expand" onPress={() => ExpoFlow.expand()} />
-            <Button title="Collapse" onPress={() => ExpoFlow.collapse()} />
+            <Button title="Expand" onPress={() => ExpoAir.expand()} />
+            <Button title="Collapse" onPress={() => ExpoAir.collapse()} />
           </View>
           {events.length > 0 && (
             <View style={styles.eventLog}>

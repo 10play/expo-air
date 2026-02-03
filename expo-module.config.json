@@ -1,10 +1,10 @@
 {
   "platforms": ["apple", "android", "web"],
   "apple": {
-    "modules": ["ExpoFlowModule"],
-    "appDelegateSubscribers": ["ExpoFlowAppDelegateSubscriber"]
+    "modules": ["ExpoAirModule"],
+    "appDelegateSubscribers": ["ExpoAirAppDelegateSubscriber"]
   },
   "android": {
-    "modules": ["expo.modules.expoflow.ExpoFlowModule"]
+    "modules": ["expo.modules.expoair.ExpoAirModule"]
   }
 }

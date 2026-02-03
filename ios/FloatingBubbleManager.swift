@@ -430,7 +430,7 @@ class FloatingBubbleManager {
                 }
 
                 if let surfaceView = self.widgetRuntime?.createSurfaceView(
-                    withModuleName: "ExpoFlowBubble",
+                    withModuleName: "ExpoAirBubble",
                     initialProperties: initialProps
                 ) {
                     vc.setSurfaceView(surfaceView)

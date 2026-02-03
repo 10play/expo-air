@@ -12,7 +12,7 @@ interface ServerOptions {
 }
 
 export async function serverCommand(options: ServerOptions): Promise<void> {
-  console.log(chalk.blue("\n  expo-flow server\n"));
+  console.log(chalk.blue("\n  expo-air server\n"));
   console.log(chalk.gray("  Starting WebSocket server only...\n"));
 
   const port = parseInt(options.port, 10);
@@ -20,7 +20,7 @@ export async function serverCommand(options: ServerOptions): Promise<void> {
   // Resolve project directory
   let projectRoot = options.project ? path.resolve(options.project) : process.cwd();
 
-  // If running from the expo-flow package root, default to example/
+  // If running from the expo-air package root, default to example/
   const exampleDir = path.resolve(__dirname, "../..", "example");
   if (!options.project && fs.existsSync(path.join(exampleDir, "app.json"))) {
     if (!fs.existsSync(path.join(projectRoot, "app.json"))) {

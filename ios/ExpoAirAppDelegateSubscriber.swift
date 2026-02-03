@@ -2,8 +2,8 @@ import ExpoModulesCore
 import UIKit
 
 /// Auto-injects floating bubble on app launch (DEBUG builds only).
-/// Reads config from .expo-flow.json in bundle or uses defaults.
-public class ExpoFlowAppDelegateSubscriber: ExpoAppDelegateSubscriber {
+/// Reads config from .expo-air.json in bundle or uses defaults.
+public class ExpoAirAppDelegateSubscriber: ExpoAppDelegateSubscriber {
     private var hasShown = false
 
     // Config with defaults
@@ -29,46 +29,46 @@ public class ExpoFlowAppDelegateSubscriber: ExpoAppDelegateSubscriber {
     }
 
     private func loadConfig() {
-        // Read from Info.plist (ExpoFlow dictionary)
-        if let expoFlow = Bundle.main.object(forInfoDictionaryKey: "ExpoFlow") as? [String: Any] {
-            print("[expo-flow] Found ExpoFlow config: \(expoFlow)")
-            if let auto = expoFlow["autoShow"] as? Bool {
+        // Read from Info.plist (ExpoAir dictionary)
+        if let expoAir = Bundle.main.object(forInfoDictionaryKey: "ExpoAir") as? [String: Any] {
+            print("[expo-air] Found ExpoAir config: \(expoAir)")
+            if let auto = expoAir["autoShow"] as? Bool {
                 autoShow = auto
             }
-            if let size = expoFlow["bubbleSize"] as? NSNumber {
+            if let size = expoAir["bubbleSize"] as? NSNumber {
                 bubbleSize = CGFloat(size.doubleValue)
             }
-            if let color = expoFlow["bubbleColor"] as? String {
+            if let color = expoAir["bubbleColor"] as? String {
                 bubbleColor = color
             }
-            if let url = expoFlow["serverUrl"] as? String {
+            if let url = expoAir["serverUrl"] as? String {
                 serverUrl = url
             }
-            if let metroUrl = expoFlow["widgetMetroUrl"] as? String {
+            if let metroUrl = expoAir["widgetMetroUrl"] as? String {
                 widgetMetroUrl = metroUrl
-                print("[expo-flow] Loaded widgetMetroUrl: \(metroUrl)")
+                print("[expo-air] Loaded widgetMetroUrl: \(metroUrl)")
             }
         } else {
-            print("[expo-flow] WARNING: ExpoFlow config not found in Info.plist!")
+            print("[expo-air] WARNING: ExpoAir config not found in Info.plist!")
         }
     }
 
     private func showBubble() {
         // Use env var first, then config, then default
-        let metroBaseUrl = ProcessInfo.processInfo.environment["EXPO_FLOW_METRO_URL"] ?? widgetMetroUrl
-        print("[expo-flow] metroBaseUrl: \(metroBaseUrl)")
+        let metroBaseUrl = ProcessInfo.processInfo.environment["EXPO_AIR_METRO_URL"] ?? widgetMetroUrl
+        print("[expo-air] metroBaseUrl: \(metroBaseUrl)")
 
         let bundleUrlString = "\(metroBaseUrl)/index.bundle?platform=ios&dev=true"
-        print("[expo-flow] bundleUrlString: \(bundleUrlString)")
+        print("[expo-air] bundleUrlString: \(bundleUrlString)")
 
         guard let bundleUrl = URL(string: bundleUrlString) else {
-            print("[expo-flow] ERROR: Failed to create URL from: \(bundleUrlString)")
+            print("[expo-air] ERROR: Failed to create URL from: \(bundleUrlString)")
             return
         }
-        print("[expo-flow] bundleUrl: \(bundleUrl.absoluteString)")
+        print("[expo-air] bundleUrl: \(bundleUrl.absoluteString)")
 
         // Use env var first, then config value
-        let effectiveServerUrl = ProcessInfo.processInfo.environment["EXPO_FLOW_SERVER_URL"] ?? serverUrl
+        let effectiveServerUrl = ProcessInfo.processInfo.environment["EXPO_AIR_SERVER_URL"] ?? serverUrl
 
         FloatingBubbleManager.shared.show(
             size: bubbleSize,
@@ -78,8 +78,8 @@ public class ExpoFlowAppDelegateSubscriber: ExpoAppDelegateSubscriber {
         )
 
         // Also store in UserDefaults for backward compatibility
-        UserDefaults.standard.set(effectiveServerUrl, forKey: "expo-flow-server-url")
+        UserDefaults.standard.set(effectiveServerUrl, forKey: "expo-air-server-url")
 
-        print("[expo-flow] Bubble auto-injected (size: \(bubbleSize), color: \(bubbleColor), server: \(effectiveServerUrl), widgetMetro: \(metroBaseUrl))")
+        print("[expo-air] Bubble auto-injected (size: \(bubbleSize), color: \(bubbleColor), server: \(effectiveServerUrl), widgetMetro: \(metroBaseUrl))")
     }
 }

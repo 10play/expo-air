@@ -1,26 +1,45 @@
 {
-  "name": "@10play/expo-flow",
+  "name": "@10play/expo-air",
   "version": "0.1.0",
   "description": "Vibe Coding for React-Native",
   "main": "build/index.js",
   "types": "build/index.d.ts",
   "bin": {
-    "expo-flow": "./cli/dist/bin/expo-flow.js"
+    "expo-air": "./cli/dist/bin/expo-air.js"
   },
   "expo": {
     "configPlugin": "./plugin/build/index.js"
   },
+  "files": [
+    "build/",
+    "cli/dist/",
+    "plugin/build/",
+    "widget/*.ts",
+    "widget/*.tsx",
+    "widget/*.js",
+    "widget/app.json",
+    "widget/package.json",
+    "widget/tsconfig.json",
+    "widget/components/",
+    "widget/services/",
+    "ios/",
+    "android/src/",
+    "android/build.gradle",
+    "expo-module.config.json"
+  ],
   "scripts": {
-    "build": "expo-module build",
+    "build": "npm run build:module && npm run build:plugin && npm run build:cli",
+    "build:module": "tsc --project tsconfig.json",
     "build:plugin": "cd plugin && tsc",
     "build:cli": "cd cli && npm run build",
-    "clean": "expo-module clean",
+    "clean": "rm -rf build plugin/build cli/dist && expo-module clean",
     "lint": "expo-module lint",
+    "typecheck": "tsc --noEmit && cd cli && tsc --noEmit && cd ../plugin && tsc --noEmit",
     "test": "expo-module test",
     "prepare": "expo-module prepare",
-    "prepublishOnly": "expo-module prepublishOnly",
+    "prepublishOnly": "npm run clean && npm run build && npm run typecheck",
     "expo-module": "expo-module",
-    "cli:start": "cd cli && npx tsx bin/expo-flow.ts start",
+    "cli:start": "cd cli && npx tsx bin/expo-air.ts start",
     "widget:start": "cd widget && npm start",
     "open:ios": "xed example/ios",
     "open:android": "open -a \"Android Studio\" example/android",
@@ -30,30 +49,42 @@
   "keywords": [
     "react-native",
     "expo",
-    "@10play/expo-flow",
-    "ExpoFlow"
+    "@10play/expo-air",
+    "ExpoAir"
   ],
-  "repository": "https://github.com/17Amir17/10play-expo-flow",
+  "repository": "https://github.com/10play/expo-air",
   "bugs": {
-    "url": "https://github.com/17Amir17/10play-expo-flow/issues"
+    "url": "https://github.com/10play/expo-air/issues"
   },
-  "author": "Amir Angel <36531255+17Amir17@users.noreply.github.com> (https://github.com/17Amir17)",
+  "author": "10play",
   "license": "MIT",
-  "homepage": "https://github.com/17Amir17/10play-expo-flow#readme",
+  "homepage": "https://github.com/10play/expo-air#readme",
   "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.2.29",
+    "chalk": "^4.1.2",
+    "commander": "^12.1.0",
+    "localtunnel": "^2.0.2",
+    "plist": "^3.1.0",
+    "ws": "^8.18.0",
     "expo": "~54.0.32",
     "react": "19.1.0",
     "react-native": "0.81.5"
   },
   "devDependencies": {
+    "@types/localtunnel": "^2.0.4",
+    "@types/node": "^20.0.0",
+    "@types/plist": "^3.0.5",
     "@types/react": "~19.1.0",
+    "@types/ws": "^8.5.12",
+    "expo": "~54.0.32",
     "expo-module-scripts": "^5.0.8",
-    "expo": "^54.0.27",
-    "react-native": "0.81.5"
+    "react": "19.1.0",
+    "react-native": "0.81.5",
+    "typescript": "~5.9.2"
   },
   "peerDependencies": {
-    "expo": "*",
-    "react": "*",
-    "react-native": "*"
+    "expo": ">=54.0.0",
+    "react": ">=18.0.0",
+    "react-native": ">=0.74.0"
   }
 }

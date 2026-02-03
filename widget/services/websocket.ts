@@ -1,5 +1,5 @@
 /**
- * WebSocket client for connecting to the expo-flow prompt server.
+ * WebSocket client for connecting to the expo-air prompt server.
  * Handles connection lifecycle, message parsing, and reconnection.
  */
 
@@ -183,7 +183,7 @@ export class WebSocketClient {
           const message = JSON.parse(event.data) as ServerMessage;
           this.handleMessage(message);
         } catch (e) {
-          console.error("[expo-flow] Failed to parse message:", e);
+          console.error("[expo-air] Failed to parse message:", e);
         }
       };
     } catch (e) {
@@ -215,7 +215,7 @@ export class WebSocketClient {
     }
 
     if (this.reconnectAttempts >= this.options.maxReconnectAttempts) {
-      console.log("[expo-flow] Max reconnect attempts reached");
+      console.log("[expo-air] Max reconnect attempts reached");
       return;
     }
 
@@ -225,7 +225,7 @@ export class WebSocketClient {
 
     this.reconnectAttempts++;
     console.log(
-      `[expo-flow] Reconnecting... (attempt ${this.reconnectAttempts}/${this.options.maxReconnectAttempts})`
+      `[expo-air] Reconnecting... (attempt ${this.reconnectAttempts}/${this.options.maxReconnectAttempts})`
     );
 
     this.reconnectTimeout = setTimeout(() => {

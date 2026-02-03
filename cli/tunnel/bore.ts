@@ -26,7 +26,7 @@ export class BoreTunnel {
   private binPath: string;
 
   constructor() {
-    const cacheDir = join(homedir(), ".cache", "expo-flow");
+    const cacheDir = join(homedir(), ".cache", "expo-air");
     if (!existsSync(cacheDir)) {
       mkdirSync(cacheDir, { recursive: true });
     }
@@ -71,7 +71,7 @@ export class BoreTunnel {
     await this.downloadFile(url, tarPath);
 
     // Extract binary
-    const cacheDir = join(homedir(), ".cache", "expo-flow");
+    const cacheDir = join(homedir(), ".cache", "expo-air");
     execSync(`tar -xzf "${tarPath}" -C "${cacheDir}"`, { stdio: "ignore" });
     execSync(`rm "${tarPath}"`, { stdio: "ignore" });
 
