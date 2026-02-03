@@ -20,7 +20,7 @@ config.resolver.nodeModulesPaths = [
 ];
 
 config.resolver.extraNodeModules = {
-  '@10play/expo-flow': '..',
+  '@10play/expo-air': '..',
 };
 
 config.watchFolders = [path.resolve(__dirname, '..')];

@@ -15,7 +15,7 @@ export class CloudflareTunnel {
   private binPath: string;
 
   constructor() {
-    const cacheDir = join(homedir(), ".cache", "expo-flow");
+    const cacheDir = join(homedir(), ".cache", "expo-air");
     if (!existsSync(cacheDir)) {
       mkdirSync(cacheDir, { recursive: true });
     }
@@ -62,7 +62,7 @@ export class CloudflareTunnel {
     console.log(`  Downloading cloudflared...`);
 
     const isTgz = downloadUrl.endsWith(".tgz");
-    const cacheDir = join(homedir(), ".cache", "expo-flow");
+    const cacheDir = join(homedir(), ".cache", "expo-air");
 
     if (isTgz) {
       const tgzPath = `${this.binPath}.tgz`;

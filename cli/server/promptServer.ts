@@ -126,7 +126,7 @@ export class PromptServer {
   }
 
   private getConfigPath(): string {
-    return join(this.projectRoot, ".expo-flow.local.json");
+    return join(this.projectRoot, ".expo-air.local.json");
   }
 
   private loadSession(): void {

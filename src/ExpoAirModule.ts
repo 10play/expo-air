@@ -1,8 +1,8 @@
 import { NativeModule, requireNativeModule } from 'expo';
 
-import { ExpoFlowModuleEvents } from './ExpoFlow.types';
+import { ExpoAirModuleEvents } from './ExpoAir.types';
 
-declare class ExpoFlowModule extends NativeModule<ExpoFlowModuleEvents> {
+declare class ExpoAirModule extends NativeModule<ExpoAirModuleEvents> {
   PI: number;
   hello(): string;
   setValueAsync(value: string): Promise<void>;
@@ -13,4 +13,4 @@ declare class ExpoFlowModule extends NativeModule<ExpoFlowModuleEvents> {
 }
 
 // This call loads the native module object from the JSI.
-export default requireNativeModule<ExpoFlowModule>('ExpoFlow');
+export default requireNativeModule<ExpoAirModule>('ExpoAir');

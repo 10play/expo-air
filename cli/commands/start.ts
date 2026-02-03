@@ -6,7 +6,7 @@ import { fileURLToPath } from "url";
 import { CloudflareTunnel } from "../tunnel/cloudflare.js";
 import plist from "plist";
 
-interface ExpoFlowConfig {
+interface ExpoAirConfig {
   autoShow?: boolean;
   serverUrl?: string;
   widgetMetroUrl?: string;
@@ -25,7 +25,7 @@ const __dirname = path.dirname(__filename);
  * This allows URL changes without running `npx expo prebuild`.
  * Just rebuild the app (Cmd+R in Xcode) after this.
  */
-function updateInfoPlist(projectRoot: string, config: Partial<ExpoFlowConfig>): boolean {
+function updateInfoPlist(projectRoot: string, config: Partial<ExpoAirConfig>): boolean {
   // Find the ios directory
   const iosDir = path.join(projectRoot, "ios");
   if (!fs.existsSync(iosDir)) {
@@ -57,16 +57,16 @@ function updateInfoPlist(projectRoot: string, config: Partial<ExpoFlowConfig>): 
     const plistContent = fs.readFileSync(infoPlistPath, "utf-8");
     const plistData = plist.parse(plistContent) as Record<string, unknown>;
 
-    // Get or create ExpoFlow dictionary
-    const expoFlow = (plistData.ExpoFlow as Record<string, unknown>) || {};
+    // Get or create ExpoAir dictionary
+    const expoAir = (plistData.ExpoAir as Record<string, unknown>) || {};
 
     // Update with new tunnel URLs
-    if (config.serverUrl) expoFlow.serverUrl = config.serverUrl;
-    if (config.widgetMetroUrl) expoFlow.widgetMetroUrl = config.widgetMetroUrl;
-    if (config.appMetroUrl) expoFlow.appMetroUrl = config.appMetroUrl;
+    if (config.serverUrl) expoAir.serverUrl = config.serverUrl;
+    if (config.widgetMetroUrl) expoAir.widgetMetroUrl = config.widgetMetroUrl;
+    if (config.appMetroUrl) expoAir.appMetroUrl = config.appMetroUrl;
 
     // Write back
-    plistData.ExpoFlow = expoFlow;
+    plistData.ExpoAir = expoAir;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const updatedPlist = plist.build(plistData as any);
     fs.writeFileSync(infoPlistPath, updatedPlist);
@@ -90,7 +90,7 @@ interface StartOptions {
 }
 
 export async function startCommand(options: StartOptions): Promise<void> {
-  console.log(chalk.blue("\n  expo-flow\n"));
+  console.log(chalk.blue("\n  expo-air\n"));
   console.log(chalk.gray("  Starting full development environment...\n"));
 
   const port = parseInt(options.port, 10);
@@ -100,9 +100,9 @@ export async function startCommand(options: StartOptions): Promise<void> {
   // Resolve project directory
   let projectRoot = options.project ? path.resolve(options.project) : process.cwd();
 
-  // If running from the expo-flow package root, default to example/
-  // __dirname is cli/commands/, so ../.. gets to package root
-  const exampleDir = path.resolve(__dirname, "../..", "example");
+  // If running from the expo-air package root, default to example/
+  // __dirname is cli/dist/commands/ (compiled), so ../../.. gets to package root
+  const exampleDir = path.resolve(__dirname, "../../..", "example");
   if (!options.project && fs.existsSync(path.join(exampleDir, "app.json"))) {
     // Check if we're in the package root (not in example already)
     if (!fs.existsSync(path.join(projectRoot, "app.json"))) {
@@ -118,8 +118,8 @@ export async function startCommand(options: StartOptions): Promise<void> {
   }
 
   // Find widget directory (relative to CLI)
-  // __dirname is cli/commands/, so ../.. gets to package root
-  const widgetDir = path.resolve(__dirname, "../..", "widget");
+  // __dirname is cli/dist/commands/ (compiled), so ../../.. gets to package root
+  const widgetDir = path.resolve(__dirname, "../../..", "widget");
 
   // Helper to start a Metro server
   const startMetro = async (
@@ -185,7 +185,7 @@ export async function startCommand(options: StartOptions): Promise<void> {
     console.log(chalk.gray(`    Project root: ${projectRoot}`));
   } else {
     console.log(chalk.yellow(`  ⚠ WebSocket server skipped (--no-server)`));
-    console.log(chalk.gray(`    Run separately: npx expo-flow server`));
+    console.log(chalk.gray(`    Run separately: npx expo-air server`));
   }
 
   // Start tunnels if enabled
@@ -235,16 +235,16 @@ export async function startCommand(options: StartOptions): Promise<void> {
 
     // Update config files with tunnel URLs
     if (promptTunnelUrl || widgetTunnelUrl || appTunnelUrl) {
-      // 1. Write to .expo-flow.local.json (gitignored, for reference)
-      const localConfigPath = path.join(projectRoot, ".expo-flow.local.json");
-      const localConfig: Partial<ExpoFlowConfig> = {};
+      // 1. Write to .expo-air.local.json (gitignored, for reference)
+      const localConfigPath = path.join(projectRoot, ".expo-air.local.json");
+      const localConfig: Partial<ExpoAirConfig> = {};
 
       if (promptTunnelUrl) localConfig.serverUrl = promptTunnelUrl;
       if (widgetTunnelUrl) localConfig.widgetMetroUrl = widgetTunnelUrl;
       if (appTunnelUrl) localConfig.appMetroUrl = appTunnelUrl;
 
       fs.writeFileSync(localConfigPath, JSON.stringify(localConfig, null, 2) + "\n");
-      console.log(chalk.green(`  ✓ Updated .expo-flow.local.json with tunnel URLs`));
+      console.log(chalk.green(`  ✓ Updated .expo-air.local.json with tunnel URLs`));
 
       // 2. Directly update Info.plist (no prebuild needed!)
       const infoPlistUpdated = updateInfoPlist(projectRoot, localConfig);

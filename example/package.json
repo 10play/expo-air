@@ -1,12 +1,12 @@
 {
-  "name": "expo-flow-example",
+  "name": "expo-air-example",
   "version": "1.0.0",
   "main": "index.ts",
   "scripts": {
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "build:ios": "xcodebuild -workspace ios/expoflowexample.xcworkspace -scheme expoflowexample -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16 Pro' build",
+    "build:ios": "xcodebuild -workspace ios/expoairexample.xcworkspace -scheme expoairexample -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16 Pro' build",
     "web": "expo start --web"
   },
   "dependencies": {

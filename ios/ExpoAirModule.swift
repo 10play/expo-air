@@ -5,10 +5,10 @@ struct ShowBubbleOptions: Record {
   @Field var color: String = "#007AFF"
 }
 
-public class ExpoFlowModule: Module {
+public class ExpoAirModule: Module {
   private static func widgetBundleURL() -> URL? {
     // If a pre-built bundle exists in the pod resources, use it (production)
-    if let bundled = Bundle(for: ExpoFlowModule.self).url(forResource: "widget", withExtension: "jsbundle") {
+    if let bundled = Bundle(for: ExpoAirModule.self).url(forResource: "widget", withExtension: "jsbundle") {
       return bundled
     }
     // Otherwise, fall back to the widget's dedicated Metro dev server on port 8082
@@ -32,7 +32,7 @@ public class ExpoFlowModule: Module {
   }
 
   public func definition() -> ModuleDefinition {
-    Name("ExpoFlow")
+    Name("ExpoAir")
 
     Constant("PI") {
       Double.pi
@@ -41,7 +41,7 @@ public class ExpoFlowModule: Module {
     Events("onChange", "onPress", "onExpand", "onCollapse", "onDragEnd")
 
     Function("hello") {
-      return "Hello world! 👋"
+      return "Hello world!"
     }
 
     AsyncFunction("setValueAsync") { (value: String) in
@@ -72,11 +72,11 @@ public class ExpoFlowModule: Module {
     }
 
     Function("getServerUrl") { () -> String in
-      return UserDefaults.standard.string(forKey: "expo-flow-server-url") ?? "ws://localhost:3847"
+      return UserDefaults.standard.string(forKey: "expo-air-server-url") ?? "ws://localhost:3847"
     }
 
-    View(ExpoFlowView.self) {
-      Prop("url") { (view: ExpoFlowView, url: URL) in
+    View(ExpoAirView.self) {
+      Prop("url") { (view: ExpoAirView, url: URL) in
         if view.webView.url != url {
           view.webView.load(URLRequest(url: url))
         }

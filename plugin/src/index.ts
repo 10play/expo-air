@@ -6,7 +6,7 @@ import {
 import * as fs from "fs";
 import * as path from "path";
 
-interface ExpoFlowConfig {
+interface ExpoAirConfig {
   autoShow?: boolean;
   serverUrl?: string;
   widgetMetroUrl?: string;
@@ -31,14 +31,14 @@ const withAppDelegatePatch: ConfigPlugin = (config) => {
       );
 
       if (!fs.existsSync(appDelegatePath)) {
-        console.warn("[expo-flow] AppDelegate.swift not found");
+        console.warn("[expo-air] AppDelegate.swift not found");
         return config;
       }
 
       let content = fs.readFileSync(appDelegatePath, "utf-8");
 
       // Check if already patched
-      if (content.includes("ExpoFlowBundleURL")) {
+      if (content.includes("ExpoAirBundleURL")) {
         return config;
       }
 
@@ -48,12 +48,12 @@ const withAppDelegatePatch: ConfigPlugin = (config) => {
 
       const patchedBundleURL = `override func bundleURL() -> URL? {
 #if DEBUG
-    // ExpoFlowBundleURL: Check for tunnel URL from Info.plist
-    if let expoFlow = Bundle.main.object(forInfoDictionaryKey: "ExpoFlow") as? [String: Any],
-       let appMetroUrl = expoFlow["appMetroUrl"] as? String,
+    // ExpoAirBundleURL: Check for tunnel URL from Info.plist
+    if let expoAir = Bundle.main.object(forInfoDictionaryKey: "ExpoAir") as? [String: Any],
+       let appMetroUrl = expoAir["appMetroUrl"] as? String,
        !appMetroUrl.isEmpty,
        let tunnelURL = URL(string: "\\(appMetroUrl)/.expo/.virtual-metro-entry.bundle?platform=ios&dev=true") {
-      print("[expo-flow] Using tunnel URL for main app: \\(tunnelURL)")
+      print("[expo-air] Using tunnel URL for main app: \\(tunnelURL)")
       return tunnelURL
     }
     return RCTBundleURLProvider.sharedSettings().jsBundleURL(forBundleRoot: ".expo/.virtual-metro-entry")
@@ -65,7 +65,7 @@ const withAppDelegatePatch: ConfigPlugin = (config) => {
       if (bundleURLPattern.test(content)) {
         content = content.replace(bundleURLPattern, patchedBundleURL);
         fs.writeFileSync(appDelegatePath, content);
-        console.log("[expo-flow] Patched AppDelegate for tunnel support");
+        console.log("[expo-air] Patched AppDelegate for tunnel support");
       }
 
       return config;
@@ -73,7 +73,7 @@ const withAppDelegatePatch: ConfigPlugin = (config) => {
   ]);
 };
 
-const withExpoFlow: ConfigPlugin = (config) => {
+const withExpoAir: ConfigPlugin = (config) => {
   // First patch AppDelegate
   config = withAppDelegatePatch(config);
 
@@ -81,20 +81,20 @@ const withExpoFlow: ConfigPlugin = (config) => {
   return withInfoPlist(config, (config) => {
     const projectRoot = config.modRequest.projectRoot;
 
-    // Read base config from .expo-flow.json (committed, UI settings)
-    const configPath = path.join(projectRoot, ".expo-flow.json");
-    // Read local config from .expo-flow.local.json (gitignored, URLs/secrets)
-    const localConfigPath = path.join(projectRoot, ".expo-flow.local.json");
+    // Read base config from .expo-air.json (committed, UI settings)
+    const configPath = path.join(projectRoot, ".expo-air.json");
+    // Read local config from .expo-air.local.json (gitignored, URLs/secrets)
+    const localConfigPath = path.join(projectRoot, ".expo-air.local.json");
 
-    let expoFlowConfig: ExpoFlowConfig = {};
+    let expoAirConfig: ExpoAirConfig = {};
 
     // Load base config
     if (fs.existsSync(configPath)) {
       try {
         const content = fs.readFileSync(configPath, "utf-8");
-        expoFlowConfig = JSON.parse(content);
+        expoAirConfig = JSON.parse(content);
       } catch (e) {
-        console.warn("[expo-flow] Failed to parse .expo-flow.json:", e);
+        console.warn("[expo-air] Failed to parse .expo-air.json:", e);
       }
     }
 
@@ -104,25 +104,25 @@ const withExpoFlow: ConfigPlugin = (config) => {
         const localContent = fs.readFileSync(localConfigPath, "utf-8");
         const localConfig = JSON.parse(localContent);
         // Merge: local values override base values
-        expoFlowConfig = {
-          ...expoFlowConfig,
+        expoAirConfig = {
+          ...expoAirConfig,
           ...localConfig,
-          ui: { ...expoFlowConfig.ui, ...localConfig.ui },
+          ui: { ...expoAirConfig.ui, ...localConfig.ui },
         };
-        console.log("[expo-flow] Merged local config from .expo-flow.local.json");
+        console.log("[expo-air] Merged local config from .expo-air.local.json");
       } catch (e) {
-        console.warn("[expo-flow] Failed to parse .expo-flow.local.json:", e);
+        console.warn("[expo-air] Failed to parse .expo-air.local.json:", e);
       }
     }
 
-    // Write to Info.plist under ExpoFlow key
-    config.modResults.ExpoFlow = {
-      autoShow: expoFlowConfig.autoShow ?? true,
-      bubbleSize: expoFlowConfig.ui?.bubbleSize ?? 60,
-      bubbleColor: expoFlowConfig.ui?.bubbleColor ?? "#007AFF",
-      serverUrl: expoFlowConfig.serverUrl ?? "ws://localhost:3847",
-      widgetMetroUrl: expoFlowConfig.widgetMetroUrl ?? "http://localhost:8082",
-      appMetroUrl: expoFlowConfig.appMetroUrl ?? "",
+    // Write to Info.plist under ExpoAir key
+    config.modResults.ExpoAir = {
+      autoShow: expoAirConfig.autoShow ?? true,
+      bubbleSize: expoAirConfig.ui?.bubbleSize ?? 60,
+      bubbleColor: expoAirConfig.ui?.bubbleColor ?? "#007AFF",
+      serverUrl: expoAirConfig.serverUrl ?? "ws://localhost:3847",
+      widgetMetroUrl: expoAirConfig.widgetMetroUrl ?? "http://localhost:8082",
+      appMetroUrl: expoAirConfig.appMetroUrl ?? "",
     };
 
     // Allow HTTP connections to bore.pub for tunnel support
@@ -153,4 +153,4 @@ const withExpoFlow: ConfigPlugin = (config) => {
   });
 };
 
-export default withExpoFlow;
+export default withExpoAir;

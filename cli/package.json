@@ -1,15 +1,15 @@
 {
-  "name": "@10play/expo-flow-cli",
+  "name": "@10play/expo-air-cli",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "CLI for expo-flow development server",
-  "main": "dist/bin/expo-flow.js",
+  "description": "CLI for expo-air development server",
+  "main": "dist/bin/expo-air.js",
   "scripts": {
-    "build": "tsc",
-    "dev": "tsx bin/expo-flow.ts start",
-    "dev:server": "tsx watch bin/expo-flow.ts server",
-    "start": "tsx bin/expo-flow.ts start"
+    "build": "tsc && chmod +x dist/bin/expo-air.js",
+    "dev": "tsx bin/expo-air.ts start",
+    "dev:server": "tsx watch bin/expo-air.ts server",
+    "start": "tsx bin/expo-air.ts start"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.29",

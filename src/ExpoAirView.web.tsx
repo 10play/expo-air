@@ -1,8 +1,8 @@
 import * as React from 'react';
 
-import { ExpoFlowViewProps } from './ExpoFlow.types';
+import { ExpoAirViewProps } from './ExpoAir.types';
 
-export default function ExpoFlowView(props: ExpoFlowViewProps) {
+export default function ExpoAirView(props: ExpoAirViewProps) {
   return (
     <div>
       <iframe

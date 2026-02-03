@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "expo-flow-example",
-    "slug": "expo-flow-example",
+    "name": "expo-air-example",
+    "slug": "expo-air-example",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -17,7 +17,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "expo.modules.expoflow.example",
+      "bundleIdentifier": "expo.modules.expoair.example",
       "appleTeamId": "VA2J2LGP65"
     },
     "android": {
@@ -27,7 +27,7 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "expo.modules.expoflow.example"
+      "package": "expo.modules.expoair.example"
     },
     "web": {
       "favicon": "./assets/favicon.png"

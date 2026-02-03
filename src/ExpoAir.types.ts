@@ -4,7 +4,7 @@ export type OnLoadEventPayload = {
   url: string;
 };
 
-export type ExpoFlowModuleEvents = {
+export type ExpoAirModuleEvents = {
   onChange: (params: ChangeEventPayload) => void;
   onPress: () => void;
   onExpand: () => void;
@@ -16,7 +16,7 @@ export type ChangeEventPayload = {
   value: string;
 };
 
-export type ExpoFlowViewProps = {
+export type ExpoAirViewProps = {
   url: string;
   onLoad: (event: { nativeEvent: OnLoadEventPayload }) => void;
   style?: StyleProp<ViewStyle>;

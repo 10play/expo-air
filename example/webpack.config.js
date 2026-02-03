@@ -6,7 +6,7 @@ module.exports = async (env, argv) => {
     {
       ...env,
       babel: {
-        dangerouslyAddModulePathsToTranspile: ['@10play/expo-flow'],
+        dangerouslyAddModulePathsToTranspile: ['@10play/expo-air'],
       },
     },
     argv
