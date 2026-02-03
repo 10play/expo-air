@@ -85,11 +85,9 @@ jobs:
           git tag ${{ steps.version.outputs.version }}
           git push origin main --tags
 
-      - name: Publish to npm (OIDC)
-        # Uses GitHub OIDC - no NPM_TOKEN secret needed!
-        # Requirements:
-        # 1. npm account linked to GitHub (npmjs.com > Settings > Accounts)
-        # 2. Package publishing access configured for the org/user
+      - name: Publish to npm
+        # Uses OIDC provenance - cryptographically links package to this repo
+        # First publish requires NPM_TOKEN, subsequent can use pure OIDC
         run: npm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
