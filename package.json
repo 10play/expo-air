@@ -1,6 +1,6 @@
 {
   "name": "@10play/expo-air",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Vibe Coding for React-Native",
   "main": "build/index.js",
   "types": "build/index.d.ts",
