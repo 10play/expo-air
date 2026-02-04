@@ -134,6 +134,6 @@ export async function initCommand(options: InitOptions): Promise<void> {
   console.log(chalk.blue("\n  expo-air initialized!\n"));
   console.log(chalk.gray("  Next steps:"));
   console.log(chalk.white("    1. Connect your iOS device via cable"));
-  console.log(chalk.white("    2. Run: npx expo-air start"));
+  console.log(chalk.white("    2. Run: npx expo-air fly"));
   console.log(chalk.white("    3. The widget will appear on your device\n"));
 }
