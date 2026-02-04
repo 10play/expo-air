@@ -60,6 +60,8 @@ export interface GitStatusMessage {
   type: "git_status";
   branchName: string;
   changes: GitChange[];
+  hasPR: boolean;
+  prUrl?: string;
   timestamp: number;
 }
 

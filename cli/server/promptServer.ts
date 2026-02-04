@@ -110,11 +110,27 @@ export class PromptServer {
     }
   }
 
+  private getPRStatus(): { hasPR: boolean; prUrl?: string } {
+    try {
+      const result = execSync("gh pr view --json url -q .url", {
+        cwd: this.projectRoot,
+        encoding: "utf-8",
+        stdio: ["pipe", "pipe", "pipe"],
+      }).trim();
+      return { hasPR: true, prUrl: result || undefined };
+    } catch {
+      return { hasPR: false };
+    }
+  }
+
   private broadcastGitStatus(branchName: string, changes: GitChange[]): void {
+    const prStatus = this.getPRStatus();
     const message: OutgoingMessage = {
       type: "git_status",
       branchName,
       changes,
+      hasPR: prStatus.hasPR,
+      prUrl: prStatus.prUrl,
       timestamp: Date.now(),
     };
 
@@ -122,7 +138,7 @@ export class PromptServer {
       this.sendToClient(client, message);
     }
 
-    this.log(`Git status updated: ${branchName} (${changes.length} changes)`, "info");
+    this.log(`Git status updated: ${branchName} (${changes.length} changes, PR: ${prStatus.hasPR})`, "info");
   }
 
   private getConfigPath(): string {
@@ -249,10 +265,13 @@ export class PromptServer {
     // Send initial git status
     const branchName = this.getBranchName();
     const changes = this.getGitChanges();
+    const prStatus = this.getPRStatus();
     this.sendToClient(ws, {
       type: "git_status",
       branchName,
       changes,
+      hasPR: prStatus.hasPR,
+      prUrl: prStatus.prUrl,
       timestamp: Date.now(),
     });
 

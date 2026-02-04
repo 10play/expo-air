@@ -50,6 +50,7 @@ export function BubbleContent({
   const [currentResponse, setCurrentResponse] = useState("");
   const [branchName, setBranchName] = useState<string>("main");
   const [gitChanges, setGitChanges] = useState<GitChange[]>([]);
+  const [hasPR, setHasPR] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>("chat");
 
   // Initialize WebSocket connection immediately (even when collapsed)
@@ -121,9 +122,10 @@ export function BubbleContent({
         setMessages(historyMessages);
         break;
       case "git_status":
-        // Update branch name and git changes
+        // Update branch name, git changes, and PR status
         setBranchName(message.branchName);
         setGitChanges(message.changes);
+        setHasPR(message.hasPR);
         break;
     }
   }, []);
@@ -157,13 +159,6 @@ export function BubbleContent({
     const client = getWebSocketClient();
     if (client) {
       client.requestStop();
-    }
-  }, []);
-
-  const handleDiscard = useCallback(() => {
-    const client = getWebSocketClient();
-    if (client) {
-      client.requestDiscardChanges();
     }
   }, []);
 
@@ -203,7 +198,7 @@ export function BubbleContent({
         {activeTab === "chat" ? (
           <ResponseArea messages={messages} currentResponse={currentResponse} />
         ) : (
-          <GitChangesTab changes={gitChanges} onDiscard={handleDiscard} onCommit={handleCommit} onCreatePR={handleCreatePR} />
+          <GitChangesTab changes={gitChanges} hasPR={hasPR} onCommit={handleCommit} onCreatePR={handleCreatePR} />
         )}
       </View>
       {activeTab === "chat" && (
