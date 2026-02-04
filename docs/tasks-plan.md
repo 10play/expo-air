@@ -53,7 +53,60 @@ Port 8081 might be busy, causing build to fail/stuck
 
 ---
 
-## Task 4: Smart Commit & PR
+## Task 4: Modal Position (Dynamic Island)
+**Complexity:** Small | **Approval:** Not needed
+
+### Problem
+Expanded modal is too close to the Dynamic Island - needs more spacing at top
+
+### Root Cause
+Both collapsed bubble and expanded modal use same `bubbleTopY` positioning
+
+### Plan
+1. Add `expandedTopY` computed property in `FloatingBubbleManager.swift`:
+   ```swift
+   private var expandedTopY: CGFloat {
+       return safeAreaInsets.top + 10  // 10pt below safe area
+   }
+   ```
+2. Update `animateToExpanded()` to use `expandedTopY` instead of `bubbleTopY`
+3. Keep `animateToCollapsed()` unchanged (uses `bubbleTopY`)
+
+### Files
+- `ios/FloatingBubbleManager.swift` (add `expandedTopY`, update expand animation)
+
+---
+
+## Task 5: Keyboard Persistence on Disconnect
+**Complexity:** Small | **Approval:** Not needed
+
+### Problem
+When WebSocket disconnects, keyboard closes and user can't type
+
+### Root Cause
+`disabled={status === "disconnected"}` → `editable={false}` → keyboard dismissed
+
+### Plan
+
+#### Phase 1: Keep Input Editable
+Edit `widget/components/PromptInput.tsx`:
+- Change `editable={!disabled && !isProcessing}` → `editable={!isProcessing}`
+- Add `isConnected` prop for visual indicator only
+- Show "Offline" badge when disconnected
+
+#### Phase 2: Queue Messages
+Edit `widget/BubbleContent.tsx`:
+- Add `pendingPrompt` state
+- On submit while disconnected: queue message, show in UI
+- On reconnect: auto-send queued message
+
+### Files
+- `widget/components/PromptInput.tsx` (keep editable, add offline badge)
+- `widget/BubbleContent.tsx` (add pending message state, reconnect logic)
+
+---
+
+## Task 6: Smart Commit & PR [PLAN MODE NEEDED]
 **Complexity:** Medium | **Approval:** Required
 
 ### Problem
@@ -100,7 +153,7 @@ Update `widget/components/GitChangesTab.tsx`:
 
 ---
 
-## Task 5: Production Validation
+## Task 7: Production Validation [PLAN MODE NEEDED]
 **Complexity:** Medium | **Approval:** Required
 
 ### Problem
@@ -144,7 +197,7 @@ const ExpoAir = __DEV__ ? ExpoAirModule : {
 
 ---
 
-## Task 6: Extra Tunnels
+## Task 8: Extra Tunnels [PLAN MODE NEEDED]
 **Complexity:** Medium | **Approval:** Required
 
 ### Problem
@@ -190,7 +243,7 @@ Extra tunnels:
 
 ---
 
-## Task 7: History & Streaming Fix [PLAN MODE NEEDED]
+## Task 9: History & Streaming Fix [PLAN MODE NEEDED]
 **Complexity:** Medium | **Approval:** Required
 
 ### Problem
@@ -223,70 +276,17 @@ Edit `widget/components/ResponseArea.tsx`:
 
 ---
 
-## Task 8: Modal Position (Dynamic Island)
-**Complexity:** Small | **Approval:** Not needed
-
-### Problem
-Expanded modal is too close to the Dynamic Island - needs more spacing at top
-
-### Root Cause
-Both collapsed bubble and expanded modal use same `bubbleTopY` positioning
-
-### Plan
-1. Add `expandedTopY` computed property in `FloatingBubbleManager.swift`:
-   ```swift
-   private var expandedTopY: CGFloat {
-       return safeAreaInsets.top + 10  // 10pt below safe area
-   }
-   ```
-2. Update `animateToExpanded()` to use `expandedTopY` instead of `bubbleTopY`
-3. Keep `animateToCollapsed()` unchanged (uses `bubbleTopY`)
-
-### Files
-- `ios/FloatingBubbleManager.swift` (add `expandedTopY`, update expand animation)
-
----
-
-## Task 9: Keyboard Persistence on Disconnect
-**Complexity:** Small | **Approval:** Not needed
-
-### Problem
-When WebSocket disconnects, keyboard closes and user can't type
-
-### Root Cause
-`disabled={status === "disconnected"}` → `editable={false}` → keyboard dismissed
-
-### Plan
-
-#### Phase 1: Keep Input Editable
-Edit `widget/components/PromptInput.tsx`:
-- Change `editable={!disabled && !isProcessing}` → `editable={!isProcessing}`
-- Add `isConnected` prop for visual indicator only
-- Show "Offline" badge when disconnected
-
-#### Phase 2: Queue Messages
-Edit `widget/BubbleContent.tsx`:
-- Add `pendingPrompt` state
-- On submit while disconnected: queue message, show in UI
-- On reconnect: auto-send queued message
-
-### Files
-- `widget/components/PromptInput.tsx` (keep editable, add offline badge)
-- `widget/BubbleContent.tsx` (add pending message state, reconnect logic)
-
----
-
 ## Execution Order Recommendation
 
 1. **Immediate** (no approval needed):
    - Task 1: Fix Init Next Steps
    - Task 2: Folder Watch Bug
    - Task 3: Free Port Selection
-   - Task 8: Modal Position (Dynamic Island)
-   - Task 9: Keyboard Persistence on Disconnect
+   - Task 4: Modal Position (Dynamic Island)
+   - Task 5: Keyboard Persistence on Disconnect
 
 2. **After approval** (plan mode):
-   - Task 4: Smart Commit & PR
-   - Task 5: Production Validation
-   - Task 6: Extra Tunnels
-   - Task 7: History & Streaming Fix
+   - Task 6: Smart Commit & PR
+   - Task 7: Production Validation
+   - Task 8: Extra Tunnels
+   - Task 9: History & Streaming Fix
