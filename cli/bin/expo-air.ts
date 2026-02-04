@@ -1,10 +1,22 @@
 #!/usr/bin/env node
 
 import { Command } from "commander";
+import { fileURLToPath } from "url";
+import * as path from "path";
 import { startCommand } from "../commands/start.js";
 import { serverCommand } from "../commands/server.js";
 import { initCommand } from "../commands/init.js";
 import { flyCommand } from "../commands/fly.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+/**
+ * Check if running from an npm installation (inside node_modules)
+ */
+function isInstalledFromNpm(): boolean {
+  return __dirname.includes("node_modules");
+}
 
 const program = new Command();
 
@@ -48,7 +60,22 @@ program
   .option("--project <path>", "Path to Expo project")
   .option("--device <id>", "Device UDID or name to use")
   .option("--no-tunnel", "Skip tunnel (local network only)")
+  .option("--dev", "SDK development mode: run widget Metro + tunnel for live widget development")
   .action(flyCommand);
+
+// fly-dev is only available when running from source (not published to npm)
+if (!isInstalledFromNpm()) {
+  program
+    .command("fly-dev")
+    .description("✈️  SDK development mode - run widget Metro + tunnel for live widget development")
+    .option("-p, --port <port>", "Port for prompt server", "3847")
+    .option("-w, --widget-port <port>", "Port for widget Metro server", "8082")
+    .option("-m, --metro-port <port>", "Port for main app Metro server", "8081")
+    .option("--project <path>", "Path to Expo project")
+    .option("--device <id>", "Device UDID or name to use")
+    .option("--no-tunnel", "Skip tunnel (local network only)")
+    .action((options) => flyCommand({ ...options, dev: true }));
+}
 
 // Default command (just running `expo-air` starts everything)
 program

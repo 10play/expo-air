@@ -167,8 +167,8 @@ class FloatingBubbleViewController: UIViewController, UIGestureRecognizerDelegat
             insetTop = windowInsetTop
         }
 
-        // Position below safe area with 10pt padding
-        return insetTop + 10
+        // Position below safe area with 6pt gap (matches side margins)
+        return insetTop + 6
     }
 
     func setSurfaceView(_ surfaceView: UIView) {
