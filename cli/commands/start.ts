@@ -6,6 +6,7 @@ import * as net from "net";
 import { fileURLToPath } from "url";
 import { CloudflareTunnel } from "../tunnel/cloudflare.js";
 import plist from "plist";
+import { findFreePort } from "../utils/ports.js";
 
 /**
  * Check if a port is listening (Metro is ready)
@@ -151,9 +152,25 @@ export async function startCommand(options: StartOptions): Promise<void> {
   console.log(chalk.blue("\n  expo-air\n"));
   console.log(chalk.gray("  Starting full development environment...\n"));
 
-  const port = parseInt(options.port, 10);
-  const widgetPort = parseInt(options.widgetPort || "8082", 10);
-  const metroPort = parseInt(options.metroPort || "8081", 10);
+  const requestedPort = parseInt(options.port, 10);
+  const requestedWidgetPort = parseInt(options.widgetPort || "8082", 10);
+  const requestedMetroPort = parseInt(options.metroPort || "8081", 10);
+
+  // Find available ports
+  console.log(chalk.gray("  Checking port availability..."));
+  const port = await findFreePort(requestedPort);
+  const widgetPort = await findFreePort(requestedWidgetPort);
+  const metroPort = await findFreePort(requestedMetroPort);
+
+  if (port !== requestedPort) {
+    console.log(chalk.yellow(`  ⚠ Port ${requestedPort} busy, using ${port} for prompt server`));
+  }
+  if (widgetPort !== requestedWidgetPort) {
+    console.log(chalk.yellow(`  ⚠ Port ${requestedWidgetPort} busy, using ${widgetPort} for widget Metro`));
+  }
+  if (metroPort !== requestedMetroPort) {
+    console.log(chalk.yellow(`  ⚠ Port ${requestedMetroPort} busy, using ${metroPort} for app Metro`));
+  }
 
   // Resolve project directory
   let projectRoot = options.project ? path.resolve(options.project) : process.cwd();
