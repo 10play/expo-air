@@ -77,6 +77,12 @@ const withExpoAir: ConfigPlugin = (config) => {
   // First patch AppDelegate
   config = withAppDelegatePatch(config);
 
+  // NOTE: We do NOT add aps-environment entitlement here.
+  // Adding "development" would break production builds (entitlement mismatch with distribution profile).
+  // If developer wants push notifications, they should enable Push Notifications capability in Xcode,
+  // which correctly handles dev vs prod environments.
+  // Our runtime code fails silently if push isn't configured.
+
   // Then modify Info.plist
   return withInfoPlist(config, (config) => {
     const projectRoot = config.modRequest.projectRoot;
@@ -150,6 +156,9 @@ const withExpoAir: ConfigPlugin = (config) => {
 
     ats.NSExceptionDomains = exceptionDomains;
     modResults.NSAppTransportSecurity = ats;
+
+    // Note: UIBackgroundModes for remote notifications is handled by expo-notifications plugin
+    // when enableBackgroundRemoteNotifications: true is set (done by expo-air init)
 
     return config;
   });

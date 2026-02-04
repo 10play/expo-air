@@ -10,6 +10,7 @@ import {
   type ConnectionStatus,
   type GitChange,
 } from "./services/websocket";
+import { requestPushToken, setupTapHandler } from "./services/notifications";
 
 // WidgetBridge is a simple native module available in the widget runtime
 // ExpoAir is the main app's module (fallback)
@@ -51,6 +52,7 @@ export function BubbleContent({
   const [branchName, setBranchName] = useState<string>("main");
   const [gitChanges, setGitChanges] = useState<GitChange[]>([]);
   const [activeTab, setActiveTab] = useState<TabType>("chat");
+  const pushTokenSentRef = useRef(false);
 
   // Initialize WebSocket connection immediately (even when collapsed)
   // so it's already connected when user expands the widget
@@ -70,6 +72,19 @@ export function BubbleContent({
       client.disconnect();
     };
   }, [serverUrl]);
+
+  // Setup notification tap handler (dev-only, expands widget on tap)
+  useEffect(() => {
+    const cleanup = setupTapHandler((promptId, success) => {
+      // When user taps notification, ensure WebSocket is connected
+      const client = getWebSocketClient();
+      if (client && !client.isConnected()) {
+        client.connect();
+      }
+      // The native side handles expanding the widget when app opens from notification
+    });
+    return cleanup;
+  }, []);
 
   const handleMessage = useCallback((message: ServerMessage) => {
     switch (message.type) {
@@ -128,7 +143,19 @@ export function BubbleContent({
     }
   }, []);
 
-  const handleSubmit = useCallback((prompt: string) => {
+  const handleSubmit = useCallback(async (prompt: string) => {
+    // Request push token on first submit (dev-only, lazy permission)
+    if (!pushTokenSentRef.current) {
+      const token = await requestPushToken();
+      if (token) {
+        const client = getWebSocketClient();
+        if (client?.isConnected()) {
+          client.sendPushToken(token);
+          pushTokenSentRef.current = true;
+        }
+      }
+    }
+
     // Add user prompt to messages for display
     setMessages((prev) => [
       ...prev,

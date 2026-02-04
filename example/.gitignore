@@ -39,3 +39,6 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# expo-air local config (tunnel URLs)
+.expo-air.local.json
