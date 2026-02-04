@@ -167,6 +167,16 @@ export function BubbleContent({
     }
   }, []);
 
+  const handleCommit = useCallback(() => {
+    setActiveTab("chat");
+    handleSubmit("Look at my current git changes and create a commit with a good conventional commit message. Stage all changes and commit them.");
+  }, [handleSubmit]);
+
+  const handleCreatePR = useCallback(() => {
+    setActiveTab("chat");
+    handleSubmit("Create a pull request for my current branch. Generate a good title and description based on the commits and changes, then use gh pr create to create it.");
+  }, [handleSubmit]);
+
   // Collapsed: Just a pulsing indicator, no text
   if (!expanded) {
     return (
@@ -193,7 +203,7 @@ export function BubbleContent({
         {activeTab === "chat" ? (
           <ResponseArea messages={messages} currentResponse={currentResponse} />
         ) : (
-          <GitChangesTab changes={gitChanges} onDiscard={handleDiscard} />
+          <GitChangesTab changes={gitChanges} onDiscard={handleDiscard} onCommit={handleCommit} onCreatePR={handleCreatePR} />
         )}
       </View>
       {activeTab === "chat" && (
