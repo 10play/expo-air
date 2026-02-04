@@ -22,7 +22,7 @@ export async function requestPushToken(): Promise<string | null> {
     }
 
     console.log("[expo-air] Requesting push token via native bridge");
-    const token = await WidgetBridge.requestPushToken();
+    const token = await WidgetBridge.requestPushToken({});
 
     if (token) {
       console.log("[expo-air] Got push token:", token);

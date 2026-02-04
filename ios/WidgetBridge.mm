@@ -62,8 +62,10 @@ RCT_EXPORT_METHOD(expand) {
     });
 }
 
-RCT_EXPORT_METHOD(requestPushToken:(RCTPromiseResolveBlock)resolve
+RCT_EXPORT_METHOD(requestPushToken:(NSDictionary *)options
+                  resolver:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject) {
+    // options is unused but required for proper promise method signature
     NSLog(@"[WidgetBridge] requestPushToken called");
 
     UNUserNotificationCenter *center = [UNUserNotificationCenter currentNotificationCenter];
