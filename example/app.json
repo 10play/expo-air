@@ -8,8 +8,7 @@
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "plugins": [
-      "../plugin/build/index.js",
-      "@10play/expo-air"
+      "../plugin/build/index.js"
     ],
     "splash": {
       "image": "./assets/splash-icon.png",
