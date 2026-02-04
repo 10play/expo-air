@@ -34,13 +34,21 @@ export function isPortAvailable(port: number): Promise<boolean> {
 /**
  * Find a free port starting from the given port.
  * Tries up to maxAttempts consecutive ports.
+ * @param startPort - Port to start searching from
+ * @param maxAttempts - Maximum number of consecutive ports to try
+ * @param excludePorts - Ports to skip (already allocated by this session)
  */
 export async function findFreePort(
   startPort: number,
-  maxAttempts: number = 10
+  maxAttempts: number = 10,
+  excludePorts: number[] = []
 ): Promise<number> {
   for (let i = 0; i < maxAttempts; i++) {
     const port = startPort + i;
+    // Skip ports we've already allocated in this session
+    if (excludePorts.includes(port)) {
+      continue;
+    }
     if (await isPortAvailable(port)) {
       return port;
     }

@@ -71,18 +71,19 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 /**
- * Check if running from an npm installation (inside node_modules)
+ * Get package root directory - works both from source and compiled code
+ * Source: cli/commands -> 2 levels up
+ * Compiled: cli/dist/commands -> 3 levels up
  */
-function isInstalledFromNpm(): boolean {
-  return __dirname.includes("node_modules");
-}
+function getPackageRoot(): string {
+  const fromSource = path.resolve(__dirname, "../..");
+  const fromCompiled = path.resolve(__dirname, "../../..");
 
-/**
- * Check if pre-built widget bundle exists
- */
-function hasPrebuiltWidgetBundle(): boolean {
-  const bundlePath = path.resolve(__dirname, "../../..", "ios", "widget.jsbundle");
-  return fs.existsSync(bundlePath);
+  // Check which one has the widget directory
+  if (fs.existsSync(path.join(fromSource, "widget"))) {
+    return fromSource;
+  }
+  return fromCompiled;
 }
 
 function detectConnectedDevices(): ConnectedDevice[] {
@@ -203,6 +204,7 @@ interface FlyOptions {
   metroPort?: string;
   project?: string;
   device?: string;
+  dev?: boolean;
 }
 
 export async function flyCommand(options: FlyOptions): Promise<void> {
@@ -245,20 +247,26 @@ export async function flyCommand(options: FlyOptions): Promise<void> {
   }
 
   const requestedPort = parseInt(options.port, 10);
-  const requestedWidgetPort = parseInt(options.widgetPort || "8082", 10);
   const requestedMetroPort = parseInt(options.metroPort || "8081", 10);
 
-  // Find available ports
+  // Find available ports (passing already-allocated ports to avoid conflicts)
   console.log(chalk.gray("  Checking port availability..."));
   const port = await findFreePort(requestedPort);
-  const widgetPort = await findFreePort(requestedWidgetPort);
-  const metroPort = await findFreePort(requestedMetroPort);
+
+  // Widget port only needed in dev mode
+  let widgetPort: number | null = null;
+  if (options.dev) {
+    const requestedWidgetPort = parseInt(options.widgetPort || "8082", 10);
+    widgetPort = await findFreePort(requestedWidgetPort, 10, [port]);
+    if (widgetPort !== requestedWidgetPort) {
+      console.log(chalk.yellow(`  ⚠ Port ${requestedWidgetPort} busy, using ${widgetPort} for widget Metro`));
+    }
+  }
+
+  const metroPort = await findFreePort(requestedMetroPort, 10, widgetPort ? [port, widgetPort] : [port]);
 
   if (port !== requestedPort) {
     console.log(chalk.yellow(`  ⚠ Port ${requestedPort} busy, using ${port} for prompt server`));
-  }
-  if (widgetPort !== requestedWidgetPort) {
-    console.log(chalk.yellow(`  ⚠ Port ${requestedWidgetPort} busy, using ${widgetPort} for widget Metro`));
   }
   if (metroPort !== requestedMetroPort) {
     console.log(chalk.yellow(`  ⚠ Port ${requestedMetroPort} busy, using ${metroPort} for app Metro`));
@@ -267,7 +275,8 @@ export async function flyCommand(options: FlyOptions): Promise<void> {
   // Resolve project directory
   let projectRoot = options.project ? path.resolve(options.project) : process.cwd();
 
-  const exampleDir = path.resolve(__dirname, "../../..", "example");
+  const packageRoot = getPackageRoot();
+  const exampleDir = path.join(packageRoot, "example");
   if (!options.project && fs.existsSync(path.join(exampleDir, "app.json"))) {
     if (!fs.existsSync(path.join(projectRoot, "app.json"))) {
       projectRoot = exampleDir;
@@ -282,7 +291,14 @@ export async function flyCommand(options: FlyOptions): Promise<void> {
     process.exit(1);
   }
 
-  const widgetDir = path.resolve(__dirname, "../../..", "widget");
+  const widgetDir = path.join(packageRoot, "widget");
+
+  // Verify widget directory exists
+  if (!fs.existsSync(widgetDir)) {
+    console.log(chalk.red(`\n  ✗ Widget directory not found: ${widgetDir}`));
+    console.log(chalk.gray(`    __dirname: ${__dirname}`));
+    process.exit(1);
+  }
 
   // Step 2: Start Metro servers
   console.log(chalk.gray("\n  Starting Metro bundlers..."));
@@ -293,10 +309,14 @@ export async function flyCommand(options: FlyOptions): Promise<void> {
     metroPortNum: number
   ): Promise<ChildProcess | null> => {
     try {
-      const proc = spawn("npm", ["start", "--", "--port", String(metroPortNum)], {
+      const proc = spawn("npx", ["expo", "start", "--port", String(metroPortNum)], {
         cwd,
         stdio: ["ignore", "pipe", "pipe"],
-        env: { ...process.env, FORCE_COLOR: "1" },
+        env: {
+          ...process.env,
+          FORCE_COLOR: "1",
+          PATH: process.env.PATH || "/usr/local/bin:/usr/bin:/bin",
+        },
       });
 
       // Wait for initial Metro output
@@ -337,13 +357,15 @@ export async function flyCommand(options: FlyOptions): Promise<void> {
     }
   };
 
-  // Start widget Metro server (skip for npm users with pre-built bundle)
+  // Start widget Metro server only in dev mode
+  // Production mode always uses pre-built widget bundle
   let widgetProcess: ChildProcess | null = null;
-  if (isInstalledFromNpm() && hasPrebuiltWidgetBundle()) {
-    console.log(chalk.green(`  ✓ Using pre-built widget bundle (npm installation)`));
+
+  if (options.dev) {
+    console.log(chalk.blue(`  Starting widget Metro (dev mode)...`));
+    widgetProcess = await startMetro("Widget", widgetDir, widgetPort!);
   } else {
-    console.log(chalk.blue(`  Starting widget Metro (SDK development mode)...`));
-    widgetProcess = await startMetro("Widget", widgetDir, widgetPort);
+    console.log(chalk.green(`  ✓ Using pre-built widget bundle`));
   }
 
   const appProcess = await startMetro("App", projectRoot, metroPort);
@@ -381,9 +403,8 @@ export async function flyCommand(options: FlyOptions): Promise<void> {
       console.log(chalk.red(`  ✗ Prompt tunnel failed`));
     }
 
-    // Only start widget tunnel if widget Metro is running (SDK development mode)
-    // Skip for npm users using pre-built bundle
-    if (!rateLimitHit && widgetProcess) {
+    // Start widget tunnel only in dev mode
+    if (!rateLimitHit && options.dev && widgetProcess && widgetPort) {
       widgetTunnel = new CloudflareTunnel();
       try {
         const info = await widgetTunnel.start(widgetPort);
@@ -413,14 +434,15 @@ export async function flyCommand(options: FlyOptions): Promise<void> {
       }
     }
 
-    // Show rate limit warning
+    // Exit on rate limit - tunnels are required for device communication
     if (rateLimitHit) {
-      console.log(chalk.yellow(`\n  ⚠ Cloudflare rate limit reached (429 Too Many Requests)`));
+      console.log(chalk.red(`\n  ✗ Cloudflare rate limit reached (429 Too Many Requests)`));
       console.log(chalk.gray(`    This happens when too many tunnel requests are made.`));
       console.log(chalk.gray(`    Options:`));
       console.log(chalk.white(`      1. Wait a few minutes and try again`));
       console.log(chalk.white(`      2. Use --no-tunnel to run without tunnels`));
       console.log(chalk.white(`      3. Device must be on same WiFi as your computer\n`));
+      process.exit(1);
     }
 
     // Update config files
@@ -444,12 +466,19 @@ export async function flyCommand(options: FlyOptions): Promise<void> {
   console.log(chalk.gray(`     Device ID: ${selectedDevice.udid}`));
   console.log(chalk.blue("  ─────────────────────────────────────────────\n"));
 
-  const buildArgs = ["expo", "run:ios", "--device", selectedDevice.udid];
+  const buildArgs = [
+    "expo",
+    "run:ios",
+    "--device",
+    selectedDevice.udid,
+    "--port",
+    String(metroPort),
+  ];
 
   const buildProcess = spawn("npx", buildArgs, {
     cwd: projectRoot,
     stdio: "inherit",
-    env: { ...process.env, FORCE_COLOR: "1" },
+    env: { ...process.env, FORCE_COLOR: "1", CI: "1" },
   });
 
   // Wait for build to complete
