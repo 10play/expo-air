@@ -4,7 +4,6 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  ActivityIndicator,
 } from "react-native";
 
 interface PromptInputProps {
@@ -30,6 +29,7 @@ export function PromptInput({
     }
   };
 
+  // Input stays editable, but submit button disabled when disconnected
   const canSubmit = text.trim().length > 0 && !disabled && !isProcessing;
 
   return (
@@ -41,7 +41,7 @@ export function PromptInput({
         value={text}
         onChangeText={setText}
         onSubmitEditing={handleSubmit}
-        editable={!disabled && !isProcessing}
+        editable={!isProcessing}
         multiline
         maxLength={2000}
         returnKeyType="send"
