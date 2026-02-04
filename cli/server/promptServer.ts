@@ -10,6 +10,7 @@ import type {
   NewSessionMessage,
   StopMessage,
   DiscardChangesMessage,
+  RegisterPushTokenMessage,
   OutgoingMessage,
   ConversationEntry,
   GitChange,
@@ -27,6 +28,7 @@ export class PromptServer {
   private gitWatchInterval: ReturnType<typeof setInterval> | null = null;
   private lastBranchName: string = "";
   private lastGitChangesHash: string = "";
+  private pushToken: string | null = null;
 
   constructor(port: number, projectRoot?: string) {
     this.port = port;
@@ -299,6 +301,18 @@ export class PromptServer {
       return;
     }
 
+    // Handle push token registration
+    if (this.isRegisterPushTokenMessage(message)) {
+      this.pushToken = message.token;
+      this.sendToClient(ws, {
+        type: "push_token_ack",
+        success: true,
+        timestamp: Date.now(),
+      });
+      this.log("Push token registered", "info");
+      return;
+    }
+
     // Handle prompt message
     if (this.isPromptMessage(message)) {
       const promptId = message.id || randomUUID();
@@ -421,6 +435,17 @@ export class PromptServer {
       message !== null &&
       "type" in message &&
       (message as DiscardChangesMessage).type === "discard_changes"
+    );
+  }
+
+  private isRegisterPushTokenMessage(message: unknown): message is RegisterPushTokenMessage {
+    return (
+      typeof message === "object" &&
+      message !== null &&
+      "type" in message &&
+      (message as RegisterPushTokenMessage).type === "register_push_token" &&
+      "token" in message &&
+      typeof (message as RegisterPushTokenMessage).token === "string"
     );
   }
 
@@ -602,6 +627,9 @@ IMPORTANT CONSTRAINTS:
             timestamp: Date.now(),
           });
 
+          // Send push notification (shown only when app is backgrounded)
+          await this.sendPushNotification(promptId, isSuccess);
+
           if (isSuccess) {
             // Add assistant response to history
             if (message.result) {
@@ -648,6 +676,33 @@ IMPORTANT CONSTRAINTS:
   private sendToClient(ws: WebSocket, message: OutgoingMessage): void {
     if (ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify(message));
+    }
+  }
+
+  private async sendPushNotification(promptId: string, success: boolean): Promise<void> {
+    if (!this.pushToken) return;
+
+    try {
+      const response = await fetch("https://exp.host/--/api/v2/push/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: this.pushToken,
+          title: success ? "Task completed" : "Task failed",
+          body: success ? "Claude finished your request" : "Something went wrong",
+          data: { source: "expo-air", promptId, success },
+          sound: "default",
+          priority: "high",
+        }),
+      });
+
+      if (!response.ok) {
+        this.log(`Push notification failed: ${response.status}`, "error");
+      } else {
+        this.log("Push notification sent", "info");
+      }
+    } catch (error) {
+      this.log(`Push notification error: ${error}`, "error");
     }
   }
 

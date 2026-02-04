@@ -24,6 +24,11 @@ export interface DiscardChangesMessage {
   type: "discard_changes";
 }
 
+export interface RegisterPushTokenMessage {
+  type: "register_push_token";
+  token: string;
+}
+
 // Outgoing messages to widget
 export interface StreamMessage {
   type: "stream";
@@ -91,6 +96,12 @@ export interface StoppedMessage {
   timestamp: number;
 }
 
+export interface PushTokenAckMessage {
+  type: "push_token_ack";
+  success: boolean;
+  timestamp: number;
+}
+
 export interface ConversationEntry {
   role: "user" | "assistant";
   content: string;
@@ -112,6 +123,12 @@ export type OutgoingMessage =
   | SessionClearedMessage
   | StoppedMessage
   | HistoryMessage
-  | GitStatusMessage;
+  | GitStatusMessage
+  | PushTokenAckMessage;
 
-export type IncomingMessage = PromptMessage | NewSessionMessage | StopMessage | DiscardChangesMessage;
+export type IncomingMessage =
+  | PromptMessage
+  | NewSessionMessage
+  | StopMessage
+  | DiscardChangesMessage
+  | RegisterPushTokenMessage;
