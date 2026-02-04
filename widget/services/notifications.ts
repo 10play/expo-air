@@ -1,8 +1,11 @@
 /**
  * Push notification service for expo-air widget.
- * Dev-only: all functions return early if not in __DEV__ mode.
  * Does NOT override existing app notification handlers.
  * Fails silently if push notifications aren't configured or expo-notifications isn't installed.
+ *
+ * Note: The widget is only shown in the host app's DEBUG mode (controlled by native code),
+ * so we don't need __DEV__ checks here. The pre-built widget bundle is always a production
+ * build (via expo export), so __DEV__ would always be false anyway.
  */
 
 const EXPO_AIR_SOURCE = "expo-air";
@@ -22,12 +25,9 @@ async function getNotifications(): Promise<typeof import("expo-notifications") |
 
 /**
  * Request push notification permissions and get Expo push token.
- * Only runs in __DEV__ mode.
  * @returns Expo push token string or null if failed/denied
  */
 export async function requestPushToken(): Promise<string | null> {
-  if (!__DEV__) return null;
-
   try {
     const notif = await getNotifications();
     if (!notif) {
@@ -65,14 +65,12 @@ export async function requestPushToken(): Promise<string | null> {
  * Setup tap handler for expo-air notifications.
  * Uses addNotificationResponseReceivedListener (additive, non-overriding).
  * Filters by data.source === "expo-air" to ignore other app notifications.
- * Only runs in __DEV__ mode.
  * @param onTap Callback when user taps an expo-air notification
  * @returns Cleanup function to remove listener
  */
 export function setupTapHandler(
   onTap: (promptId?: string, success?: boolean) => void
 ): () => void {
-  if (!__DEV__) return () => {};
 
   // Start async setup, return cleanup that handles pending setup
   let subscription: { remove: () => void } | null = null;
