@@ -155,6 +155,22 @@ class FloatingBubbleViewController: UIViewController, UIGestureRecognizerDelegat
         return insetTop - 18
     }
 
+    // Position for expanded modal - below the safe area with padding
+    private var expandedTopY: CGFloat {
+        var insetTop: CGFloat = 59  // Default for Dynamic Island devices
+
+        if view.safeAreaInsets.top > 0 {
+            insetTop = view.safeAreaInsets.top
+        } else if let windowScene = view.window?.windowScene,
+                  let windowInsetTop = windowScene.windows.first?.safeAreaInsets.top,
+                  windowInsetTop > 0 {
+            insetTop = windowInsetTop
+        }
+
+        // Position below safe area with 10pt padding
+        return insetTop + 10
+    }
+
     func setSurfaceView(_ surfaceView: UIView) {
         reactSurfaceView = surfaceView
     }
@@ -268,9 +284,10 @@ class FloatingBubbleViewController: UIViewController, UIGestureRecognizerDelegat
         let screenWidth = UIScreen.main.bounds.width
 
         // Set the final frame immediately
+        // Use expandedTopY to position below the Dynamic Island
         let expandedFrame = CGRect(
             x: (screenWidth - expandedWidth) / 2,
-            y: bubbleTopY,
+            y: expandedTopY,
             width: expandedWidth,
             height: expandedHeight
         )
