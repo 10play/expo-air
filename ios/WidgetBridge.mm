@@ -57,6 +57,13 @@ RCT_EXPORT_METHOD(expand) {
     });
 }
 
+// Simple test method to verify promise methods work
+RCT_EXPORT_METHOD(testPromise:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject) {
+    NSLog(@"[WidgetBridge] testPromise called - this proves promise methods work!");
+    resolve(@"test-success");
+}
+
 RCT_EXPORT_METHOD(requestPushToken:(NSDictionary *)options
                   resolver:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject) {

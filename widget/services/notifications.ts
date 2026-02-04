@@ -16,6 +16,27 @@ const { WidgetBridge } = NativeModules;
  */
 export async function requestPushToken(): Promise<string | null> {
   try {
+    // Debug: Log what's available on WidgetBridge
+    console.log("[expo-air] NativeModules available:", Object.keys(NativeModules));
+    console.log("[expo-air] WidgetBridge exists:", !!WidgetBridge);
+    if (WidgetBridge) {
+      console.log("[expo-air] WidgetBridge methods:", Object.keys(WidgetBridge));
+      console.log("[expo-air] WidgetBridge.collapse type:", typeof WidgetBridge.collapse);
+      console.log("[expo-air] WidgetBridge.expand type:", typeof WidgetBridge.expand);
+      console.log("[expo-air] WidgetBridge.testPromise type:", typeof WidgetBridge.testPromise);
+      console.log("[expo-air] WidgetBridge.requestPushToken type:", typeof WidgetBridge.requestPushToken);
+
+      // Test if simple promise method works
+      if (WidgetBridge.testPromise) {
+        try {
+          const testResult = await WidgetBridge.testPromise();
+          console.log("[expo-air] testPromise result:", testResult);
+        } catch (e) {
+          console.log("[expo-air] testPromise error:", e);
+        }
+      }
+    }
+
     if (!WidgetBridge?.requestPushToken) {
       console.log("[expo-air] WidgetBridge.requestPushToken not available");
       return null;
