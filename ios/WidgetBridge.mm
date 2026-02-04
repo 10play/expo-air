@@ -1,10 +1,5 @@
 #import "WidgetBridge.h"
-#import <ReactCommon/RCTTurboModule.h>
 #import <UserNotifications/UserNotifications.h>
-
-// Extend WidgetBridge to conform to RCTTurboModule in .mm file
-@interface WidgetBridge () <RCTTurboModule>
-@end
 
 @implementation WidgetBridge
 
