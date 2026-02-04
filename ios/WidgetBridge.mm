@@ -107,14 +107,16 @@ RCT_EXPORT_METHOD(requestPushToken:(NSDictionary *)options
                 NSString *bundleId = [[NSBundle mainBundle] bundleIdentifier];
 
                 // Get EAS project ID from expo config (stored in Info.plist by expo prebuild)
-                // The projectId is stored in EXUpdates config or expo-constants
                 NSString *projectId = nil;
+                NSString *experienceId = nil;
 
                 // Try EXUpdates config first (most common location)
                 NSDictionary *exUpdates = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"EXUpdates"];
                 if (exUpdates) {
                     projectId = exUpdates[@"EXUpdatesProjectId"];
-                    NSLog(@"[WidgetBridge] Found projectId in EXUpdates: %@", projectId);
+                    if (projectId) {
+                        NSLog(@"[WidgetBridge] Found projectId in EXUpdates: %@", projectId);
+                    }
                 }
 
                 // Try direct key
@@ -138,18 +140,47 @@ RCT_EXPORT_METHOD(requestPushToken:(NSDictionary *)options
                     }
                 }
 
+                // Fallback: use experienceId format (@anonymous/slug or @owner/slug)
+                // This works without EAS configuration
                 if (!projectId) {
-                    NSLog(@"[WidgetBridge] ERROR: No EAS projectId found. Developer needs to configure EAS in their app.json");
-                    NSLog(@"[WidgetBridge] Add to app.json: extra.eas.projectId or run 'eas build:configure'");
+                    // Try to get slug from expo config
+                    NSString *slug = nil;
+                    NSString *owner = nil;
+
+                    NSDictionary *expoConstants = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"EXConstantsConfig"];
+                    if (expoConstants) {
+                        slug = expoConstants[@"slug"];
+                        owner = expoConstants[@"owner"];
+                    }
+
+                    // If no slug, try using the bundle ID's last component
+                    if (!slug) {
+                        NSArray *components = [bundleId componentsSeparatedByString:@"."];
+                        slug = [components lastObject];
+                    }
+
+                    // Format: @owner/slug or @anonymous/slug
+                    if (owner && slug) {
+                        experienceId = [NSString stringWithFormat:@"@%@/%@", owner, slug];
+                    } else if (slug) {
+                        experienceId = [NSString stringWithFormat:@"@anonymous/%@", slug];
+                    }
+
+                    NSLog(@"[WidgetBridge] No EAS projectId found, using experienceId: %@", experienceId);
+                }
+
+                if (!projectId && !experienceId) {
+                    NSLog(@"[WidgetBridge] ERROR: Could not determine project identifier for Expo push token");
                     resolve([NSNull null]);
                     return;
                 }
 
-                NSLog(@"[WidgetBridge] Using projectId: %@, bundleId: %@", projectId, bundleId);
+                NSLog(@"[WidgetBridge] Using projectId: %@, experienceId: %@, bundleId: %@", projectId, experienceId, bundleId);
 
                 // Call Expo's API to convert device token to Expo push token
                 [self getExpoPushTokenWithDeviceToken:deviceToken
                                             projectId:projectId
+                                         experienceId:experienceId
                                              bundleId:bundleId
                                            completion:^(NSString *expoToken, NSError *error) {
                     if (expoToken) {
@@ -168,6 +199,7 @@ RCT_EXPORT_METHOD(requestPushToken:(NSDictionary *)options
 
 - (void)getExpoPushTokenWithDeviceToken:(NSString *)deviceToken
                               projectId:(NSString *)projectId
+                           experienceId:(NSString *)experienceId
                                bundleId:(NSString *)bundleId
                              completion:(void (^)(NSString *expoToken, NSError *error))completion {
     NSURL *url = [NSURL URLWithString:@"https://exp.host/--/api/v2/push/getExpoPushToken"];
@@ -182,14 +214,20 @@ RCT_EXPORT_METHOD(requestPushToken:(NSDictionary *)options
         [[NSUserDefaults standardUserDefaults] setObject:deviceId forKey:@"expo-air-device-id"];
     }
 
-    NSDictionary *body = @{
+    // Build request body - use projectId if available, otherwise use experienceId
+    NSMutableDictionary *body = [@{
         @"deviceToken": deviceToken,
         @"type": @"apns",
         @"development": @YES,  // DEBUG mode
-        @"projectId": projectId ?: bundleId,
         @"appId": bundleId,
         @"deviceId": deviceId
-    };
+    } mutableCopy];
+
+    if (projectId) {
+        body[@"projectId"] = projectId;
+    } else if (experienceId) {
+        body[@"experienceId"] = experienceId;
+    }
 
     NSError *jsonError;
     request.HTTPBody = [NSJSONSerialization dataWithJSONObject:body options:0 error:&jsonError];
