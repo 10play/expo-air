@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { View, Text, StyleSheet, NativeModules, TouchableOpacity, Animated, Easing } from "react-native";
+import { View, Text, StyleSheet, NativeModules, TouchableOpacity, Animated, Easing, Linking } from "react-native";
 import { PromptInput } from "./components/PromptInput";
 import { ResponseArea } from "./components/ResponseArea";
 import { GitChangesTab } from "./components/GitChangesTab";
@@ -51,8 +51,13 @@ export function BubbleContent({
   const [currentResponse, setCurrentResponse] = useState("");
   const [branchName, setBranchName] = useState<string>("main");
   const [gitChanges, setGitChanges] = useState<GitChange[]>([]);
+  const [hasPR, setHasPR] = useState(false);
+  const [prUrl, setPrUrl] = useState<string | undefined>();
   const [activeTab, setActiveTab] = useState<TabType>("chat");
   const pushTokenSentRef = useRef(false);
+
+  // Extract PR number from URL (e.g., "https://github.com/org/repo/pull/12" → "12")
+  const prNumber = prUrl?.match(/\/pull\/(\d+)/)?.[1];
 
   // Initialize WebSocket connection immediately (even when collapsed)
   // so it's already connected when user expands the widget
@@ -136,9 +141,11 @@ export function BubbleContent({
         setMessages(historyMessages);
         break;
       case "git_status":
-        // Update branch name and git changes
+        // Update branch name, git changes, and PR status
         setBranchName(message.branchName);
         setGitChanges(message.changes);
+        setHasPR(message.hasPR);
+        setPrUrl(message.prUrl);
         break;
     }
   }, []);
@@ -187,6 +194,22 @@ export function BubbleContent({
     }
   }, []);
 
+  const handleCommit = useCallback(() => {
+    setActiveTab("chat");
+    handleSubmit("Look at my current git changes and create a commit with a good conventional commit message. Stage all changes and commit them.");
+  }, [handleSubmit]);
+
+  const handleCreatePR = useCallback(() => {
+    setActiveTab("chat");
+    handleSubmit("Create a pull request for my current branch. First commit any uncommitted changes with a good message. Then generate a title and description based on the commits, and use `gh pr create --title \"...\" --body \"...\"` (non-interactive mode) to create it. Push to remote first if needed.");
+  }, [handleSubmit]);
+
+  const handleViewPR = useCallback(() => {
+    if (prUrl) {
+      Linking.openURL(prUrl);
+    }
+  }, [prUrl]);
+
   const handleDiscard = useCallback(() => {
     const client = getWebSocketClient();
     if (client) {
@@ -215,6 +238,12 @@ export function BubbleContent({
         onTabChange={setActiveTab}
         onNewSession={handleNewSession}
         canStartNew={status === "connected"}
+        hasPR={hasPR}
+        hasChanges={gitChanges.length > 0}
+        prNumber={prNumber}
+        onCreatePR={handleCreatePR}
+        onCommit={handleCommit}
+        onViewPR={handleViewPR}
       />
       <View style={styles.body}>
         {activeTab === "chat" ? (
@@ -268,9 +297,53 @@ interface TabBarProps {
   onTabChange: (tab: TabType) => void;
   onNewSession: () => void;
   canStartNew: boolean;
+  hasPR: boolean;
+  hasChanges: boolean;
+  prNumber?: string;
+  onCreatePR: () => void;
+  onCommit: () => void;
+  onViewPR: () => void;
 }
 
-function TabBar({ activeTab, onTabChange, onNewSession, canStartNew }: TabBarProps) {
+function TabBar({
+  activeTab,
+  onTabChange,
+  onNewSession,
+  canStartNew,
+  hasPR,
+  hasChanges,
+  prNumber,
+  onCreatePR,
+  onCommit,
+  onViewPR,
+}: TabBarProps) {
+  // Determine which CTA to show for Changes tab
+  const renderCTA = () => {
+    if (activeTab === "chat") {
+      return (
+        <TouchableOpacity
+          onPress={onNewSession}
+          style={[styles.ctaButton, !canStartNew && styles.ctaButtonDisabled]}
+          disabled={!canStartNew}
+        >
+          <Text style={[styles.ctaText, !canStartNew && styles.ctaTextDisabled]}>New</Text>
+        </TouchableOpacity>
+      );
+    }
+
+    // Changes tab - show smart CTA with breathing animation
+    if (!hasPR && hasChanges) {
+      return <BreathingButton onPress={onCreatePR}>Create PR</BreathingButton>;
+    }
+    if (hasPR && hasChanges) {
+      return <BreathingButton onPress={onCommit}>Commit</BreathingButton>;
+    }
+    if (hasPR && !hasChanges && prNumber) {
+      return <BreathingButton onPress={onViewPR}>#{prNumber}</BreathingButton>;
+    }
+    return null; // no PR + no changes = nothing
+  };
+
   return (
     <View style={styles.tabBar}>
       <View style={styles.tabButtons}>
@@ -291,16 +364,46 @@ function TabBar({ activeTab, onTabChange, onNewSession, canStartNew }: TabBarPro
           </Text>
         </TouchableOpacity>
       </View>
-      {activeTab === "chat" && (
-        <TouchableOpacity
-          onPress={onNewSession}
-          style={[styles.newButton, !canStartNew && styles.newButtonDisabled]}
-          disabled={!canStartNew}
-        >
-          <Text style={[styles.newButtonText, !canStartNew && styles.newButtonTextDisabled]}>New</Text>
-        </TouchableOpacity>
-      )}
+      {renderCTA()}
     </View>
+  );
+}
+
+interface BreathingButtonProps {
+  children: React.ReactNode;
+  onPress: () => void;
+}
+
+function BreathingButton({ children, onPress }: BreathingButtonProps) {
+  const opacityAnim = useRef(new Animated.Value(0.6)).current;
+
+  useEffect(() => {
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(opacityAnim, {
+          toValue: 0.9,
+          duration: 1500,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacityAnim, {
+          toValue: 0.6,
+          duration: 1500,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    animation.start();
+    return () => animation.stop();
+  }, [opacityAnim]);
+
+  return (
+    <TouchableOpacity onPress={onPress} style={styles.ctaButton} activeOpacity={0.7}>
+      <Animated.Text style={[styles.ctaText, { opacity: opacityAnim }]}>
+        {children}
+      </Animated.Text>
+    </TouchableOpacity>
   );
 }
 
@@ -454,21 +557,21 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 4,
   },
-  newButton: {
+  ctaButton: {
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 14,
-    backgroundColor: "rgba(255,255,255,0.15)",
+    backgroundColor: "rgba(255,255,255,0.08)",
   },
-  newButtonDisabled: {
+  ctaButtonDisabled: {
     opacity: 0.4,
   },
-  newButtonText: {
+  ctaText: {
     color: "#fff",
     fontSize: 13,
     fontWeight: "600",
   },
-  newButtonTextDisabled: {
+  ctaTextDisabled: {
     opacity: 0.6,
   },
   tabBar: {

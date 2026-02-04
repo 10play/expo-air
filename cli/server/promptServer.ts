@@ -112,11 +112,27 @@ export class PromptServer {
     }
   }
 
+  private getPRStatus(): { hasPR: boolean; prUrl?: string } {
+    try {
+      const result = execSync("gh pr view --json url -q .url", {
+        cwd: this.projectRoot,
+        encoding: "utf-8",
+        stdio: ["pipe", "pipe", "pipe"],
+      }).trim();
+      return { hasPR: true, prUrl: result || undefined };
+    } catch {
+      return { hasPR: false };
+    }
+  }
+
   private broadcastGitStatus(branchName: string, changes: GitChange[]): void {
+    const prStatus = this.getPRStatus();
     const message: OutgoingMessage = {
       type: "git_status",
       branchName,
       changes,
+      hasPR: prStatus.hasPR,
+      prUrl: prStatus.prUrl,
       timestamp: Date.now(),
     };
 
@@ -124,7 +140,7 @@ export class PromptServer {
       this.sendToClient(client, message);
     }
 
-    this.log(`Git status updated: ${branchName} (${changes.length} changes)`, "info");
+    this.log(`Git status updated: ${branchName} (${changes.length} changes, PR: ${prStatus.hasPR})`, "info");
   }
 
   private getConfigPath(): string {
@@ -251,10 +267,13 @@ export class PromptServer {
     // Send initial git status
     const branchName = this.getBranchName();
     const changes = this.getGitChanges();
+    const prStatus = this.getPRStatus();
     this.sendToClient(ws, {
       type: "git_status",
       branchName,
       changes,
+      hasPR: prStatus.hasPR,
+      prUrl: prStatus.prUrl,
       timestamp: Date.now(),
     });
 
@@ -482,7 +501,7 @@ export class PromptServer {
           cwd: this.projectRoot,
           abortController: this.abortController,
           includePartialMessages: true,
-          permissionMode: "acceptEdits", // Auto-accept edits for dev workflow
+          permissionMode: "bypassPermissions", // YOLO mode - bypass all permission prompts
           systemPrompt: `You are Claude, running as part of Expo Flow - an AI-powered development tool that runs on the developer's local machine and developer runs the app on their phone with a widget that help him develop the app on the go.
 
 IMPORTANT CONSTRAINTS:
@@ -513,7 +532,10 @@ IMPORTANT CONSTRAINTS:
                         input: input.tool_input,
                         timestamp: Date.now(),
                       });
-                      this.log(`Tool started: ${input.tool_name}`, "info");
+                      // Log tool name and truncated input for debugging
+                      const inputStr = JSON.stringify(input.tool_input || {});
+                      const truncatedInput = inputStr.length > 100 ? inputStr.substring(0, 100) + "..." : inputStr;
+                      this.log(`Tool started: ${input.tool_name} - ${truncatedInput}`, "info");
                     }
                     return {};
                   },
@@ -533,7 +555,14 @@ IMPORTANT CONSTRAINTS:
                         output: input.tool_response,
                         timestamp: Date.now(),
                       });
-                      this.log(`Tool completed: ${input.tool_name}`, "success");
+                      // Log completion with truncated response for debugging
+                      const responseStr = typeof input.tool_response === 'string'
+                        ? input.tool_response
+                        : JSON.stringify(input.tool_response || '');
+                      const truncatedResponse = responseStr.length > 150
+                        ? responseStr.substring(0, 150) + "..."
+                        : responseStr;
+                      this.log(`Tool completed: ${input.tool_name} - ${truncatedResponse.replace(/\n/g, ' ')}`, "success");
                     }
                     return {};
                   },
@@ -545,15 +574,24 @@ IMPORTANT CONSTRAINTS:
                 hooks: [
                   async (input) => {
                     if (input.hook_event_name === "PostToolUseFailure") {
+                      const errorStr = typeof input.error === 'string'
+                        ? input.error
+                        : JSON.stringify(input.error || 'Unknown error');
                       this.sendToClient(ws, {
                         type: "tool",
                         promptId,
                         toolName: input.tool_name,
                         status: "failed",
-                        output: input.error,
+                        output: errorStr,
                         timestamp: Date.now(),
                       });
-                      this.log(`Tool failed: ${input.tool_name}`, "error");
+                      // Log detailed error information
+                      this.log(`Tool FAILED: ${input.tool_name}`, "error");
+                      this.log(`  Error: ${errorStr.substring(0, 500)}`, "error");
+                      if (input.tool_input) {
+                        const inputStr = JSON.stringify(input.tool_input);
+                        this.log(`  Input was: ${inputStr.substring(0, 200)}`, "error");
+                      }
                     }
                     return {};
                   },
