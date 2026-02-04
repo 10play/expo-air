@@ -107,15 +107,42 @@ RCT_EXPORT_METHOD(requestPushToken:(NSDictionary *)options
                 NSString *bundleId = [[NSBundle mainBundle] bundleIdentifier];
 
                 // Get EAS project ID from expo config (stored in Info.plist by expo prebuild)
+                // The projectId is stored in EXUpdates config or expo-constants
                 NSString *projectId = nil;
-                NSDictionary *expoConfig = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"EXUpdatesRuntimeVersion"];
-                if (!projectId) {
-                    // Try getting from EASProjectId
-                    projectId = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"EASProjectID"];
+
+                // Try EXUpdates config first (most common location)
+                NSDictionary *exUpdates = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"EXUpdates"];
+                if (exUpdates) {
+                    projectId = exUpdates[@"EXUpdatesProjectId"];
+                    NSLog(@"[WidgetBridge] Found projectId in EXUpdates: %@", projectId);
                 }
+
+                // Try direct key
                 if (!projectId) {
-                    // Fallback: use bundle ID as experience ID format
-                    projectId = bundleId;
+                    projectId = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"EASProjectID"];
+                    if (projectId) {
+                        NSLog(@"[WidgetBridge] Found projectId in EASProjectID: %@", projectId);
+                    }
+                }
+
+                // Try expo-constants embedded config
+                if (!projectId) {
+                    NSDictionary *expoConstants = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"EXConstantsConfig"];
+                    if (expoConstants) {
+                        NSDictionary *extra = expoConstants[@"extra"];
+                        NSDictionary *eas = extra[@"eas"];
+                        projectId = eas[@"projectId"];
+                        if (projectId) {
+                            NSLog(@"[WidgetBridge] Found projectId in EXConstantsConfig: %@", projectId);
+                        }
+                    }
+                }
+
+                if (!projectId) {
+                    NSLog(@"[WidgetBridge] ERROR: No EAS projectId found. Developer needs to configure EAS in their app.json");
+                    NSLog(@"[WidgetBridge] Add to app.json: extra.eas.projectId or run 'eas build:configure'");
+                    resolve([NSNull null]);
+                    return;
                 }
 
                 NSLog(@"[WidgetBridge] Using projectId: %@, bundleId: %@", projectId, bundleId);
