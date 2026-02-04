@@ -12,7 +12,8 @@ import type {
   DiscardChangesMessage,
   RegisterPushTokenMessage,
   OutgoingMessage,
-  ConversationEntry,
+  AnyConversationEntry,
+  ToolConversationEntry,
   GitChange,
 } from "../types/messages.js";
 
@@ -24,11 +25,13 @@ export class PromptServer {
   private abortController: AbortController | null = null;
   private projectRoot: string;
   private sessionId: string | null = null;
-  private conversationHistory: ConversationEntry[] = [];
+  private conversationHistory: AnyConversationEntry[] = [];
   private gitWatchInterval: ReturnType<typeof setInterval> | null = null;
   private lastBranchName: string = "";
   private lastGitChangesHash: string = "";
   private pushToken: string | null = null;
+  private currentStreamedResponse: string = "";
+  private lastToolInput: unknown = undefined;
 
   constructor(port: number, projectRoot?: string) {
     this.port = port;
@@ -492,6 +495,8 @@ export class PromptServer {
 
     // Create abort controller for this query
     this.abortController = new AbortController();
+    // Reset streamed response accumulator for this query
+    this.currentStreamedResponse = "";
 
     try {
       // Create the query with Claude Agent SDK
@@ -524,6 +529,9 @@ IMPORTANT CONSTRAINTS:
                 hooks: [
                   async (input) => {
                     if (input.hook_event_name === "PreToolUse") {
+                      // Capture input for pairing with output later
+                      this.lastToolInput = input.tool_input;
+
                       this.sendToClient(ws, {
                         type: "tool",
                         promptId,
@@ -547,6 +555,17 @@ IMPORTANT CONSTRAINTS:
                 hooks: [
                   async (input) => {
                     if (input.hook_event_name === "PostToolUse") {
+                      // Persist completed tool to history
+                      const toolEntry: ToolConversationEntry = {
+                        role: "tool",
+                        toolName: input.tool_name,
+                        status: "completed",
+                        input: this.lastToolInput,
+                        output: input.tool_response,
+                        timestamp: Date.now(),
+                      };
+                      this.conversationHistory.push(toolEntry);
+
                       this.sendToClient(ws, {
                         type: "tool",
                         promptId,
@@ -563,6 +582,8 @@ IMPORTANT CONSTRAINTS:
                         ? responseStr.substring(0, 150) + "..."
                         : responseStr;
                       this.log(`Tool completed: ${input.tool_name} - ${truncatedResponse.replace(/\n/g, ' ')}`, "success");
+
+                      this.lastToolInput = undefined;
                     }
                     return {};
                   },
@@ -574,6 +595,17 @@ IMPORTANT CONSTRAINTS:
                 hooks: [
                   async (input) => {
                     if (input.hook_event_name === "PostToolUseFailure") {
+                      // Persist failed tool to history
+                      const toolEntry: ToolConversationEntry = {
+                        role: "tool",
+                        toolName: input.tool_name,
+                        status: "failed",
+                        input: this.lastToolInput,
+                        output: input.error,
+                        timestamp: Date.now(),
+                      };
+                      this.conversationHistory.push(toolEntry);
+
                       const errorStr = typeof input.error === 'string'
                         ? input.error
                         : JSON.stringify(input.error || 'Unknown error');
@@ -592,6 +624,8 @@ IMPORTANT CONSTRAINTS:
                         const inputStr = JSON.stringify(input.tool_input);
                         this.log(`  Input was: ${inputStr.substring(0, 200)}`, "error");
                       }
+
+                      this.lastToolInput = undefined;
                     }
                     return {};
                   },
@@ -617,6 +651,8 @@ IMPORTANT CONSTRAINTS:
           if (Array.isArray(messageContent)) {
             for (const block of messageContent) {
               if (block.type === "text") {
+                // Accumulate for history
+                this.currentStreamedResponse += block.text;
                 this.sendToClient(ws, {
                   type: "stream",
                   promptId,
@@ -634,6 +670,8 @@ IMPORTANT CONSTRAINTS:
             event.type === "content_block_delta" &&
             event.delta.type === "text_delta"
           ) {
+            // Accumulate streamed text for history persistence
+            this.currentStreamedResponse += event.delta.text;
             this.sendToClient(ws, {
               type: "stream",
               promptId,
@@ -670,10 +708,12 @@ IMPORTANT CONSTRAINTS:
 
           if (isSuccess) {
             // Add assistant response to history
-            if (message.result) {
+            // Prefer accumulated streamed text, fall back to message.result
+            const responseContent = this.currentStreamedResponse.trim() || message.result;
+            if (responseContent) {
               this.conversationHistory.push({
                 role: "assistant",
-                content: message.result,
+                content: responseContent,
                 timestamp: Date.now(),
               });
               this.saveSession();
@@ -701,6 +741,8 @@ IMPORTANT CONSTRAINTS:
     } finally {
       this.currentQuery = null;
       this.abortController = null;
+      this.currentStreamedResponse = "";  // Clear accumulated response
+      this.lastToolInput = undefined;  // Clear any pending tool input
 
       // Send idle status
       this.sendToClient(ws, {

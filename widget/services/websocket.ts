@@ -64,9 +64,22 @@ export interface ConversationEntry {
   timestamp: number;
 }
 
+// Tool conversation entry for persisted tool executions
+export interface ToolConversationEntry {
+  role: "tool";
+  toolName: string;
+  status: "started" | "completed" | "failed";
+  input?: unknown;
+  output?: unknown;
+  timestamp: number;
+}
+
+// Union of all entry types
+export type AnyConversationEntry = ConversationEntry | ToolConversationEntry;
+
 export interface HistoryMessage {
   type: "history";
-  entries: ConversationEntry[];
+  entries: AnyConversationEntry[];
   timestamp: number;
 }
 

@@ -9,6 +9,7 @@ import {
   type ServerMessage,
   type ConnectionStatus,
   type GitChange,
+  type AnyConversationEntry,
 } from "./services/websocket";
 import { requestPushToken, setupTapHandler } from "./services/notifications";
 
@@ -123,20 +124,32 @@ export function BubbleContent({
         break;
       case "history":
         // Convert history entries to displayable messages
-        const historyMessages: ServerMessage[] = message.entries.map((entry) => {
+        const historyMessages: ServerMessage[] = message.entries.flatMap((entry: AnyConversationEntry) => {
           if (entry.role === "user") {
-            return {
+            return [{
               type: "user_prompt" as const,
               content: entry.content,
               timestamp: entry.timestamp,
-            };
-          } else {
-            return {
+            }];
+          } else if (entry.role === "assistant") {
+            return [{
               type: "history_result" as const,
               content: entry.content,
               timestamp: entry.timestamp,
-            };
+            }];
+          } else if (entry.role === "tool") {
+            // Reconstruct tool message from persisted entry
+            return [{
+              type: "tool" as const,
+              promptId: "",
+              toolName: entry.toolName,
+              status: entry.status,
+              input: entry.input,
+              output: entry.output,
+              timestamp: entry.timestamp,
+            }];
           }
+          return [];
         });
         setMessages(historyMessages);
         break;
