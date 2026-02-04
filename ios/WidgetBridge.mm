@@ -57,13 +57,6 @@ RCT_EXPORT_METHOD(expand) {
     });
 }
 
-// Simple test method to verify promise methods work
-RCT_EXPORT_METHOD(testPromise:(RCTPromiseResolveBlock)resolve
-                  rejecter:(RCTPromiseRejectBlock)reject) {
-    NSLog(@"[WidgetBridge] testPromise called - this proves promise methods work!");
-    resolve(@"test-success");
-}
-
 RCT_EXPORT_METHOD(requestPushToken:(NSDictionary *)options
                   resolver:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject) {
@@ -106,20 +99,33 @@ RCT_EXPORT_METHOD(requestPushToken:(NSDictionary *)options
                 // Get app info for Expo API
                 NSString *bundleId = [[NSBundle mainBundle] bundleIdentifier];
 
-                // Get EAS project ID from expo config (stored in Info.plist by expo prebuild)
+                // Get EAS project ID - first check ExpoAir config (set by our plugin)
                 NSString *projectId = nil;
                 NSString *experienceId = nil;
 
-                // Try EXUpdates config first (most common location)
-                NSDictionary *exUpdates = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"EXUpdates"];
-                if (exUpdates) {
-                    projectId = exUpdates[@"EXUpdatesProjectId"];
-                    if (projectId) {
-                        NSLog(@"[WidgetBridge] Found projectId in EXUpdates: %@", projectId);
+                // Try ExpoAir config first (set by expo-air plugin from app.json extra.eas.projectId)
+                NSDictionary *expoAir = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"ExpoAir"];
+                if (expoAir) {
+                    projectId = expoAir[@"easProjectId"];
+                    if (projectId && projectId.length > 0) {
+                        NSLog(@"[WidgetBridge] Found projectId in ExpoAir config: %@", projectId);
+                    } else {
+                        projectId = nil;
                     }
                 }
 
-                // Try direct key
+                // Fallback: Try EXUpdates config
+                if (!projectId) {
+                    NSDictionary *exUpdates = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"EXUpdates"];
+                    if (exUpdates) {
+                        projectId = exUpdates[@"EXUpdatesProjectId"];
+                        if (projectId) {
+                            NSLog(@"[WidgetBridge] Found projectId in EXUpdates: %@", projectId);
+                        }
+                    }
+                }
+
+                // Fallback: Try direct key
                 if (!projectId) {
                     projectId = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"EASProjectID"];
                     if (projectId) {
@@ -127,7 +133,7 @@ RCT_EXPORT_METHOD(requestPushToken:(NSDictionary *)options
                     }
                 }
 
-                // Try expo-constants embedded config
+                // Fallback: Try expo-constants embedded config
                 if (!projectId) {
                     NSDictionary *expoConstants = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"EXConstantsConfig"];
                     if (expoConstants) {

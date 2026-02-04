@@ -121,6 +121,13 @@ const withExpoAir: ConfigPlugin = (config) => {
       }
     }
 
+    // Get EAS projectId from expo config (for push notifications)
+    // This is normally only available in JS via expo-constants, but we need it in native code
+    const easProjectId = (config.extra?.eas?.projectId as string) ?? "";
+    if (easProjectId) {
+      console.log("[expo-air] Found EAS projectId:", easProjectId);
+    }
+
     // Write to Info.plist under ExpoAir key
     // Note: Empty strings for URLs will trigger fallback logic in native code
     // SDK developers get localhost fallback, npm users get pre-built bundle
@@ -131,6 +138,7 @@ const withExpoAir: ConfigPlugin = (config) => {
       serverUrl: expoAirConfig.serverUrl ?? "",
       widgetMetroUrl: expoAirConfig.widgetMetroUrl ?? "",
       appMetroUrl: expoAirConfig.appMetroUrl ?? "",
+      easProjectId: easProjectId,
     };
 
     // Allow HTTP connections to bore.pub for tunnel support
