@@ -48,7 +48,7 @@ export class PromptServer {
 
   private getGitChanges(): GitChange[] {
     try {
-      const output = execSync("git status --porcelain", {
+      const output = execSync("git status --porcelain -u", {
         cwd: this.projectRoot,
         encoding: "utf-8",
         stdio: ["pipe", "pipe", "pipe"],
