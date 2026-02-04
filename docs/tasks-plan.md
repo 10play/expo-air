@@ -190,14 +190,103 @@ Extra tunnels:
 
 ---
 
+## Task 7: History & Streaming Fix [PLAN MODE NEEDED]
+**Complexity:** Medium | **Approval:** Required
+
+### Problem
+1. When quitting and reopening the app, agent responses are missing from history
+2. History only shows developer messages, not agent responses
+3. Text/tool streaming feels bad - scroll jumps around a lot
+
+### Root Causes
+1. Streamed text (`text_delta` events) is never accumulated - only `message.result` is saved
+2. `scrollToEnd({animated: true})` fires on every character, causing jitter
+
+### Plan
+
+#### Phase 1: Persist Streamed Responses
+Edit `cli/server/promptServer.ts`:
+- Add `currentStreamedResponse: string` field
+- Accumulate text in `text_delta` handler
+- Save accumulated text (not just `message.result`) to `conversationHistory`
+
+#### Phase 2: Smooth Scroll
+Edit `widget/components/ResponseArea.tsx`:
+- Throttle auto-scroll to max every 100ms during streaming
+- Use `animated: false` during active streaming
+- Use `animated: true` only for new complete messages
+
+### Files
+- `cli/server/promptServer.ts` (accumulate + persist streamed text)
+- `widget/components/ResponseArea.tsx` (throttle scroll, no animation during stream)
+- `widget/BubbleContent.tsx` (optional: prevent history overwriting new messages)
+
+---
+
+## Task 8: Modal Position (Dynamic Island)
+**Complexity:** Small | **Approval:** Not needed
+
+### Problem
+Expanded modal is too close to the Dynamic Island - needs more spacing at top
+
+### Root Cause
+Both collapsed bubble and expanded modal use same `bubbleTopY` positioning
+
+### Plan
+1. Add `expandedTopY` computed property in `FloatingBubbleManager.swift`:
+   ```swift
+   private var expandedTopY: CGFloat {
+       return safeAreaInsets.top + 10  // 10pt below safe area
+   }
+   ```
+2. Update `animateToExpanded()` to use `expandedTopY` instead of `bubbleTopY`
+3. Keep `animateToCollapsed()` unchanged (uses `bubbleTopY`)
+
+### Files
+- `ios/FloatingBubbleManager.swift` (add `expandedTopY`, update expand animation)
+
+---
+
+## Task 9: Keyboard Persistence on Disconnect
+**Complexity:** Small | **Approval:** Not needed
+
+### Problem
+When WebSocket disconnects, keyboard closes and user can't type
+
+### Root Cause
+`disabled={status === "disconnected"}` → `editable={false}` → keyboard dismissed
+
+### Plan
+
+#### Phase 1: Keep Input Editable
+Edit `widget/components/PromptInput.tsx`:
+- Change `editable={!disabled && !isProcessing}` → `editable={!isProcessing}`
+- Add `isConnected` prop for visual indicator only
+- Show "Offline" badge when disconnected
+
+#### Phase 2: Queue Messages
+Edit `widget/BubbleContent.tsx`:
+- Add `pendingPrompt` state
+- On submit while disconnected: queue message, show in UI
+- On reconnect: auto-send queued message
+
+### Files
+- `widget/components/PromptInput.tsx` (keep editable, add offline badge)
+- `widget/BubbleContent.tsx` (add pending message state, reconnect logic)
+
+---
+
 ## Execution Order Recommendation
 
 1. **Immediate** (no approval needed):
    - Task 1: Fix Init Next Steps
    - Task 2: Folder Watch Bug
    - Task 3: Free Port Selection
+   - Task 8: Modal Position (Dynamic Island)
+   - Task 9: Keyboard Persistence on Disconnect
 
-2. **After approval**:
+2. **After approval** (plan mode):
    - Task 4: Smart Commit & PR
    - Task 5: Production Validation
    - Task 6: Extra Tunnels
+   - Task 7: History & Streaming Fix
