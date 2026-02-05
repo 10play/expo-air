@@ -30,7 +30,7 @@ const __dirname = path.dirname(__filename);
  */
 function killProcessTree(pid: number): Promise<void> {
   return new Promise((resolve) => {
-    treeKill(pid, "SIGTERM", (err) => {
+    treeKill(pid, "SIGTERM", (err?: Error) => {
       // Resolve even on error - process may already be dead
       if (err) {
         console.log(chalk.gray(`    (process ${pid} already terminated)`));
