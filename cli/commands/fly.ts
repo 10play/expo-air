@@ -131,30 +131,12 @@ export async function flyCommand(options: FlyOptions): Promise<void> {
   };
 
   // Add branch suffix env vars in dev mode
+  // Note: These env vars are read by app.config.js but the bundle ID change
+  // only takes effect after running `npx expo prebuild --clean`. Without prebuild,
+  // only the app name shown in logs will include the branch suffix.
   if (options.dev && branchSuffix) {
     buildEnv.EXPO_AIR_BUNDLE_SUFFIX = branchSuffix;
     buildEnv.EXPO_AIR_APP_NAME_SUFFIX = branchSuffix;
-
-    // Run prebuild to regenerate the native project with the new bundle ID
-    // This is necessary because the bundle ID is baked into the Xcode project
-    console.log(chalk.gray("  Regenerating native project with branch-specific bundle ID..."));
-    const prebuildProcess = spawn("npx", ["expo", "prebuild", "--clean", "--platform", "ios"], {
-      cwd: projectRoot,
-      stdio: "inherit",
-      env: buildEnv,
-    });
-
-    await new Promise<void>((resolve, reject) => {
-      prebuildProcess.on("close", (code) => {
-        if (code === 0) {
-          console.log(chalk.green("  ✓ Native project regenerated\n"));
-          resolve();
-        } else {
-          reject(new Error(`Prebuild failed with code ${code}`));
-        }
-      });
-      prebuildProcess.on("error", reject);
-    });
   }
 
   const buildArgs = [
