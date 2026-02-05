@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { View, Text, StyleSheet, NativeModules, TouchableOpacity, Animated, Easing, Linking } from "react-native";
-import { PromptInput } from "./components/PromptInput";
+import { PromptInput, type PromptInputHandle } from "./components/PromptInput";
 import { ResponseArea } from "./components/ResponseArea";
 import { GitChangesTab } from "./components/GitChangesTab";
 import {
@@ -10,8 +10,11 @@ import {
   type ConnectionStatus,
   type GitChange,
   type AnyConversationEntry,
+  type AssistantPart,
+  type AssistantPartsMessage,
 } from "./services/websocket";
 import { requestPushToken, setupTapHandler } from "./services/notifications";
+import { SPACING, LAYOUT, COLORS, TYPOGRAPHY, SIZES } from "./constants/design";
 
 // WidgetBridge is a simple native module available in the widget runtime
 // ExpoAir is the main app's module (fallback)
@@ -49,13 +52,26 @@ export function BubbleContent({
 }: BubbleContentProps) {
   const [status, setStatus] = useState<ConnectionStatus>("disconnected");
   const [messages, setMessages] = useState<ServerMessage[]>([]);
-  const [currentResponse, setCurrentResponse] = useState("");
+  const [currentParts, setCurrentParts] = useState<AssistantPart[]>([]);
   const [branchName, setBranchName] = useState<string>("main");
   const [gitChanges, setGitChanges] = useState<GitChange[]>([]);
   const [hasPR, setHasPR] = useState(false);
   const [prUrl, setPrUrl] = useState<string | undefined>();
   const [activeTab, setActiveTab] = useState<TabType>("chat");
   const pushTokenSentRef = useRef(false);
+  const partIdCounter = useRef(0);
+  // Use refs to avoid stale closure issues in handleMessage callback
+  const currentPartsRef = useRef<AssistantPart[]>([]);
+  const currentPromptIdRef = useRef<string | null>(null);
+  const promptInputRef = useRef<PromptInputHandle>(null);
+
+  // Auto-focus input when widget expands
+  useEffect(() => {
+    if (expanded && activeTab === "chat") {
+      // Small delay to ensure the component is mounted
+      setTimeout(() => promptInputRef.current?.focus(), 100);
+    }
+  }, [expanded]);
 
   // Extract PR number from URL (e.g., "https://github.com/org/repo/pull/12" → "12")
   const prNumber = prUrl?.match(/\/pull\/(\d+)/)?.[1];
@@ -92,24 +108,107 @@ export function BubbleContent({
     return cleanup;
   }, []);
 
+  // Helper to finalize current parts into a message
+  const finalizeCurrentParts = useCallback((promptId: string, isComplete: boolean) => {
+    const parts = currentPartsRef.current;
+    if (parts.length > 0) {
+      const partsMsg: AssistantPartsMessage = {
+        type: "assistant_parts",
+        promptId,
+        parts,
+        isComplete,
+        timestamp: Date.now(),
+      };
+      setMessages((prev) => [...prev, partsMsg]);
+    }
+    currentPartsRef.current = [];
+    currentPromptIdRef.current = null;
+    setCurrentParts([]);
+  }, []);
+
   const handleMessage = useCallback((message: ServerMessage) => {
     switch (message.type) {
       case "stream":
-        if (!message.done) {
-          setCurrentResponse((prev) => prev + message.chunk);
+        // Handle new prompt starting
+        if (message.promptId !== currentPromptIdRef.current) {
+          // New response - finalize any previous parts first
+          if (currentPartsRef.current.length > 0 && currentPromptIdRef.current) {
+            finalizeCurrentParts(currentPromptIdRef.current, false);
+          }
+          currentPromptIdRef.current = message.promptId;
+        }
+        // Add text chunk to current parts
+        if (!message.done && message.chunk) {
+          const parts = currentPartsRef.current;
+          const lastPart = parts[parts.length - 1];
+          if (lastPart?.type === "text") {
+            // Append to existing text part
+            lastPart.content += message.chunk;
+            currentPartsRef.current = [...parts];
+          } else {
+            // Create new text part
+            currentPartsRef.current = [...parts, {
+              type: "text",
+              id: `text-${partIdCounter.current++}`,
+              content: message.chunk
+            }];
+          }
+          setCurrentParts([...currentPartsRef.current]);
+        }
+        break;
+      case "tool":
+        // Only add completed/failed tools to parts (skip "started")
+        if (message.status !== "started") {
+          const toolPart: AssistantPart = {
+            type: "tool",
+            id: `tool-${partIdCounter.current++}`,
+            toolName: message.toolName,
+            status: message.status,
+            input: message.input,
+            output: message.output,
+            timestamp: message.timestamp,
+          };
+          currentPartsRef.current = [...currentPartsRef.current, toolPart];
+          setCurrentParts([...currentPartsRef.current]);
         }
         break;
       case "result":
-        // Finalize the response
-        setMessages((prev) => [...prev, message]);
-        setCurrentResponse("");
+        // Finalize parts into a message
+        if (currentPartsRef.current.length > 0) {
+          const partsMsg: AssistantPartsMessage = {
+            type: "assistant_parts",
+            promptId: message.promptId,
+            parts: currentPartsRef.current,
+            isComplete: true,
+            timestamp: message.timestamp,
+          };
+          // Also add result message for metadata (cost, duration) if present
+          const hasMetadata = message.costUsd !== undefined || message.durationMs !== undefined || (!message.success && message.error);
+          setMessages((prev) => hasMetadata ? [...prev, partsMsg, message] : [...prev, partsMsg]);
+        } else if (message.costUsd !== undefined || message.durationMs !== undefined || (!message.success && message.error)) {
+          setMessages((prev) => [...prev, message]);
+        }
+        currentPartsRef.current = [];
+        currentPromptIdRef.current = null;
+        setCurrentParts([]);
         break;
       case "error":
-        setMessages((prev) => [...prev, message]);
-        setCurrentResponse("");
-        break;
-      case "tool":
-        setMessages((prev) => [...prev, message]);
+        // Finalize any partial parts and add error
+        if (currentPartsRef.current.length > 0 && currentPromptIdRef.current) {
+          const partsMsg: AssistantPartsMessage = {
+            type: "assistant_parts",
+            promptId: currentPromptIdRef.current,
+            parts: currentPartsRef.current,
+            isComplete: false,
+            timestamp: Date.now(),
+          };
+          setMessages((prev) => [...prev, partsMsg, message]);
+        } else {
+          setMessages((prev) => [...prev, message]);
+        }
+        currentPartsRef.current = [];
+        currentPromptIdRef.current = null;
+        setCurrentParts([]);
         break;
       case "status":
         // Status is handled by the status indicator
@@ -117,14 +216,24 @@ export function BubbleContent({
       case "session_cleared":
         // Clear all messages for new session
         setMessages([]);
-        setCurrentResponse("");
+        currentPartsRef.current = [];
+        currentPromptIdRef.current = null;
+        partIdCounter.current = 0;
+        setCurrentParts([]);
         break;
       case "stopped":
-        // Query was stopped, keep messages
+        // Preserve partial work when stopped
+        if (currentPartsRef.current.length > 0 && currentPromptIdRef.current) {
+          finalizeCurrentParts(currentPromptIdRef.current, false);
+        } else {
+          currentPartsRef.current = [];
+          currentPromptIdRef.current = null;
+          setCurrentParts([]);
+        }
         break;
       case "history":
         // Convert history entries to displayable messages
-        const historyMessages: ServerMessage[] = message.entries.flatMap((entry: AnyConversationEntry) => {
+        const historyMessages: ServerMessage[] = message.entries.flatMap((entry: AnyConversationEntry): ServerMessage[] => {
           if (entry.role === "user") {
             return [{
               type: "user_prompt" as const,
@@ -148,6 +257,14 @@ export function BubbleContent({
               output: entry.output,
               timestamp: entry.timestamp,
             }];
+          } else if (entry.role === "system") {
+            // Reconstruct system message (errors, stopped, etc.) from persisted entry
+            return [{
+              type: "system_message" as const,
+              messageType: entry.type,
+              content: entry.content,
+              timestamp: entry.timestamp,
+            }];
           }
           return [];
         });
@@ -161,7 +278,7 @@ export function BubbleContent({
         setPrUrl(message.prUrl);
         break;
     }
-  }, []);
+  }, [finalizeCurrentParts]);
 
   const handleSubmit = useCallback(async (prompt: string) => {
     // Request push token on first submit (dev-only, lazy permission)
@@ -185,7 +302,10 @@ export function BubbleContent({
         timestamp: Date.now(),
       },
     ]);
-    setCurrentResponse("");
+    // Reset current response state
+    currentPartsRef.current = [];
+    currentPromptIdRef.current = null;
+    setCurrentParts([]);
 
     const client = getWebSocketClient();
     if (client) {
@@ -260,13 +380,14 @@ export function BubbleContent({
       />
       <View style={styles.body}>
         {activeTab === "chat" ? (
-          <ResponseArea messages={messages} currentResponse={currentResponse} />
+          <ResponseArea messages={messages} currentParts={currentParts} />
         ) : (
           <GitChangesTab changes={gitChanges} onDiscard={handleDiscard} />
         )}
       </View>
       {activeTab === "chat" && (
         <PromptInput
+          ref={promptInputRef}
           onSubmit={handleSubmit}
           onStop={handleStop}
           disabled={status === "disconnected"}
@@ -284,10 +405,10 @@ interface HeaderProps {
 
 function Header({ status, branchName }: HeaderProps) {
   const statusColors = {
-    disconnected: "#FF3B30",
-    connecting: "#007AFF",
-    connected: "#30D158",
-    processing: "#007AFF",
+    disconnected: COLORS.STATUS_ERROR,
+    connecting: COLORS.STATUS_INFO,
+    connected: COLORS.STATUS_SUCCESS,
+    processing: COLORS.STATUS_INFO,
   };
 
   return (
@@ -422,10 +543,10 @@ function BreathingButton({ children, onPress }: BreathingButtonProps) {
 
 function PulsingIndicator({ status }: { status: ConnectionStatus }) {
   const colors = {
-    disconnected: "#FF3B30",
-    connecting: "#007AFF",
-    connected: "#30D158",
-    processing: "#007AFF",
+    disconnected: COLORS.STATUS_ERROR,
+    connecting: COLORS.STATUS_INFO,
+    connected: COLORS.STATUS_SUCCESS,
+    processing: COLORS.STATUS_INFO,
   };
 
   const isAnimating = status === "processing" || status === "connecting";
@@ -516,9 +637,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   indicator: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: SIZES.STATUS_DOT,
+    height: SIZES.STATUS_DOT,
+    borderRadius: SIZES.STATUS_DOT / 2,
   },
   indicatorRing: {
     position: "absolute",
@@ -531,58 +652,59 @@ const styles = StyleSheet.create({
   // Expanded panel - fills native container (which handles width/centering)
   expanded: {
     flex: 1,
-    backgroundColor: "#000",
-    borderRadius: 32,
+    backgroundColor: COLORS.BACKGROUND,
+    borderRadius: LAYOUT.BORDER_RADIUS_LG,
     overflow: "hidden",
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingHorizontal: LAYOUT.CONTENT_PADDING_H,
+    paddingVertical: SPACING.MD + 2, // 14px for comfortable header height
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(255,255,255,0.08)",
+    borderBottomColor: COLORS.BORDER,
   },
   closeButton: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+    width: SIZES.CLOSE_BUTTON,
+    height: SIZES.CLOSE_BUTTON,
+    borderRadius: SIZES.CLOSE_BUTTON / 2,
     // Make invisible - native close button handles the tap
     backgroundColor: "transparent",
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 12,
+    marginRight: SPACING.MD,
   },
   closeButtonText: {
     // Hide the text - native button shows the X
     color: "transparent",
-    fontSize: 14,
-    fontWeight: "600",
+    fontSize: TYPOGRAPHY.SIZE_MD,
+    fontWeight: TYPOGRAPHY.WEIGHT_SEMIBOLD,
   },
   branchName: {
     flex: 1,
-    color: "rgba(255,255,255,0.6)",
-    fontSize: 14,
-    fontWeight: "500",
+    color: COLORS.TEXT_SECONDARY,
+    fontSize: TYPOGRAPHY.SIZE_MD,
+    fontWeight: TYPOGRAPHY.WEIGHT_MEDIUM,
   },
   statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: SIZES.STATUS_DOT,
+    height: SIZES.STATUS_DOT,
+    borderRadius: SIZES.STATUS_DOT / 2,
+    marginLeft: SPACING.MD, // Match the closeButton marginRight for visual balance
   },
   ctaButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 14,
-    backgroundColor: "rgba(255,255,255,0.08)",
+    paddingHorizontal: SIZES.CTA_PADDING_H,
+    paddingVertical: SIZES.CTA_PADDING_V,
+    borderRadius: LAYOUT.BORDER_RADIUS_SM,
+    backgroundColor: COLORS.BACKGROUND_INTERACTIVE,
   },
   ctaButtonDisabled: {
     opacity: 0.4,
   },
   ctaText: {
-    color: "#fff",
-    fontSize: 13,
-    fontWeight: "600",
+    color: COLORS.TEXT_PRIMARY,
+    fontSize: TYPOGRAPHY.SIZE_SM,
+    fontWeight: TYPOGRAPHY.WEIGHT_SEMIBOLD,
   },
   ctaTextDisabled: {
     opacity: 0.6,
@@ -591,27 +713,27 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingHorizontal: LAYOUT.CONTENT_PADDING_H,
+    paddingVertical: SPACING.SM + 2, // 10px
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(255,255,255,0.08)",
+    borderBottomColor: COLORS.BORDER,
   },
   tabButtons: {
     flexDirection: "row",
-    gap: 20,
+    gap: SPACING.XL,
   },
   tabText: {
-    fontSize: 15,
-    fontWeight: "500",
+    fontSize: TYPOGRAPHY.SIZE_LG,
+    fontWeight: TYPOGRAPHY.WEIGHT_MEDIUM,
   },
   tabTextActive: {
-    color: "#fff",
+    color: COLORS.TEXT_PRIMARY,
   },
   tabTextInactive: {
-    color: "rgba(255,255,255,0.4)",
+    color: COLORS.TEXT_MUTED,
   },
   body: {
     flex: 1,
-    backgroundColor: "rgba(255,255,255,0.03)",
+    backgroundColor: COLORS.BACKGROUND_ELEVATED,
   },
 });

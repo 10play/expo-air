@@ -14,6 +14,7 @@ import type {
   OutgoingMessage,
   AnyConversationEntry,
   ToolConversationEntry,
+  SystemConversationEntry,
   GitChange,
 } from "../types/messages.js";
 
@@ -199,6 +200,21 @@ export class PromptServer {
     }
   }
 
+  // Only clear sessionId from file, keep conversation history
+  private clearSessionIdFromFile(): void {
+    try {
+      const configPath = this.getConfigPath();
+      if (existsSync(configPath)) {
+        const config = JSON.parse(readFileSync(configPath, "utf-8"));
+        delete config.sessionId;
+        // Keep conversationHistory intact
+        writeFileSync(configPath, JSON.stringify(config, null, 2));
+      }
+    } catch (error) {
+      this.log("Failed to clear session ID from config", "error");
+    }
+  }
+
   async start(): Promise<void> {
     return new Promise((resolve, reject) => {
       this.wss = new WebSocketServer({ port: this.port });
@@ -381,7 +397,22 @@ export class PromptServer {
     if (this.abortController) {
       this.abortController.abort();
       this.log("Query stopped by user", "info");
+
+      // Store stopped message in history so it persists after reopen
+      const stoppedEntry: SystemConversationEntry = {
+        role: "system",
+        type: "stopped",
+        content: "Stopped by user",
+        timestamp: Date.now(),
+      };
+      this.conversationHistory.push(stoppedEntry);
     }
+    // Clear sessionId since abort invalidates it on Claude's backend
+    // Keep conversation history so user can see what happened
+    this.sessionId = null;
+    this.clearSessionIdFromFile();
+    this.saveSession(); // Save history with stopped message
+
     this.sendToClient(ws, {
       type: "stopped",
       timestamp: Date.now(),
@@ -524,120 +555,52 @@ IMPORTANT CONSTRAINTS:
           ...(this.sessionId && { resume: this.sessionId }),
           // Hook into tool usage for real-time updates
           hooks: {
-            PreToolUse: [
-              {
-                hooks: [
-                  async (input) => {
-                    if (input.hook_event_name === "PreToolUse") {
-                      // Capture input for pairing with output later
-                      this.lastToolInput = input.tool_input;
-
-                      this.sendToClient(ws, {
-                        type: "tool",
-                        promptId,
-                        toolName: input.tool_name,
-                        status: "started",
-                        input: input.tool_input,
-                        timestamp: Date.now(),
-                      });
-                      // Log tool name and truncated input for debugging
-                      const inputStr = JSON.stringify(input.tool_input || {});
-                      const truncatedInput = inputStr.length > 100 ? inputStr.substring(0, 100) + "..." : inputStr;
-                      this.log(`Tool started: ${input.tool_name} - ${truncatedInput}`, "info");
-                    }
-                    return {};
-                  },
-                ],
-              },
-            ],
-            PostToolUse: [
-              {
-                hooks: [
-                  async (input) => {
-                    if (input.hook_event_name === "PostToolUse") {
-                      // Persist completed tool to history
-                      const toolEntry: ToolConversationEntry = {
-                        role: "tool",
-                        toolName: input.tool_name,
-                        status: "completed",
-                        input: this.lastToolInput,
-                        output: input.tool_response,
-                        timestamp: Date.now(),
-                      };
-                      this.conversationHistory.push(toolEntry);
-
-                      this.sendToClient(ws, {
-                        type: "tool",
-                        promptId,
-                        toolName: input.tool_name,
-                        status: "completed",
-                        output: input.tool_response,
-                        timestamp: Date.now(),
-                      });
-                      // Log completion with truncated response for debugging
-                      const responseStr = typeof input.tool_response === 'string'
-                        ? input.tool_response
-                        : JSON.stringify(input.tool_response || '');
-                      const truncatedResponse = responseStr.length > 150
-                        ? responseStr.substring(0, 150) + "..."
-                        : responseStr;
-                      this.log(`Tool completed: ${input.tool_name} - ${truncatedResponse.replace(/\n/g, ' ')}`, "success");
-
-                      this.lastToolInput = undefined;
-                    }
-                    return {};
-                  },
-                ],
-              },
-            ],
-            PostToolUseFailure: [
-              {
-                hooks: [
-                  async (input) => {
-                    if (input.hook_event_name === "PostToolUseFailure") {
-                      // Persist failed tool to history
-                      const toolEntry: ToolConversationEntry = {
-                        role: "tool",
-                        toolName: input.tool_name,
-                        status: "failed",
-                        input: this.lastToolInput,
-                        output: input.error,
-                        timestamp: Date.now(),
-                      };
-                      this.conversationHistory.push(toolEntry);
-
-                      const errorStr = typeof input.error === 'string'
-                        ? input.error
-                        : JSON.stringify(input.error || 'Unknown error');
-                      this.sendToClient(ws, {
-                        type: "tool",
-                        promptId,
-                        toolName: input.tool_name,
-                        status: "failed",
-                        output: errorStr,
-                        timestamp: Date.now(),
-                      });
-                      // Log detailed error information
-                      this.log(`Tool FAILED: ${input.tool_name}`, "error");
-                      this.log(`  Error: ${errorStr.substring(0, 500)}`, "error");
-                      if (input.tool_input) {
-                        const inputStr = JSON.stringify(input.tool_input);
-                        this.log(`  Input was: ${inputStr.substring(0, 200)}`, "error");
-                      }
-
-                      this.lastToolInput = undefined;
-                    }
-                    return {};
-                  },
-                ],
-              },
-            ],
+            PreToolUse: [{
+              hooks: [async (input) => {
+                try {
+                  this.lastToolInput = input.tool_input;
+                  // Don't send "started" - just track the input for pairing later
+                  this.log(`▶ ${input.tool_name}: ${this.getToolSummary(input.tool_name, input.tool_input)}`, "info");
+                } catch (e) {
+                  this.log(`Hook error: ${e}`, "error");
+                }
+                return {};
+              }],
+            }],
+            PostToolUse: [{
+              hooks: [async (input) => {
+                try {
+                  this.saveToolToHistory(input.tool_name, "completed", input.tool_response);
+                  this.sendToolUpdate(ws, promptId, input.tool_name, "completed", input.tool_response);
+                } catch (e) {
+                  this.log(`Hook error: ${e}`, "error");
+                }
+                return {};
+              }],
+            }],
+            PostToolUseFailure: [{
+              hooks: [async (input) => {
+                try {
+                  const error = typeof input.error === "string" ? input.error : JSON.stringify(input.error || "Unknown error");
+                  this.saveToolToHistory(input.tool_name, "failed", error);
+                  this.sendToolUpdate(ws, promptId, input.tool_name, "failed", error);
+                } catch (e) {
+                  this.log(`Hook error: ${e}`, "error");
+                }
+                return {};
+              }],
+            }],
           },
         },
       });
 
       // Stream messages from the SDK
       for await (const message of this.currentQuery) {
+        // Debug: log all message types to understand SDK output
+        if (message.type !== "stream_event") {
+          this.log(`SDK msg: ${message.type}`, "info");
+        }
+
         // Capture session_id from first message if we don't have one
         if (!this.sessionId && "session_id" in message && message.session_id) {
           this.sessionId = message.session_id;
@@ -645,25 +608,9 @@ IMPORTANT CONSTRAINTS:
         }
 
         // Handle different message types
-        if (message.type === "assistant") {
-          // Extract text content from assistant message
-          const messageContent = message.message.content;
-          if (Array.isArray(messageContent)) {
-            for (const block of messageContent) {
-              if (block.type === "text") {
-                // Accumulate for history
-                this.currentStreamedResponse += block.text;
-                this.sendToClient(ws, {
-                  type: "stream",
-                  promptId,
-                  chunk: block.text,
-                  done: false,
-                  timestamp: Date.now(),
-                });
-              }
-            }
-          }
-        } else if (message.type === "stream_event") {
+        // Note: We only use stream_event for text streaming to avoid duplicates
+        // (assistant messages contain complete blocks, stream_event has deltas)
+        if (message.type === "stream_event") {
           // Handle partial/streaming content
           const event = message.event;
           if (
@@ -679,6 +626,9 @@ IMPORTANT CONSTRAINTS:
               done: false,
               timestamp: Date.now(),
             });
+          } else {
+            // Debug: log other stream_event types
+            this.log(`stream_event: ${event.type}`, "info");
           }
         } else if (message.type === "result") {
           // Final result
@@ -723,7 +673,17 @@ IMPORTANT CONSTRAINTS:
               "success"
             );
           } else {
-            this.log(`Failed: ${message.errors?.join(", ")}`, "error");
+            // Store failed result in history
+            const failedMessage = message.errors?.join(", ") || "Unknown error";
+            const errorEntry: SystemConversationEntry = {
+              role: "system",
+              type: "error",
+              content: failedMessage,
+              timestamp: Date.now(),
+            };
+            this.conversationHistory.push(errorEntry);
+            this.saveSession();
+            this.log(`Failed: ${failedMessage}`, "error");
           }
         }
       }
@@ -731,6 +691,16 @@ IMPORTANT CONSTRAINTS:
       const errorMessage =
         error instanceof Error ? error.message : String(error);
       this.log(`SDK error: ${errorMessage}`, "error");
+
+      // Store error in history so it persists after reopen
+      const errorEntry: SystemConversationEntry = {
+        role: "system",
+        type: "error",
+        content: errorMessage,
+        timestamp: Date.now(),
+      };
+      this.conversationHistory.push(errorEntry);
+      this.saveSession();
 
       this.sendToClient(ws, {
         type: "error",
@@ -757,6 +727,61 @@ IMPORTANT CONSTRAINTS:
     if (ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify(message));
     }
+  }
+
+  private sendToolUpdate(
+    ws: WebSocket,
+    promptId: string,
+    toolName: string,
+    status: "completed" | "failed",
+    output?: unknown
+  ): void {
+    this.sendToClient(ws, {
+      type: "tool",
+      promptId,
+      toolName,
+      status,
+      input: this.lastToolInput,
+      output,
+      timestamp: Date.now(),
+    });
+
+    // Short log like Cursor/Claude Code style
+    const icon = status === "completed" ? "✓" : "✗";
+    const summary = this.getToolSummary(toolName, this.lastToolInput);
+    this.log(`${icon} ${toolName}${summary ? `: ${summary}` : ""}`, status === "failed" ? "error" : "info");
+  }
+
+  private getToolSummary(toolName: string, data: unknown): string {
+    if (!data) return "";
+    try {
+      const d = data as Record<string, unknown>;
+      switch (toolName) {
+        case "Read": return String(d.file_path || "").split("/").pop() || "";
+        case "Edit": return String(d.file_path || "").split("/").pop() || "";
+        case "Write": return String(d.file_path || "").split("/").pop() || "";
+        case "Bash": return String(d.command || "").substring(0, 40);
+        case "Glob": return String(d.pattern || "");
+        case "Grep": return String(d.pattern || "");
+        case "Task": return String(d.description || "");
+        default: return "";
+      }
+    } catch {
+      return "";
+    }
+  }
+
+  private saveToolToHistory(toolName: string, status: "completed" | "failed", output: unknown): void {
+    const toolEntry: ToolConversationEntry = {
+      role: "tool",
+      toolName,
+      status,
+      input: this.lastToolInput,
+      output,
+      timestamp: Date.now(),
+    };
+    this.conversationHistory.push(toolEntry);
+    this.lastToolInput = undefined;
   }
 
   private async sendPushNotification(promptId: string, success: boolean): Promise<void> {
