@@ -2,6 +2,7 @@ import chalk from "chalk";
 import { spawn } from "child_process";
 import { DevEnvironment } from "../runner/devEnvironment.js";
 import { detectConnectedDevices, selectDevice, ConnectedDevice } from "../utils/devices.js";
+import { getGitBranchSuffix } from "../utils/common.js";
 
 export interface FlyOptions {
   port: string;
@@ -96,10 +97,31 @@ export async function flyCommand(options: FlyOptions): Promise<void> {
   const ports = env.getPorts();
   const projectRoot = env.getProjectRoot();
 
-  console.log(chalk.blue("\n  ─────────────────────────────────────────────"));
-  console.log(chalk.blue(`  🚀 Building and installing on ${selectedDevice.name}`));
-  console.log(chalk.gray(`     Device ID: ${selectedDevice.udid}`));
-  console.log(chalk.blue("  ─────────────────────────────────────────────\n"));
+  // In dev mode, generate bundle suffix from git branch
+  // This allows multiple worktrees to install separate apps on the same device
+  let branchSuffix: string | null = null;
+  if (options.dev) {
+    branchSuffix = getGitBranchSuffix(projectRoot);
+    if (branchSuffix) {
+      console.log(chalk.blue("\n  ─────────────────────────────────────────────"));
+      console.log(chalk.blue(`  🚀 Building and installing on ${selectedDevice.name}`));
+      console.log(chalk.gray(`     Device ID: ${selectedDevice.udid}`));
+      console.log(chalk.cyan(`     Branch suffix: ${branchSuffix}`));
+      console.log(chalk.gray(`     Bundle ID will use: EXPO_AIR_BUNDLE_SUFFIX=${branchSuffix}`));
+      console.log(chalk.blue("  ─────────────────────────────────────────────\n"));
+    } else {
+      console.log(chalk.blue("\n  ─────────────────────────────────────────────"));
+      console.log(chalk.blue(`  🚀 Building and installing on ${selectedDevice.name}`));
+      console.log(chalk.gray(`     Device ID: ${selectedDevice.udid}`));
+      console.log(chalk.yellow(`     ⚠ Could not detect git branch for bundle suffix`));
+      console.log(chalk.blue("  ─────────────────────────────────────────────\n"));
+    }
+  } else {
+    console.log(chalk.blue("\n  ─────────────────────────────────────────────"));
+    console.log(chalk.blue(`  🚀 Building and installing on ${selectedDevice.name}`));
+    console.log(chalk.gray(`     Device ID: ${selectedDevice.udid}`));
+    console.log(chalk.blue("  ─────────────────────────────────────────────\n"));
+  }
 
   const buildArgs = [
     "expo",
@@ -110,10 +132,23 @@ export async function flyCommand(options: FlyOptions): Promise<void> {
     String(ports.appMetro),
   ];
 
+  // Build environment variables
+  const buildEnv: Record<string, string> = {
+    ...process.env as Record<string, string>,
+    FORCE_COLOR: "1",
+    CI: "1",
+  };
+
+  // Add branch suffix env vars in dev mode
+  if (options.dev && branchSuffix) {
+    buildEnv.EXPO_AIR_BUNDLE_SUFFIX = branchSuffix;
+    buildEnv.EXPO_AIR_APP_NAME_SUFFIX = branchSuffix;
+  }
+
   const buildProcess = spawn("npx", buildArgs, {
     cwd: projectRoot,
     stdio: "inherit",
-    env: { ...process.env, FORCE_COLOR: "1", CI: "1" },
+    env: buildEnv,
   });
 
   // Wait for build to complete
