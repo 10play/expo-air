@@ -123,15 +123,6 @@ export async function flyCommand(options: FlyOptions): Promise<void> {
     console.log(chalk.blue("  ─────────────────────────────────────────────\n"));
   }
 
-  const buildArgs = [
-    "expo",
-    "run:ios",
-    "--device",
-    selectedDevice.udid,
-    "--port",
-    String(ports.appMetro),
-  ];
-
   // Build environment variables
   const buildEnv: Record<string, string> = {
     ...process.env as Record<string, string>,
@@ -143,7 +134,37 @@ export async function flyCommand(options: FlyOptions): Promise<void> {
   if (options.dev && branchSuffix) {
     buildEnv.EXPO_AIR_BUNDLE_SUFFIX = branchSuffix;
     buildEnv.EXPO_AIR_APP_NAME_SUFFIX = branchSuffix;
+
+    // Run prebuild to regenerate the native project with the new bundle ID
+    // This is necessary because the bundle ID is baked into the Xcode project
+    console.log(chalk.gray("  Regenerating native project with branch-specific bundle ID..."));
+    const prebuildProcess = spawn("npx", ["expo", "prebuild", "--clean", "--platform", "ios"], {
+      cwd: projectRoot,
+      stdio: "inherit",
+      env: buildEnv,
+    });
+
+    await new Promise<void>((resolve, reject) => {
+      prebuildProcess.on("close", (code) => {
+        if (code === 0) {
+          console.log(chalk.green("  ✓ Native project regenerated\n"));
+          resolve();
+        } else {
+          reject(new Error(`Prebuild failed with code ${code}`));
+        }
+      });
+      prebuildProcess.on("error", reject);
+    });
   }
+
+  const buildArgs = [
+    "expo",
+    "run:ios",
+    "--device",
+    selectedDevice.udid,
+    "--port",
+    String(ports.appMetro),
+  ];
 
   const buildProcess = spawn("npx", buildArgs, {
     cwd: projectRoot,
