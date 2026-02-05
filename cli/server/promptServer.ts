@@ -558,9 +558,10 @@ IMPORTANT CONSTRAINTS:
             PreToolUse: [{
               hooks: [async (input) => {
                 try {
-                  this.lastToolInput = input.tool_input;
-                  // Don't send "started" - just track the input for pairing later
-                  this.log(`▶ ${input.tool_name}: ${this.getToolSummary(input.tool_name, input.tool_input)}`, "info");
+                  if (input.hook_event_name === "PreToolUse") {
+                    this.lastToolInput = input.tool_input;
+                    this.log(`▶ ${input.tool_name}: ${this.getToolSummary(input.tool_name, input.tool_input)}`, "info");
+                  }
                 } catch (e) {
                   this.log(`Hook error: ${e}`, "error");
                 }
@@ -570,8 +571,10 @@ IMPORTANT CONSTRAINTS:
             PostToolUse: [{
               hooks: [async (input) => {
                 try {
-                  this.saveToolToHistory(input.tool_name, "completed", input.tool_response);
-                  this.sendToolUpdate(ws, promptId, input.tool_name, "completed", input.tool_response);
+                  if (input.hook_event_name === "PostToolUse") {
+                    this.saveToolToHistory(input.tool_name, "completed", input.tool_response);
+                    this.sendToolUpdate(ws, promptId, input.tool_name, "completed", input.tool_response);
+                  }
                 } catch (e) {
                   this.log(`Hook error: ${e}`, "error");
                 }
@@ -581,9 +584,11 @@ IMPORTANT CONSTRAINTS:
             PostToolUseFailure: [{
               hooks: [async (input) => {
                 try {
-                  const error = typeof input.error === "string" ? input.error : JSON.stringify(input.error || "Unknown error");
-                  this.saveToolToHistory(input.tool_name, "failed", error);
-                  this.sendToolUpdate(ws, promptId, input.tool_name, "failed", error);
+                  if (input.hook_event_name === "PostToolUseFailure") {
+                    const error = typeof input.error === "string" ? input.error : JSON.stringify(input.error || "Unknown error");
+                    this.saveToolToHistory(input.tool_name, "failed", error);
+                    this.sendToolUpdate(ws, promptId, input.tool_name, "failed", error);
+                  }
                 } catch (e) {
                   this.log(`Hook error: ${e}`, "error");
                 }
