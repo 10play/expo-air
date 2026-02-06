@@ -182,9 +182,15 @@ export function BubbleContent({
             isComplete: true,
             timestamp: message.timestamp,
           };
-          // Also add result message for metadata (cost, duration) if present
+          // Add result message for metadata (cost, duration) only — strip result.result
+          // to avoid duplicating the content that's already in partsMsg with proper formatting
           const hasMetadata = message.costUsd !== undefined || message.durationMs !== undefined || (!message.success && message.error);
-          setMessages((prev) => hasMetadata ? [...prev, partsMsg, message] : [...prev, partsMsg]);
+          if (hasMetadata) {
+            const metadataOnly = { ...message, result: undefined };
+            setMessages((prev) => [...prev, partsMsg, metadataOnly]);
+          } else {
+            setMessages((prev) => [...prev, partsMsg]);
+          }
         } else if (message.costUsd !== undefined || message.durationMs !== undefined || (!message.success && message.error)) {
           setMessages((prev) => [...prev, message]);
         }

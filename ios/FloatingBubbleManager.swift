@@ -140,14 +140,11 @@ class FloatingBubbleViewController: UIViewController, UIGestureRecognizerDelegat
         let safeAreaBottom = view.safeAreaInsets.bottom
         return screenHeight - expandedTopY - safeAreaBottom - 6
     }
-    private var currentKeyboardHeight: CGFloat = 0
     private let expandedCornerRadius: CGFloat = 32
 
-    // Position to overlap with the Dynamic Island's bottom edge
-    private var bubbleTopY: CGFloat {
+    // Resolved safe area top inset, with fallbacks
+    private var safeAreaTop: CGFloat {
         var insetTop: CGFloat = 59  // Default for Dynamic Island devices
-
-        // Use view's safe area insets (most accurate once view is in hierarchy)
         if view.safeAreaInsets.top > 0 {
             insetTop = view.safeAreaInsets.top
         } else if let windowScene = view.window?.windowScene,
@@ -155,26 +152,20 @@ class FloatingBubbleViewController: UIViewController, UIGestureRecognizerDelegat
                   windowInsetTop > 0 {
             insetTop = windowInsetTop
         }
+        return insetTop
+    }
 
+    // Position to overlap with the Dynamic Island's bottom edge
+    private var bubbleTopY: CGFloat {
         // Position behind the Dynamic Island so top edge is hidden
         // Only the shoulders and stem peek out below
-        return insetTop - 18
+        safeAreaTop - 18
     }
 
     // Position for expanded modal - below the safe area with padding
     private var expandedTopY: CGFloat {
-        var insetTop: CGFloat = 59  // Default for Dynamic Island devices
-
-        if view.safeAreaInsets.top > 0 {
-            insetTop = view.safeAreaInsets.top
-        } else if let windowScene = view.window?.windowScene,
-                  let windowInsetTop = windowScene.windows.first?.safeAreaInsets.top,
-                  windowInsetTop > 0 {
-            insetTop = windowInsetTop
-        }
-
         // Position below safe area with 6pt gap (matches side margins)
-        return insetTop + 6
+        safeAreaTop + 6
     }
 
     func setSurfaceView(_ surfaceView: UIView) {
@@ -264,8 +255,7 @@ class FloatingBubbleViewController: UIViewController, UIGestureRecognizerDelegat
               let duration = userInfo[UIResponder.keyboardAnimationDurationUserInfoKey] as? Double
         else { return }
 
-        currentKeyboardHeight = keyboardFrame.height
-        let newHeight = expandedHeight - currentKeyboardHeight
+        let newHeight = expandedHeight - keyboardFrame.height
 
         UIView.animate(withDuration: duration) {
             self.bubbleContainer.frame.size.height = newHeight
@@ -277,8 +267,6 @@ class FloatingBubbleViewController: UIViewController, UIGestureRecognizerDelegat
               let userInfo = notification.userInfo,
               let duration = userInfo[UIResponder.keyboardAnimationDurationUserInfoKey] as? Double
         else { return }
-
-        currentKeyboardHeight = 0
 
         UIView.animate(withDuration: duration) {
             self.bubbleContainer.frame.size.height = self.expandedHeight

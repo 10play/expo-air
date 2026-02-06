@@ -1736,8 +1736,6 @@ export default function App() {
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView style={styles.container}>
-        <Text style={styles.header}>🎮 Tiger Chase!</Text>
-
         <Group name="🚗 Jump Game">
           <JumpGame />
         </Group>

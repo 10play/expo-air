@@ -200,21 +200,6 @@ export class PromptServer {
     }
   }
 
-  // Only clear sessionId from file, keep conversation history
-  private clearSessionIdFromFile(): void {
-    try {
-      const configPath = this.getConfigPath();
-      if (existsSync(configPath)) {
-        const config = JSON.parse(readFileSync(configPath, "utf-8"));
-        delete config.sessionId;
-        // Keep conversationHistory intact
-        writeFileSync(configPath, JSON.stringify(config, null, 2));
-      }
-    } catch (error) {
-      this.log("Failed to clear session ID from config", "error");
-    }
-  }
-
   async start(): Promise<void> {
     return new Promise((resolve, reject) => {
       this.wss = new WebSocketServer({ port: this.port });
@@ -407,11 +392,8 @@ export class PromptServer {
       };
       this.conversationHistory.push(stoppedEntry);
     }
-    // Clear sessionId since abort invalidates it on Claude's backend
-    // Keep conversation history so user can see what happened
-    this.sessionId = null;
-    this.clearSessionIdFromFile();
-    this.saveSession(); // Save history with stopped message
+    // Keep sessionId so the next message continues the same conversation
+    this.saveSession();
 
     this.sendToClient(ws, {
       type: "stopped",
@@ -560,7 +542,9 @@ IMPORTANT CONSTRAINTS:
                 try {
                   if (input.hook_event_name === "PreToolUse") {
                     this.lastToolInput = input.tool_input;
-                    this.log(`▶ ${input.tool_name}: ${this.getToolSummary(input.tool_name, input.tool_input)}`, "info");
+                    const inputStr = JSON.stringify(input.tool_input || {});
+                    const truncatedInput = inputStr.length > 100 ? inputStr.substring(0, 100) + "..." : inputStr;
+                    this.log(`Tool started: ${input.tool_name} - ${truncatedInput}`, "info");
                   }
                 } catch (e) {
                   this.log(`Hook error: ${e}`, "error");
@@ -572,8 +556,8 @@ IMPORTANT CONSTRAINTS:
               hooks: [async (input) => {
                 try {
                   if (input.hook_event_name === "PostToolUse") {
-                    this.saveToolToHistory(input.tool_name, "completed", input.tool_response);
                     this.sendToolUpdate(ws, promptId, input.tool_name, "completed", input.tool_response);
+                    this.saveToolToHistory(input.tool_name, "completed", input.tool_response);
                   }
                 } catch (e) {
                   this.log(`Hook error: ${e}`, "error");
@@ -586,8 +570,8 @@ IMPORTANT CONSTRAINTS:
                 try {
                   if (input.hook_event_name === "PostToolUseFailure") {
                     const error = typeof input.error === "string" ? input.error : JSON.stringify(input.error || "Unknown error");
-                    this.saveToolToHistory(input.tool_name, "failed", error);
                     this.sendToolUpdate(ws, promptId, input.tool_name, "failed", error);
+                    this.saveToolToHistory(input.tool_name, "failed", error);
                   }
                 } catch (e) {
                   this.log(`Hook error: ${e}`, "error");
@@ -695,17 +679,23 @@ IMPORTANT CONSTRAINTS:
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
-      this.log(`SDK error: ${errorMessage}`, "error");
 
-      // Store error in history so it persists after reopen
-      const errorEntry: SystemConversationEntry = {
-        role: "system",
-        type: "error",
-        content: errorMessage,
-        timestamp: Date.now(),
-      };
-      this.conversationHistory.push(errorEntry);
-      this.saveSession();
+      // Don't add duplicate error if this was an abort (handleStop already saved a "stopped" entry)
+      if (this.abortController?.signal.aborted) {
+        this.log(`SDK aborted: ${errorMessage}`, "info");
+      } else {
+        this.log(`SDK error: ${errorMessage}`, "error");
+
+        // Store error in history so it persists after reopen
+        const errorEntry: SystemConversationEntry = {
+          role: "system",
+          type: "error",
+          content: errorMessage,
+          timestamp: Date.now(),
+        };
+        this.conversationHistory.push(errorEntry);
+        this.saveSession();
+      }
 
       this.sendToClient(ws, {
         type: "error",
@@ -751,28 +741,18 @@ IMPORTANT CONSTRAINTS:
       timestamp: Date.now(),
     });
 
-    // Short log like Cursor/Claude Code style
-    const icon = status === "completed" ? "✓" : "✗";
-    const summary = this.getToolSummary(toolName, this.lastToolInput);
-    this.log(`${icon} ${toolName}${summary ? `: ${summary}` : ""}`, status === "failed" ? "error" : "info");
-  }
-
-  private getToolSummary(toolName: string, data: unknown): string {
-    if (!data) return "";
-    try {
-      const d = data as Record<string, unknown>;
-      switch (toolName) {
-        case "Read": return String(d.file_path || "").split("/").pop() || "";
-        case "Edit": return String(d.file_path || "").split("/").pop() || "";
-        case "Write": return String(d.file_path || "").split("/").pop() || "";
-        case "Bash": return String(d.command || "").substring(0, 40);
-        case "Glob": return String(d.pattern || "");
-        case "Grep": return String(d.pattern || "");
-        case "Task": return String(d.description || "");
-        default: return "";
+    if (status === "completed") {
+      const responseStr = typeof output === 'string' ? output : JSON.stringify(output || '');
+      const truncatedResponse = responseStr.length > 150 ? responseStr.substring(0, 150) + "..." : responseStr;
+      this.log(`Tool completed: ${toolName} - ${truncatedResponse.replace(/\n/g, ' ')}`, "success");
+    } else {
+      const errorStr = typeof output === 'string' ? output : JSON.stringify(output || 'Unknown error');
+      this.log(`Tool FAILED: ${toolName}`, "error");
+      this.log(`  Error: ${errorStr.substring(0, 500)}`, "error");
+      if (this.lastToolInput) {
+        const inputStr = JSON.stringify(this.lastToolInput);
+        this.log(`  Input was: ${inputStr.substring(0, 200)}`, "error");
       }
-    } catch {
-      return "";
     }
   }
 
