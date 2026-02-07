@@ -110,9 +110,30 @@ export interface ConversationEntry {
   timestamp: number;
 }
 
+// Tool conversation entry for persisted tool executions
+export interface ToolConversationEntry {
+  role: "tool";
+  toolName: string;
+  status: "started" | "completed" | "failed";
+  input?: unknown;
+  output?: unknown;
+  timestamp: number;
+}
+
+// System conversation entry for errors, stops, etc.
+export interface SystemConversationEntry {
+  role: "system";
+  type: "error" | "stopped" | "info";
+  content: string;
+  timestamp: number;
+}
+
+// Union of all entry types
+export type AnyConversationEntry = ConversationEntry | ToolConversationEntry | SystemConversationEntry;
+
 export interface HistoryMessage {
   type: "history";
-  entries: ConversationEntry[];
+  entries: AnyConversationEntry[];
   timestamp: number;
 }
 

@@ -1,10 +1,15 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useImperativeHandle, forwardRef } from "react";
 import {
   View,
   TextInput,
   TouchableOpacity,
   StyleSheet,
 } from "react-native";
+import { SPACING, LAYOUT, COLORS, TYPOGRAPHY, SIZES } from "../constants/design";
+
+export interface PromptInputHandle {
+  focus: () => void;
+}
 
 interface PromptInputProps {
   onSubmit: (prompt: string) => void;
@@ -13,13 +18,18 @@ interface PromptInputProps {
   isProcessing?: boolean;
 }
 
-export function PromptInput({
+export const PromptInput = forwardRef<PromptInputHandle, PromptInputProps>(({
   onSubmit,
   onStop,
   disabled = false,
   isProcessing = false,
-}: PromptInputProps) {
+}, ref) => {
   const [text, setText] = useState("");
+  const inputRef = useRef<TextInput>(null);
+
+  useImperativeHandle(ref, () => ({
+    focus: () => inputRef.current?.focus(),
+  }));
 
   const handleSubmit = () => {
     const trimmed = text.trim();
@@ -35,9 +45,10 @@ export function PromptInput({
   return (
     <View style={styles.container}>
       <TextInput
+        ref={inputRef}
         style={styles.input}
         placeholder="Ask Claude..."
-        placeholderTextColor="rgba(255,255,255,0.5)"
+        placeholderTextColor={COLORS.TEXT_TERTIARY}
         value={text}
         onChangeText={setText}
         onSubmitEditing={handleSubmit}
@@ -67,7 +78,7 @@ export function PromptInput({
       )}
     </View>
   );
-}
+});
 
 function ArrowIcon() {
   return (
@@ -86,41 +97,41 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: "row",
     alignItems: "flex-end",
-    paddingHorizontal: 12,
-    paddingVertical: 12,
+    paddingHorizontal: LAYOUT.CONTENT_PADDING_H,
+    paddingVertical: SPACING.MD,
     borderTopWidth: 1,
-    borderTopColor: "rgba(255,255,255,0.08)",
-    backgroundColor: "#000",
+    borderTopColor: COLORS.BORDER,
+    backgroundColor: COLORS.BACKGROUND,
   },
   input: {
     flex: 1,
-    backgroundColor: "rgba(255,255,255,0.1)",
+    backgroundColor: COLORS.BACKGROUND_INPUT,
     borderRadius: 22,
     paddingHorizontal: 18,
-    paddingVertical: 12,
-    color: "#fff",
-    fontSize: 15,
+    paddingVertical: SPACING.MD,
+    color: COLORS.TEXT_PRIMARY,
+    fontSize: TYPOGRAPHY.SIZE_LG,
     maxHeight: 100,
   },
   submitButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "rgba(255,255,255,0.15)",
+    width: SIZES.SUBMIT_BUTTON,
+    height: SIZES.SUBMIT_BUTTON,
+    borderRadius: SIZES.SUBMIT_BUTTON / 2,
+    backgroundColor: COLORS.BACKGROUND_BUTTON,
     alignItems: "center",
     justifyContent: "center",
-    marginLeft: 10,
+    marginLeft: SPACING.SM + 2, // 10px
   },
   submitButtonDisabled: {
     opacity: 0.4,
   },
   stopButton: {
-    backgroundColor: "#8E8E93",  // Muted gray instead of aggressive red
+    backgroundColor: COLORS.STATUS_NEUTRAL,
   },
   stopIcon: {
     width: 12,
     height: 12,
-    backgroundColor: "#fff",
+    backgroundColor: COLORS.TEXT_PRIMARY,
     borderRadius: 2,
   },
   arrowIcon: {
@@ -132,7 +143,7 @@ const styles = StyleSheet.create({
   arrowLine: {
     width: 2,
     height: 10,
-    backgroundColor: "#fff",
+    backgroundColor: COLORS.TEXT_PRIMARY,
     borderRadius: 1,
   },
   arrowHead: {
@@ -145,6 +156,6 @@ const styles = StyleSheet.create({
     borderBottomWidth: 6,
     borderLeftColor: "transparent",
     borderRightColor: "transparent",
-    borderBottomColor: "#fff",
+    borderBottomColor: COLORS.TEXT_PRIMARY,
   },
 });

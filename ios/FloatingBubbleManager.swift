@@ -134,14 +134,17 @@ class FloatingBubbleViewController: UIViewController, UIGestureRecognizerDelegat
     private var expandedWidth: CGFloat {
         UIScreen.main.bounds.width - 12
     }
-    private let expandedHeight: CGFloat = 420
+    private var expandedHeight: CGFloat {
+        // Full screen height minus safe area top, expanded top offset, and bottom padding
+        let screenHeight = UIScreen.main.bounds.height
+        let safeAreaBottom = view.safeAreaInsets.bottom
+        return screenHeight - expandedTopY - safeAreaBottom - 6
+    }
     private let expandedCornerRadius: CGFloat = 32
 
-    // Position to overlap with the Dynamic Island's bottom edge
-    private var bubbleTopY: CGFloat {
+    // Resolved safe area top inset, with fallbacks
+    private var safeAreaTop: CGFloat {
         var insetTop: CGFloat = 59  // Default for Dynamic Island devices
-
-        // Use view's safe area insets (most accurate once view is in hierarchy)
         if view.safeAreaInsets.top > 0 {
             insetTop = view.safeAreaInsets.top
         } else if let windowScene = view.window?.windowScene,
@@ -149,26 +152,20 @@ class FloatingBubbleViewController: UIViewController, UIGestureRecognizerDelegat
                   windowInsetTop > 0 {
             insetTop = windowInsetTop
         }
+        return insetTop
+    }
 
+    // Position to overlap with the Dynamic Island's bottom edge
+    private var bubbleTopY: CGFloat {
         // Position behind the Dynamic Island so top edge is hidden
         // Only the shoulders and stem peek out below
-        return insetTop - 18
+        safeAreaTop - 18
     }
 
     // Position for expanded modal - below the safe area with padding
     private var expandedTopY: CGFloat {
-        var insetTop: CGFloat = 59  // Default for Dynamic Island devices
-
-        if view.safeAreaInsets.top > 0 {
-            insetTop = view.safeAreaInsets.top
-        } else if let windowScene = view.window?.windowScene,
-                  let windowInsetTop = windowScene.windows.first?.safeAreaInsets.top,
-                  windowInsetTop > 0 {
-            insetTop = windowInsetTop
-        }
-
         // Position below safe area with 6pt gap (matches side margins)
-        return insetTop + 6
+        safeAreaTop + 6
     }
 
     func setSurfaceView(_ surfaceView: UIView) {
@@ -231,6 +228,49 @@ class FloatingBubbleViewController: UIViewController, UIGestureRecognizerDelegat
         nativeCloseButton.addTarget(self, action: #selector(closeButtonTapped), for: .touchUpInside)
         nativeCloseButton.isHidden = true
         bubbleContainer.addSubview(nativeCloseButton)
+
+        // Register for keyboard notifications
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(keyboardWillShow(_:)),
+            name: UIResponder.keyboardWillShowNotification,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(keyboardWillHide(_:)),
+            name: UIResponder.keyboardWillHideNotification,
+            object: nil
+        )
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
+    @objc private func keyboardWillShow(_ notification: Notification) {
+        guard isExpanded,
+              let userInfo = notification.userInfo,
+              let keyboardFrame = userInfo[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect,
+              let duration = userInfo[UIResponder.keyboardAnimationDurationUserInfoKey] as? Double
+        else { return }
+
+        let newHeight = expandedHeight - keyboardFrame.height
+
+        UIView.animate(withDuration: duration) {
+            self.bubbleContainer.frame.size.height = newHeight
+        }
+    }
+
+    @objc private func keyboardWillHide(_ notification: Notification) {
+        guard isExpanded,
+              let userInfo = notification.userInfo,
+              let duration = userInfo[UIResponder.keyboardAnimationDurationUserInfoKey] as? Double
+        else { return }
+
+        UIView.animate(withDuration: duration) {
+            self.bubbleContainer.frame.size.height = self.expandedHeight
+        }
     }
 
     @objc private func closeButtonTapped() {

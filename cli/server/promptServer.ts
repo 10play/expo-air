@@ -12,7 +12,9 @@ import type {
   DiscardChangesMessage,
   RegisterPushTokenMessage,
   OutgoingMessage,
-  ConversationEntry,
+  AnyConversationEntry,
+  ToolConversationEntry,
+  SystemConversationEntry,
   GitChange,
 } from "../types/messages.js";
 
@@ -24,11 +26,13 @@ export class PromptServer {
   private abortController: AbortController | null = null;
   private projectRoot: string;
   private sessionId: string | null = null;
-  private conversationHistory: ConversationEntry[] = [];
+  private conversationHistory: AnyConversationEntry[] = [];
   private gitWatchInterval: ReturnType<typeof setInterval> | null = null;
   private lastBranchName: string = "";
   private lastGitChangesHash: string = "";
   private pushToken: string | null = null;
+  private currentStreamedResponse: string = "";
+  private lastToolInput: unknown = undefined;
 
   constructor(port: number, projectRoot?: string) {
     this.port = port;
@@ -378,7 +382,19 @@ export class PromptServer {
     if (this.abortController) {
       this.abortController.abort();
       this.log("Query stopped by user", "info");
+
+      // Store stopped message in history so it persists after reopen
+      const stoppedEntry: SystemConversationEntry = {
+        role: "system",
+        type: "stopped",
+        content: "Stopped by user",
+        timestamp: Date.now(),
+      };
+      this.conversationHistory.push(stoppedEntry);
     }
+    // Keep sessionId so the next message continues the same conversation
+    this.saveSession();
+
     this.sendToClient(ws, {
       type: "stopped",
       timestamp: Date.now(),
@@ -492,6 +508,8 @@ export class PromptServer {
 
     // Create abort controller for this query
     this.abortController = new AbortController();
+    // Reset streamed response accumulator for this query
+    this.currentStreamedResponse = "";
 
     try {
       // Create the query with Claude Agent SDK
@@ -519,91 +537,59 @@ IMPORTANT CONSTRAINTS:
           ...(this.sessionId && { resume: this.sessionId }),
           // Hook into tool usage for real-time updates
           hooks: {
-            PreToolUse: [
-              {
-                hooks: [
-                  async (input) => {
-                    if (input.hook_event_name === "PreToolUse") {
-                      this.sendToClient(ws, {
-                        type: "tool",
-                        promptId,
-                        toolName: input.tool_name,
-                        status: "started",
-                        input: input.tool_input,
-                        timestamp: Date.now(),
-                      });
-                      // Log tool name and truncated input for debugging
-                      const inputStr = JSON.stringify(input.tool_input || {});
-                      const truncatedInput = inputStr.length > 100 ? inputStr.substring(0, 100) + "..." : inputStr;
-                      this.log(`Tool started: ${input.tool_name} - ${truncatedInput}`, "info");
-                    }
-                    return {};
-                  },
-                ],
-              },
-            ],
-            PostToolUse: [
-              {
-                hooks: [
-                  async (input) => {
-                    if (input.hook_event_name === "PostToolUse") {
-                      this.sendToClient(ws, {
-                        type: "tool",
-                        promptId,
-                        toolName: input.tool_name,
-                        status: "completed",
-                        output: input.tool_response,
-                        timestamp: Date.now(),
-                      });
-                      // Log completion with truncated response for debugging
-                      const responseStr = typeof input.tool_response === 'string'
-                        ? input.tool_response
-                        : JSON.stringify(input.tool_response || '');
-                      const truncatedResponse = responseStr.length > 150
-                        ? responseStr.substring(0, 150) + "..."
-                        : responseStr;
-                      this.log(`Tool completed: ${input.tool_name} - ${truncatedResponse.replace(/\n/g, ' ')}`, "success");
-                    }
-                    return {};
-                  },
-                ],
-              },
-            ],
-            PostToolUseFailure: [
-              {
-                hooks: [
-                  async (input) => {
-                    if (input.hook_event_name === "PostToolUseFailure") {
-                      const errorStr = typeof input.error === 'string'
-                        ? input.error
-                        : JSON.stringify(input.error || 'Unknown error');
-                      this.sendToClient(ws, {
-                        type: "tool",
-                        promptId,
-                        toolName: input.tool_name,
-                        status: "failed",
-                        output: errorStr,
-                        timestamp: Date.now(),
-                      });
-                      // Log detailed error information
-                      this.log(`Tool FAILED: ${input.tool_name}`, "error");
-                      this.log(`  Error: ${errorStr.substring(0, 500)}`, "error");
-                      if (input.tool_input) {
-                        const inputStr = JSON.stringify(input.tool_input);
-                        this.log(`  Input was: ${inputStr.substring(0, 200)}`, "error");
-                      }
-                    }
-                    return {};
-                  },
-                ],
-              },
-            ],
+            PreToolUse: [{
+              hooks: [async (input) => {
+                try {
+                  if (input.hook_event_name === "PreToolUse") {
+                    this.lastToolInput = input.tool_input;
+                    const inputStr = JSON.stringify(input.tool_input || {});
+                    const truncatedInput = inputStr.length > 100 ? inputStr.substring(0, 100) + "..." : inputStr;
+                    this.log(`Tool started: ${input.tool_name} - ${truncatedInput}`, "info");
+                  }
+                } catch (e) {
+                  this.log(`Hook error: ${e}`, "error");
+                }
+                return {};
+              }],
+            }],
+            PostToolUse: [{
+              hooks: [async (input) => {
+                try {
+                  if (input.hook_event_name === "PostToolUse") {
+                    this.sendToolUpdate(ws, promptId, input.tool_name, "completed", input.tool_response);
+                    this.saveToolToHistory(input.tool_name, "completed", input.tool_response);
+                  }
+                } catch (e) {
+                  this.log(`Hook error: ${e}`, "error");
+                }
+                return {};
+              }],
+            }],
+            PostToolUseFailure: [{
+              hooks: [async (input) => {
+                try {
+                  if (input.hook_event_name === "PostToolUseFailure") {
+                    const error = typeof input.error === "string" ? input.error : JSON.stringify(input.error || "Unknown error");
+                    this.sendToolUpdate(ws, promptId, input.tool_name, "failed", error);
+                    this.saveToolToHistory(input.tool_name, "failed", error);
+                  }
+                } catch (e) {
+                  this.log(`Hook error: ${e}`, "error");
+                }
+                return {};
+              }],
+            }],
           },
         },
       });
 
       // Stream messages from the SDK
       for await (const message of this.currentQuery) {
+        // Debug: log all message types to understand SDK output
+        if (message.type !== "stream_event") {
+          this.log(`SDK msg: ${message.type}`, "info");
+        }
+
         // Capture session_id from first message if we don't have one
         if (!this.sessionId && "session_id" in message && message.session_id) {
           this.sessionId = message.session_id;
@@ -611,29 +597,17 @@ IMPORTANT CONSTRAINTS:
         }
 
         // Handle different message types
-        if (message.type === "assistant") {
-          // Extract text content from assistant message
-          const messageContent = message.message.content;
-          if (Array.isArray(messageContent)) {
-            for (const block of messageContent) {
-              if (block.type === "text") {
-                this.sendToClient(ws, {
-                  type: "stream",
-                  promptId,
-                  chunk: block.text,
-                  done: false,
-                  timestamp: Date.now(),
-                });
-              }
-            }
-          }
-        } else if (message.type === "stream_event") {
+        // Note: We only use stream_event for text streaming to avoid duplicates
+        // (assistant messages contain complete blocks, stream_event has deltas)
+        if (message.type === "stream_event") {
           // Handle partial/streaming content
           const event = message.event;
           if (
             event.type === "content_block_delta" &&
             event.delta.type === "text_delta"
           ) {
+            // Accumulate streamed text for history persistence
+            this.currentStreamedResponse += event.delta.text;
             this.sendToClient(ws, {
               type: "stream",
               promptId,
@@ -641,6 +615,9 @@ IMPORTANT CONSTRAINTS:
               done: false,
               timestamp: Date.now(),
             });
+          } else {
+            // Debug: log other stream_event types
+            this.log(`stream_event: ${event.type}`, "info");
           }
         } else if (message.type === "result") {
           // Final result
@@ -670,10 +647,12 @@ IMPORTANT CONSTRAINTS:
 
           if (isSuccess) {
             // Add assistant response to history
-            if (message.result) {
+            // Prefer accumulated streamed text, fall back to message.result
+            const responseContent = this.currentStreamedResponse.trim() || message.result;
+            if (responseContent) {
               this.conversationHistory.push({
                 role: "assistant",
-                content: message.result,
+                content: responseContent,
                 timestamp: Date.now(),
               });
               this.saveSession();
@@ -683,14 +662,40 @@ IMPORTANT CONSTRAINTS:
               "success"
             );
           } else {
-            this.log(`Failed: ${message.errors?.join(", ")}`, "error");
+            // Store failed result in history
+            const failedMessage = message.errors?.join(", ") || "Unknown error";
+            const errorEntry: SystemConversationEntry = {
+              role: "system",
+              type: "error",
+              content: failedMessage,
+              timestamp: Date.now(),
+            };
+            this.conversationHistory.push(errorEntry);
+            this.saveSession();
+            this.log(`Failed: ${failedMessage}`, "error");
           }
         }
       }
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
-      this.log(`SDK error: ${errorMessage}`, "error");
+
+      // Don't add duplicate error if this was an abort (handleStop already saved a "stopped" entry)
+      if (this.abortController?.signal.aborted) {
+        this.log(`SDK aborted: ${errorMessage}`, "info");
+      } else {
+        this.log(`SDK error: ${errorMessage}`, "error");
+
+        // Store error in history so it persists after reopen
+        const errorEntry: SystemConversationEntry = {
+          role: "system",
+          type: "error",
+          content: errorMessage,
+          timestamp: Date.now(),
+        };
+        this.conversationHistory.push(errorEntry);
+        this.saveSession();
+      }
 
       this.sendToClient(ws, {
         type: "error",
@@ -701,6 +706,8 @@ IMPORTANT CONSTRAINTS:
     } finally {
       this.currentQuery = null;
       this.abortController = null;
+      this.currentStreamedResponse = "";  // Clear accumulated response
+      this.lastToolInput = undefined;  // Clear any pending tool input
 
       // Send idle status
       this.sendToClient(ws, {
@@ -715,6 +722,51 @@ IMPORTANT CONSTRAINTS:
     if (ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify(message));
     }
+  }
+
+  private sendToolUpdate(
+    ws: WebSocket,
+    promptId: string,
+    toolName: string,
+    status: "completed" | "failed",
+    output?: unknown
+  ): void {
+    this.sendToClient(ws, {
+      type: "tool",
+      promptId,
+      toolName,
+      status,
+      input: this.lastToolInput,
+      output,
+      timestamp: Date.now(),
+    });
+
+    if (status === "completed") {
+      const responseStr = typeof output === 'string' ? output : JSON.stringify(output || '');
+      const truncatedResponse = responseStr.length > 150 ? responseStr.substring(0, 150) + "..." : responseStr;
+      this.log(`Tool completed: ${toolName} - ${truncatedResponse.replace(/\n/g, ' ')}`, "success");
+    } else {
+      const errorStr = typeof output === 'string' ? output : JSON.stringify(output || 'Unknown error');
+      this.log(`Tool FAILED: ${toolName}`, "error");
+      this.log(`  Error: ${errorStr.substring(0, 500)}`, "error");
+      if (this.lastToolInput) {
+        const inputStr = JSON.stringify(this.lastToolInput);
+        this.log(`  Input was: ${inputStr.substring(0, 200)}`, "error");
+      }
+    }
+  }
+
+  private saveToolToHistory(toolName: string, status: "completed" | "failed", output: unknown): void {
+    const toolEntry: ToolConversationEntry = {
+      role: "tool",
+      toolName,
+      status,
+      input: this.lastToolInput,
+      output,
+      timestamp: Date.now(),
+    };
+    this.conversationHistory.push(toolEntry);
+    this.lastToolInput = undefined;
   }
 
   private async sendPushNotification(promptId: string, success: boolean): Promise<void> {

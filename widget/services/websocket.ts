@@ -64,9 +64,30 @@ export interface ConversationEntry {
   timestamp: number;
 }
 
+// Tool conversation entry for persisted tool executions
+export interface ToolConversationEntry {
+  role: "tool";
+  toolName: string;
+  status: "started" | "completed" | "failed";
+  input?: unknown;
+  output?: unknown;
+  timestamp: number;
+}
+
+// System conversation entry for errors, stops, etc.
+export interface SystemConversationEntry {
+  role: "system";
+  type: "error" | "stopped" | "info";
+  content: string;
+  timestamp: number;
+}
+
+// Union of all entry types
+export type AnyConversationEntry = ConversationEntry | ToolConversationEntry | SystemConversationEntry;
+
 export interface HistoryMessage {
   type: "history";
-  entries: ConversationEntry[];
+  entries: AnyConversationEntry[];
   timestamp: number;
 }
 
@@ -81,6 +102,42 @@ export interface UserPromptMessage {
 export interface HistoryResultMessage {
   type: "history_result";
   content: string;
+  timestamp: number;
+}
+
+// Local display-only message for showing system messages (errors, stops) from history
+export interface SystemDisplayMessage {
+  type: "system_message";
+  messageType: "error" | "stopped" | "info";
+  content: string;
+  timestamp: number;
+}
+
+// Part types for interleaved assistant responses (text + tools in order)
+export interface TextPart {
+  type: "text";
+  id: string;
+  content: string;
+}
+
+export interface ToolPart {
+  type: "tool";
+  id: string;
+  toolName: string;
+  status: "started" | "completed" | "failed";
+  input?: unknown;
+  output?: unknown;
+  timestamp: number;
+}
+
+export type AssistantPart = TextPart | ToolPart;
+
+// Message containing interleaved parts (for completed responses)
+export interface AssistantPartsMessage {
+  type: "assistant_parts";
+  promptId: string;
+  parts: AssistantPart[];
+  isComplete: boolean;
   timestamp: number;
 }
 
@@ -109,7 +166,9 @@ export type ServerMessage =
   | HistoryMessage
   | UserPromptMessage
   | HistoryResultMessage
-  | GitStatusMessage;
+  | SystemDisplayMessage
+  | GitStatusMessage
+  | AssistantPartsMessage;
 
 export interface WebSocketClientOptions {
   url: string;
