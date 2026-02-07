@@ -12,6 +12,7 @@ config.resolver.blockList = [
   new RegExp(path.resolve('..', 'node_modules', 'react')),
   new RegExp(path.resolve('..', 'node_modules', 'react-native')),
   new RegExp(path.resolve('..', 'widget') + '/.*'),
+  new RegExp(path.resolve('..', '.expo-air-images') + '/.*'),
 ];
 
 config.resolver.nodeModulesPaths = [

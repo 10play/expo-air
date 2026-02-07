@@ -315,45 +315,6 @@ export function BubbleContent({
     }
   }, [finalizeCurrentParts]);
 
-  const uploadImages = useCallback(async (images: ImageAttachment[]): Promise<string[]> => {
-    // Derive HTTP URL from the WS URL (same host/port)
-    const httpUrl = serverUrl.replace(/^ws/, "http").replace(/\/$/, "") + "/upload";
-
-    const formData = new FormData();
-    for (let i = 0; i < images.length; i++) {
-      const img = images[i];
-      // For data URIs (clipboard paste), pass as-is (RN fetch handles data URIs)
-      if (img.uri.startsWith("data:")) {
-        formData.append("image", {
-          uri: img.uri,
-          name: `clipboard-${i}.png`,
-          type: "image/png",
-        } as unknown as Blob);
-      } else {
-        // For file URIs (from image picker)
-        const ext = img.uri.split(".").pop()?.toLowerCase() || "jpg";
-        const mimeType = ext === "png" ? "image/png" : "image/jpeg";
-        formData.append("image", {
-          uri: img.uri,
-          name: `photo-${i}.${ext}`,
-          type: mimeType,
-        } as unknown as Blob);
-      }
-    }
-
-    const response = await fetch(httpUrl, {
-      method: "POST",
-      body: formData,
-    });
-
-    if (!response.ok) {
-      throw new Error(`Upload failed: ${response.status}`);
-    }
-
-    const result = await response.json();
-    return result.paths as string[];
-  }, [serverUrl]);
-
   const handleSubmit = useCallback(async (prompt: string, images?: ImageAttachment[]) => {
     // Request push token on first submit (dev-only, lazy permission)
     if (!pushTokenSentRef.current) {
@@ -382,22 +343,17 @@ export function BubbleContent({
     currentPromptIdRef.current = null;
     setCurrentParts([]);
 
-    // Upload images if any, then send prompt with paths
-    let imagePaths: string[] | undefined;
-    if (images && images.length > 0) {
-      try {
-        imagePaths = await uploadImages(images);
-      } catch (e) {
-        console.error("[expo-air] Image upload failed:", e);
-        // Still send the text prompt even if upload fails
-      }
-    }
+    // Send prompt immediately with local file paths
+    // The server runs on the same machine and can read simulator temp files directly
+    const imagePaths = images && images.length > 0
+      ? images.map((img) => img.uri)
+      : undefined;
 
     const client = getWebSocketClient();
     if (client) {
       client.sendPrompt(prompt, imagePaths);
     }
-  }, [uploadImages]);
+  }, []);
 
   const handleNewSession = useCallback(() => {
     const client = getWebSocketClient();
