@@ -1,9 +1,10 @@
+import http from "http";
 import { WebSocketServer, WebSocket } from "ws";
-import { createServer, type Server as HttpServer } from "http";
+import { type Server as HttpServer } from "http";
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { randomUUID } from "crypto";
 import { execSync, execFileSync } from "child_process";
-import { readFileSync, writeFileSync, existsSync } from "fs";
+import { readFileSync, writeFileSync, existsSync, mkdirSync, rmSync } from "fs";
 import { join } from "path";
 import chalk from "chalk";
 import type {
@@ -44,6 +45,10 @@ export class PromptServer {
     this.port = port;
     this.projectRoot = projectRoot || process.cwd();
     this.loadSession();
+  }
+
+  private getImageDir(): string {
+    return join(this.projectRoot, ".expo-air-images");
   }
 
   private getBranchName(): string {
@@ -515,32 +520,173 @@ export class PromptServer {
     }
   }
 
+  private cleanupTempImages(): void {
+    const imageDir = this.getImageDir();
+    if (existsSync(imageDir)) {
+      try {
+        rmSync(imageDir, { recursive: true, force: true });
+        this.log("Cleaned up temp images", "info");
+      } catch (error) {
+        this.log(`Failed to clean temp images: ${error}`, "error");
+      }
+    }
+  }
+
+  private handleHttpRequest(req: http.IncomingMessage, res: http.ServerResponse): void {
+    // CORS headers for the widget
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+
+    if (req.method === "OPTIONS") {
+      res.writeHead(204);
+      res.end();
+      return;
+    }
+
+    if (req.method === "POST" && req.url === "/upload") {
+      this.handleUpload(req, res);
+      return;
+    }
+
+    if (req.url === "/hmr-retrigger" && req.method === "POST") {
+      this.retriggerHMR();
+      res.writeHead(200);
+      res.end("OK");
+      return;
+    }
+
+    res.writeHead(404, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "Not found" }));
+  }
+
+  private handleUpload(req: http.IncomingMessage, res: http.ServerResponse): void {
+    const contentType = req.headers["content-type"] || "";
+
+    if (!contentType.includes("multipart/form-data")) {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Expected multipart/form-data" }));
+      return;
+    }
+
+    const boundaryMatch = contentType.match(/boundary=(.+)/);
+    if (!boundaryMatch) {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "No boundary in content-type" }));
+      return;
+    }
+
+    const boundary = boundaryMatch[1];
+    const chunks: Buffer[] = [];
+
+    req.on("data", (chunk: Buffer) => {
+      chunks.push(chunk);
+    });
+
+    req.on("end", () => {
+      try {
+        const body = Buffer.concat(chunks);
+        const paths = this.parseMultipartAndSave(body, boundary);
+
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ paths }));
+        this.log(`Uploaded ${paths.length} image(s)`, "info");
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        this.log(`Upload error: ${msg}`, "error");
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: msg }));
+      }
+    });
+
+    req.on("error", (error) => {
+      this.log(`Upload stream error: ${error.message}`, "error");
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: error.message }));
+    });
+  }
+
+  private parseMultipartAndSave(body: Buffer, boundary: string): string[] {
+    const imageDir = this.getImageDir();
+    if (!existsSync(imageDir)) {
+      mkdirSync(imageDir, { recursive: true });
+    }
+
+    const paths: string[] = [];
+    const boundaryBuffer = Buffer.from(`--${boundary}`);
+    const parts = this.splitBuffer(body, boundaryBuffer);
+
+    for (const part of parts) {
+      // Skip empty parts and the closing boundary
+      const partStr = part.toString("utf-8", 0, Math.min(part.length, 500));
+      if (partStr.trim() === "" || partStr.trim() === "--") continue;
+
+      // Find the double CRLF that separates headers from body
+      const headerEnd = this.findDoubleCRLF(part);
+      if (headerEnd === -1) continue;
+
+      const headers = part.toString("utf-8", 0, headerEnd);
+      const fileData = part.subarray(headerEnd + 4); // Skip \r\n\r\n
+
+      // Extract filename from Content-Disposition
+      const filenameMatch = headers.match(/filename="([^"]+)"/);
+      if (!filenameMatch) continue;
+
+      // Determine extension from content-type or filename
+      const ctMatch = headers.match(/Content-Type:\s*image\/(\w+)/i);
+      const ext = ctMatch ? ctMatch[1].replace("jpeg", "jpg") : "png";
+      const filename = `${randomUUID()}.${ext}`;
+      const filePath = join(imageDir, filename);
+
+      // Strip trailing \r\n if present
+      let endOffset = fileData.length;
+      if (endOffset >= 2 && fileData[endOffset - 2] === 0x0d && fileData[endOffset - 1] === 0x0a) {
+        endOffset -= 2;
+      }
+
+      writeFileSync(filePath, fileData.subarray(0, endOffset));
+      paths.push(filePath);
+    }
+
+    return paths;
+  }
+
+  private splitBuffer(buffer: Buffer, delimiter: Buffer): Buffer[] {
+    const parts: Buffer[] = [];
+    let start = 0;
+
+    while (start < buffer.length) {
+      const idx = buffer.indexOf(delimiter, start);
+      if (idx === -1) {
+        parts.push(buffer.subarray(start));
+        break;
+      }
+      if (idx > start) {
+        parts.push(buffer.subarray(start, idx));
+      }
+      start = idx + delimiter.length;
+    }
+
+    return parts;
+  }
+
+  private findDoubleCRLF(buffer: Buffer): number {
+    for (let i = 0; i < buffer.length - 3; i++) {
+      if (
+        buffer[i] === 0x0d &&
+        buffer[i + 1] === 0x0a &&
+        buffer[i + 2] === 0x0d &&
+        buffer[i + 3] === 0x0a
+      ) {
+        return i;
+      }
+    }
+    return -1;
+  }
+
   async start(): Promise<void> {
     return new Promise((resolve, reject) => {
-      // HTTP server handles /hmr-retrigger and /health requests alongside the WebSocket server
-      this.httpServer = createServer((req, res) => {
-        this.log(`HTTP ${req.method} ${req.url}`, "info");
-
-        res.setHeader("Access-Control-Allow-Origin", "*");
-        res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-
-        if (req.method === "OPTIONS") {
-          res.writeHead(200);
-          res.end();
-          return;
-        }
-
-        if (req.url === "/hmr-retrigger" && req.method === "POST") {
-          this.retriggerHMR();
-          res.writeHead(200);
-          res.end("OK");
-          return;
-        }
-
-        res.writeHead(404);
-        res.end();
-      });
-
+      this.httpServer = http.createServer((req, res) => this.handleHttpRequest(req, res));
       this.wss = new WebSocketServer({ server: this.httpServer });
 
       this.wss.on("error", (error) => {
@@ -707,7 +853,20 @@ export class PromptServer {
         `Received prompt: ${message.content.substring(0, 50)}...`,
         "prompt"
       );
-      this.executeWithSDK(ws, promptId, message.content);
+
+      // Build prompt content, appending image read instructions if images are attached
+      let promptContent = message.content;
+      if (message.imagePaths && message.imagePaths.length > 0) {
+        const imageInstructions = message.imagePaths.map(
+          (p) => `Use the Read tool to view the image at: ${p}`
+        ).join("\n");
+        promptContent = promptContent
+          ? `${promptContent}\n\n[Attached images — please view them first]\n${imageInstructions}`
+          : `[Attached images — please view them]\n${imageInstructions}`;
+        this.log(`Prompt includes ${message.imagePaths.length} image(s)`, "info");
+      }
+
+      this.executeWithSDK(ws, promptId, promptContent);
       return;
     }
 
@@ -732,6 +891,9 @@ export class PromptServer {
     this.sessionId = null;
     this.conversationHistory = [];
     this.clearSessionFromFile();
+
+    // Cleanup temp images
+    this.cleanupTempImages();
 
     // Notify client
     this.sendToClient(ws, {

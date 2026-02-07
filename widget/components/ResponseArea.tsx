@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback } from "react";
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, NativeScrollEvent, Keyboard, Platform, Linking } from "react-native";
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, NativeScrollEvent, Keyboard, Platform, Image, Linking } from "react-native";
 import type { ServerMessage, ToolMessage, ResultMessage, UserPromptMessage, HistoryResultMessage, SystemDisplayMessage, AssistantPart, AssistantPartsMessage } from "../services/websocket";
 import { SPACING, LAYOUT, COLORS, TYPOGRAPHY } from "../constants/design";
 
@@ -152,7 +152,16 @@ function MessageItem({ message }: { key?: React.Key; message: ServerMessage }) {
 function UserPromptItem({ message }: { message: UserPromptMessage }) {
   return (
     <View style={styles.userPromptContainer}>
-      <Text style={styles.userPromptText} selectable>{message.content}</Text>
+      {message.images && message.images.length > 0 && (
+        <View style={styles.userImages}>
+          {message.images.map((img, i) => (
+            <Image key={i} source={{ uri: img.uri }} style={styles.userImageThumb} />
+          ))}
+        </View>
+      )}
+      {message.content ? (
+        <Text style={styles.userPromptText} selectable>{message.content}</Text>
+      ) : null}
     </View>
   );
 }
@@ -715,6 +724,18 @@ const styles = StyleSheet.create({
     color: COLORS.TEXT_PRIMARY,
     fontSize: TYPOGRAPHY.SIZE_LG,
     lineHeight: 20,
+  },
+  userImages: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: SPACING.SM,
+    marginBottom: SPACING.SM,
+  },
+  userImageThumb: {
+    width: 80,
+    height: 80,
+    borderRadius: SPACING.SM,
+    backgroundColor: "rgba(255,255,255,0.1)",
   },
   scrollButton: {
     position: "absolute",

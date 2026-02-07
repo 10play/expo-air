@@ -1,9 +1,70 @@
 #import "WidgetBridge.h"
-#import <ReactCommon/RCTTurboModule.h>
 #import <UserNotifications/UserNotifications.h>
+#import <PhotosUI/PhotosUI.h>
+#import <UIKit/UIKit.h>
+#import <MobileCoreServices/MobileCoreServices.h>
 
-// Extend WidgetBridge to conform to RCTTurboModule in .mm file
-@interface WidgetBridge () <RCTTurboModule>
+// Helper class for PHPicker delegate
+@interface WidgetBridgeImagePickerHelper : NSObject <PHPickerViewControllerDelegate>
+@property (nonatomic, copy) void (^completion)(NSArray<NSDictionary *> *);
+@end
+
+@implementation WidgetBridgeImagePickerHelper
+
+- (void)picker:(PHPickerViewController *)picker didFinishPicking:(NSArray<PHPickerResult *> *)results {
+    [picker dismissViewControllerAnimated:YES completion:nil];
+
+    if (results.count == 0) {
+        if (self.completion) self.completion(@[]);
+        return;
+    }
+
+    NSMutableArray<NSDictionary *> *images = [NSMutableArray new];
+    dispatch_group_t group = dispatch_group_create();
+
+    for (PHPickerResult *result in results) {
+        NSItemProvider *provider = result.itemProvider;
+        if (![provider canLoadObjectOfClass:[UIImage class]]) continue;
+
+        dispatch_group_enter(group);
+        [provider loadObjectOfClass:[UIImage class] completionHandler:^(id<NSItemProviderReading> object, NSError *error) {
+            UIImage *image = (UIImage *)object;
+            if (image) {
+                NSString *path = [WidgetBridgeImagePickerHelper saveImageToTemp:image quality:0.7];
+                if (path) {
+                    @synchronized (images) {
+                        [images addObject:@{
+                            @"uri": path,
+                            @"width": @(image.size.width),
+                            @"height": @(image.size.height),
+                        }];
+                    }
+                }
+            }
+            dispatch_group_leave(group);
+        }];
+    }
+
+    dispatch_group_notify(group, dispatch_get_main_queue(), ^{
+        if (self.completion) self.completion([images copy]);
+    });
+}
+
++ (NSString *)saveImageToTemp:(UIImage *)image quality:(CGFloat)quality {
+    NSData *data = UIImageJPEGRepresentation(image, quality);
+    if (!data) return nil;
+    NSString *filename = [NSString stringWithFormat:@"widget-pick-%@.jpg", [[NSUUID UUID] UUIDString]];
+    NSString *path = [NSTemporaryDirectory() stringByAppendingPathComponent:filename];
+    if ([data writeToFile:path atomically:YES]) {
+        return path;
+    }
+    return nil;
+}
+
+@end
+
+@interface WidgetBridge ()
+@property (nonatomic, strong) WidgetBridgeImagePickerHelper *imagePickerHelper;
 @end
 
 @implementation WidgetBridge
@@ -58,6 +119,82 @@ RCT_EXPORT_METHOD(expand) {
                 }
 #pragma clang diagnostic pop
             }
+        }
+    });
+}
+
+- (UIViewController *)topViewController {
+    UIViewController *root = nil;
+    for (UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
+        if ([scene isKindOfClass:[UIWindowScene class]]) {
+            UIWindowScene *windowScene = (UIWindowScene *)scene;
+            for (UIWindow *window in windowScene.windows) {
+                if (!window.isHidden && window.rootViewController) {
+                    if (!root || window.windowLevel > root.view.window.windowLevel) {
+                        root = window.rootViewController;
+                    }
+                }
+            }
+        }
+    }
+    UIViewController *vc = root;
+    while (vc.presentedViewController) {
+        vc = vc.presentedViewController;
+    }
+    return vc;
+}
+
+RCT_EXPORT_METHOD(pickImages:(double)maxCount
+                     resolver:(RCTPromiseResolveBlock)resolve
+                     rejecter:(RCTPromiseRejectBlock)reject) {
+    NSLog(@"[WidgetBridge] pickImages called with maxCount: %d", (int)maxCount);
+    dispatch_async(dispatch_get_main_queue(), ^{
+        WidgetBridgeImagePickerHelper *helper = [[WidgetBridgeImagePickerHelper alloc] init];
+        self.imagePickerHelper = helper;
+
+        helper.completion = ^(NSArray<NSDictionary *> *results) {
+            resolve(results);
+            self.imagePickerHelper = nil;
+        };
+
+        PHPickerConfiguration *config = [[PHPickerConfiguration alloc] initWithPhotoLibrary:[PHPhotoLibrary sharedPhotoLibrary]];
+        config.selectionLimit = (NSInteger)maxCount;
+        config.filter = [PHPickerFilter imagesFilter];
+
+        PHPickerViewController *picker = [[PHPickerViewController alloc] initWithConfiguration:config];
+        picker.delegate = helper;
+
+        UIViewController *presenter = [self topViewController];
+        if (presenter) {
+            [presenter presentViewController:picker animated:YES completion:nil];
+        } else {
+            resolve(@[]);
+            self.imagePickerHelper = nil;
+        }
+    });
+}
+
+RCT_EXPORT_METHOD(getClipboardImage:(RCTPromiseResolveBlock)resolve
+                            rejecter:(RCTPromiseRejectBlock)reject) {
+    NSLog(@"[WidgetBridge] getClipboardImage called");
+    dispatch_async(dispatch_get_main_queue(), ^{
+        UIPasteboard *pasteboard = [UIPasteboard generalPasteboard];
+
+        if (!pasteboard.hasImages || !pasteboard.image) {
+            resolve([NSNull null]);
+            return;
+        }
+
+        UIImage *image = pasteboard.image;
+        NSString *path = [WidgetBridgeImagePickerHelper saveImageToTemp:image quality:0.8];
+        if (path) {
+            resolve(@{
+                @"uri": path,
+                @"width": @(image.size.width),
+                @"height": @(image.size.height),
+            });
+        } else {
+            resolve([NSNull null]);
         }
     });
 }

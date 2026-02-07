@@ -92,10 +92,17 @@ export interface HistoryMessage {
   timestamp: number;
 }
 
+export interface ImageAttachment {
+  uri: string;
+  width?: number;
+  height?: number;
+}
+
 // Local display-only message for showing user prompts in the UI
 export interface UserPromptMessage {
   type: "user_prompt";
   content: string;
+  images?: ImageAttachment[];
   timestamp: number;
 }
 
@@ -341,17 +348,21 @@ export class WebSocketClient {
     this.setStatus("disconnected");
   }
 
-  sendPrompt(content: string): void {
+  sendPrompt(content: string, imagePaths?: string[]): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       this.options.onError(new Error("Not connected"));
       return;
     }
 
-    const message = {
+    const message: Record<string, unknown> = {
       type: "prompt",
       content,
       id: generateId(),
     };
+
+    if (imagePaths && imagePaths.length > 0) {
+      message.imagePaths = imagePaths;
+    }
 
     this.ws.send(JSON.stringify(message));
     this.setStatus("processing");

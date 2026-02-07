@@ -10,6 +10,7 @@ export interface PromptMessage {
   type: "prompt";
   id?: string;
   content: string;
+  imagePaths?: string[];
 }
 
 export interface NewSessionMessage {
