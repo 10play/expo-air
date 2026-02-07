@@ -71,29 +71,6 @@ export const PromptInput = forwardRef<PromptInputHandle, PromptInputProps>(({
     }
   };
 
-  const handlePasteImage = async () => {
-    if (images.length >= MAX_IMAGES) {
-      Alert.alert("Limit reached", `Maximum ${MAX_IMAGES} images per message.`);
-      return;
-    }
-
-    try {
-      if (!WidgetBridge) {
-        console.warn("[expo-air] WidgetBridge native module not available");
-        return;
-      }
-      const result: ImageAttachment | null = await WidgetBridge.getClipboardImage();
-      if (!result) {
-        Alert.alert("No image", "No image found on clipboard.");
-        return;
-      }
-      setImages((prev) => [...prev, result].slice(0, MAX_IMAGES));
-    } catch (e) {
-      console.warn("[expo-air] Clipboard error:", e);
-      Alert.alert("Error", "Failed to read clipboard image.");
-    }
-  };
-
   const removeImage = (index: number) => {
     setImages((prev) => prev.filter((_, i) => i !== index));
   };
@@ -133,15 +110,7 @@ export const PromptInput = forwardRef<PromptInputHandle, PromptInputProps>(({
           disabled={isProcessing}
           activeOpacity={0.6}
         >
-          <PhotoIcon />
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.iconButton}
-          onPress={handlePasteImage}
-          disabled={isProcessing}
-          activeOpacity={0.6}
-        >
-          <ClipboardIcon />
+          <PlusIcon />
         </TouchableOpacity>
         <TextInput
           ref={inputRef}
@@ -180,20 +149,11 @@ export const PromptInput = forwardRef<PromptInputHandle, PromptInputProps>(({
   );
 });
 
-function PhotoIcon() {
+function PlusIcon() {
   return (
-    <View style={styles.photoIcon}>
-      <View style={styles.photoBody} />
-      <View style={styles.photoLens} />
-    </View>
-  );
-}
-
-function ClipboardIcon() {
-  return (
-    <View style={styles.clipboardIcon}>
-      <View style={styles.clipboardBody} />
-      <View style={styles.clipboardClip} />
+    <View style={styles.plusIcon}>
+      <View style={styles.plusH} />
+      <View style={styles.plusV} />
     </View>
   );
 }
@@ -272,11 +232,11 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.MD,
   },
   iconButton: {
-    width: 32,
+    width: 36,
     height: SIZES.SUBMIT_BUTTON,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 2,
+    marginRight: 4,
   },
   input: {
     flex: 1,
@@ -333,51 +293,25 @@ const styles = StyleSheet.create({
     borderRightColor: "transparent",
     borderBottomColor: COLORS.TEXT_PRIMARY,
   },
-  // Photo icon (camera shape)
-  photoIcon: {
+  // Plus icon
+  plusIcon: {
     width: 18,
-    height: 14,
-    justifyContent: "flex-end",
-  },
-  photoBody: {
-    width: 18,
-    height: 12,
-    borderRadius: 3,
-    borderWidth: 1.5,
-    borderColor: COLORS.TEXT_MUTED,
-  },
-  photoLens: {
-    position: "absolute",
-    top: 4,
-    left: 5.5,
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-    borderWidth: 1.5,
-    borderColor: COLORS.TEXT_MUTED,
-  },
-  // Clipboard icon
-  clipboardIcon: {
-    width: 14,
     height: 18,
     alignItems: "center",
+    justifyContent: "center",
   },
-  clipboardBody: {
-    width: 14,
-    height: 16,
-    borderRadius: 2,
-    borderWidth: 1.5,
-    borderColor: COLORS.TEXT_MUTED,
-    marginTop: 2,
-  },
-  clipboardClip: {
+  plusH: {
     position: "absolute",
-    top: 0,
-    width: 8,
-    height: 4,
-    borderRadius: 2,
-    borderWidth: 1.5,
-    borderColor: COLORS.TEXT_MUTED,
-    backgroundColor: COLORS.BACKGROUND,
+    width: 16,
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: COLORS.TEXT_MUTED,
+  },
+  plusV: {
+    position: "absolute",
+    width: 2,
+    height: 16,
+    borderRadius: 1,
+    backgroundColor: COLORS.TEXT_MUTED,
   },
 });
