@@ -29,6 +29,20 @@ export interface RegisterPushTokenMessage {
   token: string;
 }
 
+export interface ListBranchesMessage {
+  type: "list_branches";
+}
+
+export interface SwitchBranchMessage {
+  type: "switch_branch";
+  branchName: string;
+}
+
+export interface CreateBranchMessage {
+  type: "create_branch";
+  branchName: string;
+}
+
 // Outgoing messages to widget
 export interface StreamMessage {
   type: "stream";
@@ -104,6 +118,36 @@ export interface PushTokenAckMessage {
   timestamp: number;
 }
 
+export interface BranchInfo {
+  name: string;
+  isCurrent: boolean;
+  prNumber?: string;
+  prTitle?: string;
+  lastCommitDate?: string;
+}
+
+export interface BranchesListMessage {
+  type: "branches_list";
+  branches: BranchInfo[];
+  timestamp: number;
+}
+
+export interface BranchSwitchedMessage {
+  type: "branch_switched";
+  branchName: string;
+  success: boolean;
+  error?: string;
+  timestamp: number;
+}
+
+export interface BranchCreatedMessage {
+  type: "branch_created";
+  branchName: string;
+  success: boolean;
+  error?: string;
+  timestamp: number;
+}
+
 export interface ConversationEntry {
   role: "user" | "assistant";
   content: string;
@@ -147,11 +191,17 @@ export type OutgoingMessage =
   | StoppedMessage
   | HistoryMessage
   | GitStatusMessage
-  | PushTokenAckMessage;
+  | PushTokenAckMessage
+  | BranchesListMessage
+  | BranchSwitchedMessage
+  | BranchCreatedMessage;
 
 export type IncomingMessage =
   | PromptMessage
   | NewSessionMessage
   | StopMessage
   | DiscardChangesMessage
-  | RegisterPushTokenMessage;
+  | RegisterPushTokenMessage
+  | ListBranchesMessage
+  | SwitchBranchMessage
+  | CreateBranchMessage;

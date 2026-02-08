@@ -21,7 +21,10 @@ Pod::Spec.new do |s|
   s.dependency 'ExpoModulesCore'
   s.dependency 'React-RCTAppDelegate'
 
-  s.resource = 'widget.jsbundle'
+  bundle_path = File.join(__dir__, 'widget.jsbundle')
+  if File.exist?(bundle_path)
+    s.resource = 'widget.jsbundle'
+  end
 
   # Swift/Objective-C compatibility
   s.pod_target_xcconfig = {

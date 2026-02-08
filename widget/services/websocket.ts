@@ -146,6 +146,36 @@ export interface GitChange {
   status: "added" | "modified" | "deleted" | "renamed" | "untracked";
 }
 
+export interface BranchInfo {
+  name: string;
+  isCurrent: boolean;
+  prNumber?: string;
+  prTitle?: string;
+  lastCommitDate?: string;
+}
+
+export interface BranchesListMessage {
+  type: "branches_list";
+  branches: BranchInfo[];
+  timestamp: number;
+}
+
+export interface BranchSwitchedMessage {
+  type: "branch_switched";
+  branchName: string;
+  success: boolean;
+  error?: string;
+  timestamp: number;
+}
+
+export interface BranchCreatedMessage {
+  type: "branch_created";
+  branchName: string;
+  success: boolean;
+  error?: string;
+  timestamp: number;
+}
+
 export interface GitStatusMessage {
   type: "git_status";
   branchName: string;
@@ -168,7 +198,10 @@ export type ServerMessage =
   | HistoryResultMessage
   | SystemDisplayMessage
   | GitStatusMessage
-  | AssistantPartsMessage;
+  | AssistantPartsMessage
+  | BranchesListMessage
+  | BranchSwitchedMessage
+  | BranchCreatedMessage;
 
 export interface WebSocketClientOptions {
   url: string;
@@ -356,6 +389,32 @@ export class WebSocketClient {
     }
 
     this.ws.send(JSON.stringify({ type: "register_push_token", token }));
+  }
+
+  requestBranches(): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      return;
+    }
+
+    this.ws.send(JSON.stringify({ type: "list_branches" }));
+  }
+
+  requestSwitchBranch(branchName: string): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      this.options.onError(new Error("Not connected"));
+      return;
+    }
+
+    this.ws.send(JSON.stringify({ type: "switch_branch", branchName }));
+  }
+
+  requestCreateBranch(branchName: string): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      this.options.onError(new Error("Not connected"));
+      return;
+    }
+
+    this.ws.send(JSON.stringify({ type: "create_branch", branchName }));
   }
 
   isConnected(): boolean {

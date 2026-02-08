@@ -1,7 +1,9 @@
 import chalk from "chalk";
-import { spawn } from "child_process";
+import { spawn, execSync } from "child_process";
+import { existsSync, unlinkSync } from "fs";
+import { join } from "path";
 import { DevEnvironment } from "../runner/devEnvironment.js";
-import { writeLocalConfig, updateInfoPlist } from "../utils/common.js";
+import { writeLocalConfig, updateInfoPlist, getPackageRoot } from "../utils/common.js";
 
 export interface DevOptions {
   port: string;
@@ -31,6 +33,35 @@ export async function devCommand(options: DevOptions): Promise<void> {
 
   // Resolve project directory
   env.resolveProject({ exitOnError: true });
+
+  // Remove prebuilt widget bundle so Metro is used for development
+  const packageRoot = getPackageRoot();
+  const prebuiltBundle = join(packageRoot, "ios", "widget.jsbundle");
+  if (existsSync(prebuiltBundle)) {
+    unlinkSync(prebuiltBundle);
+    console.log(chalk.green("  ✓ Removed prebuilt widget bundle (will use Metro)"));
+  }
+
+  // Check if Pods still reference the deleted bundle and need a refresh
+  const iosDir = join(env.getProjectRoot(), "ios");
+  const podsDir = join(iosDir, "Pods");
+  if (existsSync(podsDir)) {
+    try {
+      execSync("grep -rq 'widget\\.jsbundle' Pods/", {
+        cwd: iosDir,
+        stdio: ["pipe", "pipe", "pipe"],
+      });
+      // grep succeeded = stale reference exists, run pod install
+      console.log(chalk.blue("  ⟳ Refreshing pods (stale bundle reference)..."));
+      execSync("pod install", {
+        cwd: iosDir,
+        stdio: "inherit",
+      });
+      console.log(chalk.green("  ✓ Pods refreshed"));
+    } catch {
+      // grep failed = no stale references, no pod install needed
+    }
+  }
 
   // Start Metro servers (widget + app)
   await env.startMetroServers();

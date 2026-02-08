@@ -9,11 +9,13 @@ import {
   type ServerMessage,
   type ConnectionStatus,
   type GitChange,
+  type BranchInfo,
   type AnyConversationEntry,
   type AssistantPart,
   type AssistantPartsMessage,
 } from "./services/websocket";
 import { requestPushToken, setupTapHandler } from "./services/notifications";
+import { BranchSwitcher } from "./components/BranchSwitcher";
 import { SPACING, LAYOUT, COLORS, TYPOGRAPHY, SIZES } from "./constants/design";
 
 // WidgetBridge is a simple native module available in the widget runtime
@@ -58,6 +60,8 @@ export function BubbleContent({
   const [hasPR, setHasPR] = useState(false);
   const [prUrl, setPrUrl] = useState<string | undefined>();
   const [activeTab, setActiveTab] = useState<TabType>("chat");
+  const [showBranchSwitcher, setShowBranchSwitcher] = useState(false);
+  const [branches, setBranches] = useState<BranchInfo[]>([]);
   const pushTokenSentRef = useRef(false);
   const partIdCounter = useRef(0);
   // Use refs to avoid stale closure issues in handleMessage callback
@@ -283,6 +287,21 @@ export function BubbleContent({
         setHasPR(message.hasPR);
         setPrUrl(message.prUrl);
         break;
+      case "branches_list":
+        setBranches(message.branches);
+        break;
+      case "branch_switched":
+        setShowBranchSwitcher(false);
+        if (!message.success && message.error) {
+          console.warn("[expo-air] Branch switch failed:", message.error);
+        }
+        break;
+      case "branch_created":
+        setShowBranchSwitcher(false);
+        if (!message.success && message.error) {
+          console.warn("[expo-air] Branch create failed:", message.error);
+        }
+        break;
     }
   }, [finalizeCurrentParts]);
 
@@ -356,6 +375,32 @@ export function BubbleContent({
     }
   }, []);
 
+  const handleBranchPress = useCallback(() => {
+    setShowBranchSwitcher((prev) => {
+      if (!prev) {
+        const client = getWebSocketClient();
+        if (client) {
+          client.requestBranches();
+        }
+      }
+      return !prev;
+    });
+  }, []);
+
+  const handleBranchSelect = useCallback((name: string) => {
+    const client = getWebSocketClient();
+    if (client) {
+      client.requestSwitchBranch(name);
+    }
+  }, []);
+
+  const handleBranchCreate = useCallback((name: string) => {
+    const client = getWebSocketClient();
+    if (client) {
+      client.requestCreateBranch(name);
+    }
+  }, []);
+
   // Collapsed: Just a pulsing indicator, no text
   if (!expanded) {
     return (
@@ -371,6 +416,7 @@ export function BubbleContent({
       <Header
         status={status}
         branchName={branchName}
+        onBranchPress={handleBranchPress}
       />
       <TabBar
         activeTab={activeTab}
@@ -400,6 +446,15 @@ export function BubbleContent({
           isProcessing={status === "processing"}
         />
       )}
+      {showBranchSwitcher && (
+        <BranchSwitcher
+          branches={branches}
+          currentBranch={branchName}
+          onSelect={handleBranchSelect}
+          onCreate={handleBranchCreate}
+          onClose={() => setShowBranchSwitcher(false)}
+        />
+      )}
     </View>
   );
 }
@@ -407,9 +462,10 @@ export function BubbleContent({
 interface HeaderProps {
   status: ConnectionStatus;
   branchName: string;
+  onBranchPress: () => void;
 }
 
-function Header({ status, branchName }: HeaderProps) {
+function Header({ status, branchName, onBranchPress }: HeaderProps) {
   const statusColors = {
     disconnected: COLORS.STATUS_ERROR,
     connecting: COLORS.STATUS_INFO,
@@ -423,9 +479,12 @@ function Header({ status, branchName }: HeaderProps) {
         <Text style={styles.closeButtonText}>✕</Text>
       </TouchableOpacity>
 
-      <Text style={styles.branchName} numberOfLines={1}>
-        {branchName}
-      </Text>
+      <TouchableOpacity style={styles.branchButton} onPress={onBranchPress}>
+        <Text style={styles.branchName} numberOfLines={1}>
+          {branchName}
+        </Text>
+        <Text style={styles.branchChevron}>▾</Text>
+      </TouchableOpacity>
 
       <View style={[styles.statusDot, { backgroundColor: statusColors[status] }]} />
     </View>
@@ -686,11 +745,21 @@ const styles = StyleSheet.create({
     fontSize: TYPOGRAPHY.SIZE_MD,
     fontWeight: TYPOGRAPHY.WEIGHT_SEMIBOLD,
   },
-  branchName: {
+  branchButton: {
     flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  branchName: {
+    flexShrink: 1,
     color: COLORS.TEXT_SECONDARY,
     fontSize: TYPOGRAPHY.SIZE_MD,
     fontWeight: TYPOGRAPHY.WEIGHT_MEDIUM,
+  },
+  branchChevron: {
+    color: COLORS.TEXT_MUTED,
+    fontSize: TYPOGRAPHY.SIZE_SM,
+    marginLeft: SPACING.XS,
   },
   statusDot: {
     width: SIZES.STATUS_DOT,
