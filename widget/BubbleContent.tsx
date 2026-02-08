@@ -94,7 +94,7 @@ export function BubbleContent({
       onStatusChange: setStatus,
       onMessage: handleMessage,
       onError: (error) => {
-        console.error("[expo-air] WebSocket error:", error);
+        console.warn("[expo-air] WebSocket error:", error);
       },
     });
     client.connect();

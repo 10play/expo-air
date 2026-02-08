@@ -278,7 +278,7 @@ export class WebSocketClient {
           const message = JSON.parse(event.data) as ServerMessage;
           this.handleMessage(message);
         } catch (e) {
-          console.error("[expo-air] Failed to parse message:", e);
+          console.warn("[expo-air] Failed to parse message:", e);
         }
       };
     } catch (e) {
