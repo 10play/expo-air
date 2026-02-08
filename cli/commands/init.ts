@@ -2,8 +2,6 @@ import chalk from "chalk";
 import { spawn } from "child_process";
 import * as path from "path";
 import * as fs from "fs";
-import * as readline from "readline";
-
 interface InitOptions {
   force?: boolean;
   skipPrebuild?: boolean;
@@ -11,7 +9,6 @@ interface InitOptions {
 
 interface ExpoAirConfig {
   autoShow: boolean;
-  enableNotifications?: boolean;
   ui: {
     bubbleSize: number;
     bubbleColor: string;
@@ -25,42 +22,6 @@ const DEFAULT_CONFIG: ExpoAirConfig = {
     bubbleColor: "#007AFF",
   },
 };
-
-async function askYesNo(question: string): Promise<boolean> {
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  });
-
-  return new Promise((resolve) => {
-    rl.question(`  ${question} [y/N] `, (answer) => {
-      rl.close();
-      resolve(answer.toLowerCase() === "y" || answer.toLowerCase() === "yes");
-    });
-  });
-}
-
-async function runCommand(command: string, args: string[], cwd: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const proc = spawn(command, args, {
-      cwd,
-      stdio: "inherit",
-      shell: true,
-    });
-
-    proc.on("close", (code) => {
-      if (code === 0) {
-        resolve();
-      } else {
-        reject(new Error(`${command} ${args.join(" ")} exited with code ${code}`));
-      }
-    });
-
-    proc.on("error", (err) => {
-      reject(err);
-    });
-  });
-}
 
 export async function initCommand(options: InitOptions): Promise<void> {
   console.log(chalk.blue("\n  expo-air init\n"));
@@ -138,61 +99,7 @@ export async function initCommand(options: InitOptions): Promise<void> {
     console.log(chalk.green("  Created .gitignore with .expo-air.local.json"));
   }
 
-  // Step 5: Ask about push notifications
-  console.log("");
-  const enableNotifications = await askYesNo(
-    chalk.white("Enable push notifications?") + chalk.gray(" (requires paid Apple Developer account)")
-  );
-
-  if (enableNotifications) {
-    // Update config with notifications enabled
-    const configContent = fs.readFileSync(configPath, "utf-8");
-    const config = JSON.parse(configContent) as ExpoAirConfig;
-    config.enableNotifications = true;
-    fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + "\n");
-    console.log(chalk.green("  Enabled notifications in .expo-air.json"));
-
-    // Install expo-notifications
-    console.log(chalk.gray("\n  Installing expo-notifications..."));
-    try {
-      await runCommand("npx", ["expo", "install", "expo-notifications"], projectRoot);
-      console.log(chalk.green("  Installed expo-notifications"));
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      console.log(chalk.red(`  Failed to install expo-notifications: ${message}`));
-      console.log(chalk.gray("  You can install it manually: npx expo install expo-notifications\n"));
-    }
-
-    // Add expo-notifications to app.json plugins with background notifications enabled
-    if (fs.existsSync(appJsonPath)) {
-      try {
-        const appJsonContent = fs.readFileSync(appJsonPath, "utf-8");
-        const appJson = JSON.parse(appJsonContent);
-
-        // Check if expo-notifications is already in plugins (as string or array config)
-        const hasNotificationsPlugin = appJson.expo.plugins.some(
-          (p: string | [string, unknown]) =>
-            p === "expo-notifications" || (Array.isArray(p) && p[0] === "expo-notifications")
-        );
-
-        if (!hasNotificationsPlugin) {
-          // Add with enableBackgroundRemoteNotifications for background push support
-          appJson.expo.plugins.push([
-            "expo-notifications",
-            { enableBackgroundRemoteNotifications: true }
-          ]);
-          fs.writeFileSync(appJsonPath, JSON.stringify(appJson, null, 2) + "\n");
-          console.log(chalk.green("  Added expo-notifications to app.json plugins"));
-        }
-      } catch (err) {
-        console.log(chalk.yellow("  Could not add expo-notifications to plugins - add it manually"));
-      }
-    }
-  } else {
-    console.log(chalk.gray("  Skipped push notifications setup"));
-  }
-
-  // Step 6: Run expo prebuild (unless --skip-prebuild)
+  // Step 5: Run expo prebuild (unless --skip-prebuild)
   if (!options.skipPrebuild) {
     console.log(chalk.gray("\n  Running expo prebuild --platform ios --clean..."));
     console.log(chalk.gray("  This generates native iOS code with expo-air plugin\n"));
@@ -237,11 +144,4 @@ export async function initCommand(options: InitOptions): Promise<void> {
   console.log(chalk.white("    2. Run: npx expo-air fly"));
   console.log(chalk.white("    3. The widget will appear on your device\n"));
 
-  if (!enableNotifications) {
-    console.log(chalk.gray("  Want push notifications later? Re-run init with --force, or manually:"));
-    console.log(chalk.gray("    npx expo install expo-notifications"));
-    console.log(chalk.gray("    Add to app.json plugins:"));
-    console.log(chalk.gray('      ["expo-notifications", { "enableBackgroundRemoteNotifications": true }]'));
-    console.log(chalk.gray("    npx expo prebuild --platform ios --clean\n"));
-  }
 }
