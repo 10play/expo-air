@@ -40,6 +40,8 @@
     "test": "expo-module test",
     "prepare": "expo-module prepare",
     "prepublishOnly": "npm run clean && npm run build && npm run typecheck",
+    "publish:alias": "cd packages/expo-air && npm publish",
+    "version:sync": "node -e \"const pkg = require('./package.json'); const alias = require('./packages/expo-air/package.json'); alias.version = pkg.version; alias.dependencies['@10play/expo-air'] = '^' + pkg.version; require('fs').writeFileSync('./packages/expo-air/package.json', JSON.stringify(alias, null, 2) + '\\n');\"",
     "expo-module": "expo-module",
     "cli:start": "cd cli && npx tsx bin/expo-air.ts start",
     "widget:start": "cd widget && npm start",
