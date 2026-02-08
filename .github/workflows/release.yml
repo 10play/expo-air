@@ -4,6 +4,10 @@ on:
   push:
     branches: [main]
 
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
   release:
     runs-on: ubuntu-latest
@@ -16,33 +20,50 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: main
           token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Check if already released
+        id: check-release
+        run: |
+          # If the latest commit on main is already a release, skip
+          LATEST_MSG=$(git log -1 --format=%s)
+          if [[ "$LATEST_MSG" == chore:\ release* ]]; then
+            echo "::notice::Latest main commit is already a release. Skipping."
+            echo "skip=true" >> $GITHUB_OUTPUT
+          fi
+
       - uses: actions/setup-node@v4
+        if: steps.check-release.outputs.skip != 'true'
         with:
           node-version: "22"
           registry-url: "https://registry.npmjs.org"
 
       - name: Upgrade npm for OIDC support
+        if: steps.check-release.outputs.skip != 'true'
         run: |
           npm install -g npm@latest
           npm --version
 
       - name: Configure git
+        if: steps.check-release.outputs.skip != 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Install dependencies
+        if: steps.check-release.outputs.skip != 'true'
         run: |
           npm ci
           cd cli && npm ci
           cd ../widget && npm ci
 
       - name: Build
+        if: steps.check-release.outputs.skip != 'true'
         run: npm run build
 
       - name: Determine version bump
+        if: steps.check-release.outputs.skip != 'true'
         id: bump
         env:
           COMMIT_MSG: ${{ github.event.head_commit.message }}
@@ -57,6 +78,7 @@ jobs:
           fi
 
       - name: Bump version
+        if: steps.check-release.outputs.skip != 'true'
         id: version
         run: |
           # Bump version in package.json
@@ -65,24 +87,28 @@ jobs:
           echo "New version: ${NEW_VERSION}"
 
       - name: Update CLI version
+        if: steps.check-release.outputs.skip != 'true'
         run: |
           # Update version in cli/package.json to match
           cd cli
           npm version ${{ steps.version.outputs.version }} --no-git-tag-version --allow-same-version
 
-      - name: Publish to npm
-        # Uses OIDC trusted publishing - no token needed
-        # Configured at: https://www.npmjs.com/package/@10play/expo-air/access
-        run: npm publish --access public
-
-      - name: Commit and tag
+      - name: Commit, tag and push
+        if: steps.check-release.outputs.skip != 'true'
         run: |
           git add package.json package-lock.json cli/package.json cli/package-lock.json
           git commit -m "chore: release ${{ steps.version.outputs.version }}"
           git tag ${{ steps.version.outputs.version }}
           git push origin main --tags
 
+      - name: Publish to npm
+        if: steps.check-release.outputs.skip != 'true'
+        # Uses OIDC trusted publishing - no token needed
+        # Configured at: https://www.npmjs.com/package/@10play/expo-air/access
+        run: npm publish --access public
+
       - name: Create GitHub Release
+        if: steps.check-release.outputs.skip != 'true'
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ steps.version.outputs.version }}
