@@ -7,6 +7,7 @@ import { startCommand } from "../commands/start.js";
 import { serverCommand } from "../commands/server.js";
 import { initCommand } from "../commands/init.js";
 import { flyCommand } from "../commands/fly.js";
+import { devCommand } from "../commands/dev.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -63,7 +64,7 @@ program
   .option("--dev", "SDK development mode: run widget Metro + tunnel for live widget development")
   .action(flyCommand);
 
-// fly-dev is only available when running from source (not published to npm)
+// fly-dev and dev are only available when running from source (not published to npm)
 if (!isInstalledFromNpm()) {
   program
     .command("fly-dev")
@@ -75,6 +76,15 @@ if (!isInstalledFromNpm()) {
     .option("--device <id>", "Device UDID or name to use")
     .option("--no-tunnel", "Skip tunnel (local network only)")
     .action((options) => flyCommand({ ...options, dev: true }));
+
+  program
+    .command("dev")
+    .description("🛠  SDK development mode for simulator - starts everything and builds to iOS Simulator")
+    .option("-p, --port <port>", "Port for prompt server", "3847")
+    .option("-w, --widget-port <port>", "Port for widget Metro server", "8082")
+    .option("-m, --metro-port <port>", "Port for main app Metro server", "8081")
+    .option("--project <path>", "Path to Expo project")
+    .action(devCommand);
 }
 
 // Default command (just running `expo-air` starts everything)

@@ -1,0 +1,30 @@
+{
+  "name": "expo-air",
+  "version": "0.2.1",
+  "description": "Alias package for @10play/expo-air - Vibe Coding for React-Native",
+  "bin": {
+    "expo-air": "./bin/expo-air.js"
+  },
+  "files": [
+    "bin/"
+  ],
+  "keywords": [
+    "react-native",
+    "expo",
+    "expo-air",
+    "@10play/expo-air"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/10play/expo-air.git"
+  },
+  "bugs": {
+    "url": "https://github.com/10play/expo-air/issues"
+  },
+  "author": "10play",
+  "license": "MIT",
+  "homepage": "https://github.com/10play/expo-air#readme",
+  "dependencies": {
+    "@10play/expo-air": "^0.2.1"
+  }
+}
