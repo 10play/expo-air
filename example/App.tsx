@@ -1,3 +1,4 @@
+import "@10play/expo-air/build/hmrReconnect";
 import ExpoAir from "@10play/expo-air";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -1798,7 +1799,7 @@ const styles = {
   },
   container: {
     flex: 1,
-    backgroundColor: "#eee",
+    backgroundColor: "orange",
   },
   view: {
     flex: 1,

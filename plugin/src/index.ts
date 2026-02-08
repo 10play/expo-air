@@ -73,9 +73,51 @@ const withAppDelegatePatch: ConfigPlugin = (config) => {
   ]);
 };
 
+// Inject HMR auto-reconnect import into the app's JS entry point
+const withHMRReconnect: ConfigPlugin = (config) => {
+  return withDangerousMod(config, [
+    "ios",
+    async (config) => {
+      const projectRoot = config.modRequest.projectRoot;
+      const hmrImport = `import "@10play/expo-air/build/hmrReconnect";\n`;
+
+      // Common entry points for Expo Router and vanilla RN apps
+      const candidates = [
+        "app/_layout.tsx",
+        "app/_layout.js",
+        "App.tsx",
+        "App.js",
+        "index.tsx",
+        "index.js",
+      ];
+
+      for (const candidate of candidates) {
+        const entryPath = path.join(projectRoot, candidate);
+        if (fs.existsSync(entryPath)) {
+          let content = fs.readFileSync(entryPath, "utf-8");
+          if (content.includes("@10play/expo-air/build/hmrReconnect")) {
+            // Already injected
+            return config;
+          }
+          content = hmrImport + content;
+          fs.writeFileSync(entryPath, content);
+          console.log(`[expo-air] Injected HMR auto-reconnect into ${candidate}`);
+          return config;
+        }
+      }
+
+      console.warn("[expo-air] Could not find app entry point for HMR reconnect injection");
+      return config;
+    },
+  ]);
+};
+
 const withExpoAir: ConfigPlugin = (config) => {
   // First patch AppDelegate
   config = withAppDelegatePatch(config);
+
+  // Inject HMR auto-reconnect
+  config = withHMRReconnect(config);
 
   // NOTE: We do NOT add aps-environment entitlement here.
   // Adding "development" would break production builds (entitlement mismatch with distribution profile).

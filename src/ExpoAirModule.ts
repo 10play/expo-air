@@ -10,6 +10,7 @@ declare class ExpoAirModule extends NativeModule<ExpoAirModuleEvents> {
   hide(): void;
   expand(): void;
   collapse(): void;
+  getServerUrl(): string;
 }
 
 // This call loads the native module object from the JSI.

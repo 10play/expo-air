@@ -1,4 +1,5 @@
 import { WebSocketServer, WebSocket } from "ws";
+import { createServer, type Server as HttpServer } from "http";
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { randomUUID } from "crypto";
 import { execSync } from "child_process";
@@ -20,6 +21,7 @@ import type {
 
 export class PromptServer {
   private wss: WebSocketServer | null = null;
+  private httpServer: HttpServer | null = null;
   private port: number;
   private clients: Set<WebSocket> = new Set();
   private currentQuery: ReturnType<typeof query> | null = null;
@@ -147,6 +149,46 @@ export class PromptServer {
     this.log(`Git status updated: ${branchName} (${changes.length} changes, PR: ${prStatus.hasPR})`, "info");
   }
 
+  private getGitRoot(): string {
+    try {
+      return execSync("git rev-parse --show-toplevel", {
+        cwd: this.projectRoot,
+        encoding: "utf-8",
+        stdio: ["pipe", "pipe", "pipe"],
+      }).trim();
+    } catch {
+      return this.projectRoot;
+    }
+  }
+
+  private retriggerHMR(): void {
+    const changes = this.getGitChanges();
+    if (changes.length === 0) {
+      this.log("HMR retrigger: no uncommitted files to re-touch", "info");
+      return;
+    }
+
+    // git status returns paths relative to the repo root, not projectRoot
+    const gitRoot = this.getGitRoot();
+    this.log(`HMR retrigger: re-touching ${changes.length} uncommitted files (root: ${gitRoot})`, "info");
+
+    let touched = 0;
+    for (const change of changes) {
+      try {
+        const filePath = join(gitRoot, change.file);
+        if (existsSync(filePath) && change.status !== "deleted") {
+          const content = readFileSync(filePath);
+          writeFileSync(filePath, content); // Same content, new mtime → Metro re-pushes HMR
+          touched++;
+          this.log(`HMR retrigger: re-touched ${change.file}`, "info");
+        }
+      } catch (e) {
+        this.log(`HMR retrigger: failed to re-touch ${change.file}: ${e}`, "error");
+      }
+    }
+    this.log(`HMR retrigger: done, re-touched ${touched} files`, "success");
+  }
+
   private getConfigPath(): string {
     return join(this.projectRoot, ".expo-air.local.json");
   }
@@ -202,12 +244,37 @@ export class PromptServer {
 
   async start(): Promise<void> {
     return new Promise((resolve, reject) => {
-      this.wss = new WebSocketServer({ port: this.port });
+      // HTTP server handles /hmr-retrigger and /health requests alongside the WebSocket server
+      this.httpServer = createServer((req, res) => {
+        this.log(`HTTP ${req.method} ${req.url}`, "info");
 
-      this.wss.on("listening", () => {
-        this.startGitWatcher();
-        resolve();
+        res.setHeader("Access-Control-Allow-Origin", "*");
+        res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+
+        if (req.method === "OPTIONS") {
+          res.writeHead(200);
+          res.end();
+          return;
+        }
+
+        if (req.url === "/health" && req.method === "GET") {
+          res.writeHead(200);
+          res.end("OK");
+          return;
+        }
+
+        if (req.url === "/hmr-retrigger" && req.method === "POST") {
+          this.retriggerHMR();
+          res.writeHead(200);
+          res.end("OK");
+          return;
+        }
+
+        res.writeHead(404);
+        res.end();
       });
+
+      this.wss = new WebSocketServer({ server: this.httpServer });
 
       this.wss.on("error", (error) => {
         reject(error);
@@ -215,6 +282,15 @@ export class PromptServer {
 
       this.wss.on("connection", (ws) => {
         this.handleConnection(ws);
+      });
+
+      this.httpServer.listen(this.port, () => {
+        this.startGitWatcher();
+        resolve();
+      });
+
+      this.httpServer.on("error", (error) => {
+        reject(error);
       });
     });
   }
@@ -235,14 +311,19 @@ export class PromptServer {
     }
     this.clients.clear();
 
-    // Close server
+    // Close servers
     return new Promise((resolve) => {
-      if (this.wss) {
-        this.wss.close(() => {
+      const closeHttp = () => {
+        if (this.httpServer) {
+          this.httpServer.close(() => resolve());
+        } else {
           resolve();
-        });
+        }
+      };
+      if (this.wss) {
+        this.wss.close(() => closeHttp());
       } else {
-        resolve();
+        closeHttp();
       }
     });
   }
@@ -661,6 +742,12 @@ IMPORTANT CONSTRAINTS:
               `Completed in ${message.duration_ms}ms, cost: $${message.total_cost_usd?.toFixed(4)}`,
               "success"
             );
+
+            // Auto-retrigger HMR after successful completion
+            // This ensures Metro pushes any file changes even if HMR reconnected
+            // after the files were written but before the retrigger
+            this.log("Auto-triggering HMR retrigger after completion", "info");
+            this.retriggerHMR();
           } else {
             // Store failed result in history
             const failedMessage = message.errors?.join(", ") || "Unknown error";
