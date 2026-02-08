@@ -1,7 +1,7 @@
 import { WebSocketServer, WebSocket } from "ws";
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { randomUUID } from "crypto";
-import { execSync } from "child_process";
+import { execSync, execFileSync } from "child_process";
 import { readFileSync, writeFileSync, existsSync } from "fs";
 import { join } from "path";
 import chalk from "chalk";
@@ -204,51 +204,69 @@ export class PromptServer {
     this.log(`Sent ${branches.length} branches to client`, "info");
   }
 
+  private isValidBranchName(name: string): boolean {
+    // Reject empty, whitespace-only, or overly long names
+    if (!name || name.trim() !== name || name.length > 250) return false;
+    // Git branch name rules: no space, ~, ^, :, ?, *, [, \, control chars, "..", "//", trailing ".", trailing "/", ".lock"
+    if (/[\s~^:?*\[\]\\]/.test(name)) return false;
+    if (/\.\./.test(name)) return false;
+    if (/\/\//.test(name)) return false;
+    if (name.endsWith(".") || name.endsWith("/") || name.endsWith(".lock")) return false;
+    if (name.startsWith("-") || name.startsWith(".")) return false;
+    return true;
+  }
+
   private handleSwitchBranch(ws: WebSocket, branchName: string): void {
+    if (!this.isValidBranchName(branchName)) {
+      this.sendToClient(ws, {
+        type: "branch_switched",
+        branchName,
+        success: false,
+        error: "Invalid branch name",
+        timestamp: Date.now(),
+      });
+      return;
+    }
+
+    let didStash = false;
     try {
       // Check for uncommitted changes
-      const status = execSync("git status --porcelain", {
+      const status = execSync("git status --porcelain -u", {
         cwd: this.projectRoot,
         encoding: "utf-8",
         stdio: ["pipe", "pipe", "pipe"],
       }).trim();
 
       if (status) {
-        // Auto-stash before switching
-        execSync('git stash push -m "expo-air-auto-stash"', {
-          cwd: this.projectRoot,
-          encoding: "utf-8",
-          stdio: ["pipe", "pipe", "pipe"],
-        });
-        this.log("Auto-stashed uncommitted changes", "info");
-      }
-
-      // Switch branch
-      execSync(`git checkout ${branchName}`, {
-        cwd: this.projectRoot,
-        encoding: "utf-8",
-        stdio: ["pipe", "pipe", "pipe"],
-      });
-
-      // Try to pop any matching stash for the target branch
-      try {
-        const stashList = execSync("git stash list", {
-          cwd: this.projectRoot,
-          encoding: "utf-8",
-          stdio: ["pipe", "pipe", "pipe"],
-        }).trim();
-
-        if (stashList.includes("expo-air-auto-stash")) {
-          execSync("git stash pop", {
+        // Auto-stash (including untracked) before switching
+        try {
+          execFileSync("git", ["stash", "push", "-u", "-m", "expo-air-auto-stash"], {
             cwd: this.projectRoot,
             encoding: "utf-8",
             stdio: ["pipe", "pipe", "pipe"],
           });
-          this.log("Restored stashed changes", "info");
+          didStash = true;
+          this.log("Auto-stashed uncommitted changes", "info");
+        } catch (stashError) {
+          const msg = stashError instanceof Error ? stashError.message : String(stashError);
+          this.sendToClient(ws, {
+            type: "branch_switched",
+            branchName,
+            success: false,
+            error: `Failed to stash changes: ${msg}`,
+            timestamp: Date.now(),
+          });
+          this.log(`Failed to stash before switch: ${msg}`, "error");
+          return;
         }
-      } catch {
-        // Stash pop conflict or no stash, ignore
       }
+
+      // Switch branch using execFileSync (no shell interpolation)
+      execFileSync("git", ["checkout", branchName], {
+        cwd: this.projectRoot,
+        encoding: "utf-8",
+        stdio: ["pipe", "pipe", "pipe"],
+      });
 
       // Broadcast updated git status
       const currentBranch = this.getBranchName();
@@ -264,6 +282,19 @@ export class PromptServer {
       this.log(`Switched to branch: ${currentBranch}`, "success");
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
+      // Restore stash if we stashed before the failed checkout
+      if (didStash) {
+        try {
+          execFileSync("git", ["stash", "pop"], {
+            cwd: this.projectRoot,
+            encoding: "utf-8",
+            stdio: ["pipe", "pipe", "pipe"],
+          });
+          this.log("Restored stash after failed checkout", "info");
+        } catch {
+          this.log("Warning: failed to restore stash after failed checkout", "error");
+        }
+      }
       this.sendToClient(ws, {
         type: "branch_switched",
         branchName,
@@ -276,32 +307,58 @@ export class PromptServer {
   }
 
   private handleCreateBranch(ws: WebSocket, branchName: string): void {
+    if (!this.isValidBranchName(branchName)) {
+      this.sendToClient(ws, {
+        type: "branch_created",
+        branchName,
+        success: false,
+        error: "Invalid branch name",
+        timestamp: Date.now(),
+      });
+      return;
+    }
+
+    let didStash = false;
     try {
       // Check for uncommitted changes
-      const status = execSync("git status --porcelain", {
+      const status = execSync("git status --porcelain -u", {
         cwd: this.projectRoot,
         encoding: "utf-8",
         stdio: ["pipe", "pipe", "pipe"],
       }).trim();
 
       if (status) {
-        execSync('git stash push -m "expo-air-auto-stash"', {
-          cwd: this.projectRoot,
-          encoding: "utf-8",
-          stdio: ["pipe", "pipe", "pipe"],
-        });
-        this.log("Auto-stashed uncommitted changes", "info");
+        try {
+          execFileSync("git", ["stash", "push", "-u", "-m", "expo-air-auto-stash"], {
+            cwd: this.projectRoot,
+            encoding: "utf-8",
+            stdio: ["pipe", "pipe", "pipe"],
+          });
+          didStash = true;
+          this.log("Auto-stashed uncommitted changes", "info");
+        } catch (stashError) {
+          const msg = stashError instanceof Error ? stashError.message : String(stashError);
+          this.sendToClient(ws, {
+            type: "branch_created",
+            branchName,
+            success: false,
+            error: `Failed to stash changes: ${msg}`,
+            timestamp: Date.now(),
+          });
+          this.log(`Failed to stash before create: ${msg}`, "error");
+          return;
+        }
       }
 
       // Fetch latest main
-      execSync("git fetch origin main", {
+      execFileSync("git", ["fetch", "origin", "main"], {
         cwd: this.projectRoot,
         encoding: "utf-8",
         stdio: ["pipe", "pipe", "pipe"],
       });
 
       // Create and checkout new branch from origin/main
-      execSync(`git checkout -b ${branchName} origin/main`, {
+      execFileSync("git", ["checkout", "-b", branchName, "origin/main"], {
         cwd: this.projectRoot,
         encoding: "utf-8",
         stdio: ["pipe", "pipe", "pipe"],
@@ -321,6 +378,19 @@ export class PromptServer {
       this.log(`Created new branch: ${currentBranch}`, "success");
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
+      // Restore stash if we stashed before the failed operation
+      if (didStash) {
+        try {
+          execFileSync("git", ["stash", "pop"], {
+            cwd: this.projectRoot,
+            encoding: "utf-8",
+            stdio: ["pipe", "pipe", "pipe"],
+          });
+          this.log("Restored stash after failed branch creation", "info");
+        } catch {
+          this.log("Warning: failed to restore stash after failed branch creation", "error");
+        }
+      }
       this.sendToClient(ws, {
         type: "branch_created",
         branchName,

@@ -19,6 +19,7 @@ interface BranchSwitcherProps {
   onSelect: (branchName: string) => void;
   onCreate: (branchName: string) => void;
   onClose: () => void;
+  error?: string | null;
 }
 
 export function BranchSwitcher({
@@ -27,6 +28,7 @@ export function BranchSwitcher({
   onSelect,
   onCreate,
   onClose,
+  error,
 }: BranchSwitcherProps) {
   const [showCreateInput, setShowCreateInput] = useState(false);
   const [newBranchName, setNewBranchName] = useState("");
@@ -44,6 +46,11 @@ export function BranchSwitcher({
     <View style={styles.overlay}>
       <TouchableOpacity style={styles.backdrop} onPress={onClose} activeOpacity={1} />
       <View style={styles.dropdown}>
+        {error && (
+          <View style={styles.errorBanner}>
+            <Text style={styles.errorText} numberOfLines={2}>{error}</Text>
+          </View>
+        )}
         <ScrollView style={styles.branchList} bounces={false}>
           {branches.map((branch, index) => (
             <TouchableOpacity
@@ -235,5 +242,16 @@ const styles = StyleSheet.create({
     color: COLORS.TEXT_PRIMARY,
     fontSize: TYPOGRAPHY.SIZE_SM,
     fontWeight: TYPOGRAPHY.WEIGHT_SEMIBOLD,
+  },
+  errorBanner: {
+    backgroundColor: "rgba(255,59,48,0.15)",
+    paddingHorizontal: SPACING.LG,
+    paddingVertical: SPACING.SM,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(255,59,48,0.3)",
+  },
+  errorText: {
+    color: "#FF6B6B",
+    fontSize: TYPOGRAPHY.SIZE_SM,
   },
 });

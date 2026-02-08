@@ -62,6 +62,7 @@ export function BubbleContent({
   const [activeTab, setActiveTab] = useState<TabType>("chat");
   const [showBranchSwitcher, setShowBranchSwitcher] = useState(false);
   const [branches, setBranches] = useState<BranchInfo[]>([]);
+  const [branchError, setBranchError] = useState<string | null>(null);
   const pushTokenSentRef = useRef(false);
   const partIdCounter = useRef(0);
   // Use refs to avoid stale closure issues in handleMessage callback
@@ -291,15 +292,19 @@ export function BubbleContent({
         setBranches(message.branches);
         break;
       case "branch_switched":
-        setShowBranchSwitcher(false);
-        if (!message.success && message.error) {
-          console.warn("[expo-air] Branch switch failed:", message.error);
+        if (message.success) {
+          setShowBranchSwitcher(false);
+          setBranchError(null);
+        } else if (message.error) {
+          setBranchError(message.error);
         }
         break;
       case "branch_created":
-        setShowBranchSwitcher(false);
-        if (!message.success && message.error) {
-          console.warn("[expo-air] Branch create failed:", message.error);
+        if (message.success) {
+          setShowBranchSwitcher(false);
+          setBranchError(null);
+        } else if (message.error) {
+          setBranchError(message.error);
         }
         break;
     }
@@ -376,18 +381,18 @@ export function BubbleContent({
   }, []);
 
   const handleBranchPress = useCallback(() => {
-    setShowBranchSwitcher((prev) => {
-      if (!prev) {
-        const client = getWebSocketClient();
-        if (client) {
-          client.requestBranches();
-        }
+    setShowBranchSwitcher((prev) => !prev);
+    // Fetch branches when opening (side-effect outside state updater)
+    if (!showBranchSwitcher) {
+      const client = getWebSocketClient();
+      if (client) {
+        client.requestBranches();
       }
-      return !prev;
-    });
-  }, []);
+    }
+  }, [showBranchSwitcher]);
 
   const handleBranchSelect = useCallback((name: string) => {
+    setBranchError(null);
     const client = getWebSocketClient();
     if (client) {
       client.requestSwitchBranch(name);
@@ -395,6 +400,7 @@ export function BubbleContent({
   }, []);
 
   const handleBranchCreate = useCallback((name: string) => {
+    setBranchError(null);
     const client = getWebSocketClient();
     if (client) {
       client.requestCreateBranch(name);
@@ -452,7 +458,8 @@ export function BubbleContent({
           currentBranch={branchName}
           onSelect={handleBranchSelect}
           onCreate={handleBranchCreate}
-          onClose={() => setShowBranchSwitcher(false)}
+          onClose={() => { setShowBranchSwitcher(false); setBranchError(null); }}
+          error={branchError}
         />
       )}
     </View>

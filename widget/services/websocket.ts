@@ -27,6 +27,7 @@ export interface StatusMessage {
   type: "status";
   status: "connected" | "processing" | "idle";
   promptId?: string;
+  branchName?: string;
   timestamp: number;
 }
 
