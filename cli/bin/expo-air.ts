@@ -84,6 +84,7 @@ if (!isInstalledFromNpm()) {
     .option("-w, --widget-port <port>", "Port for widget Metro server", "8082")
     .option("-m, --metro-port <port>", "Port for main app Metro server", "8081")
     .option("--project <path>", "Path to Expo project")
+    .option("-d, --device <name>", "Simulator name or UDID (omit for interactive picker)")
     .action(devCommand);
 }
 

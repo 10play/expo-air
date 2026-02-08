@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { View, Text, StyleSheet, NativeModules, TouchableOpacity, Animated, Easing, Linking } from "react-native";
+import { View, Text, StyleSheet, NativeModules, TouchableOpacity, Animated, Easing, Linking, type TextProps, type ViewProps } from "react-native";
 import { PromptInput, type PromptInputHandle } from "./components/PromptInput";
 import { ResponseArea } from "./components/ResponseArea";
 import { GitChangesTab } from "./components/GitChangesTab";
@@ -17,6 +17,10 @@ import {
 import { requestPushToken, setupTapHandler } from "./services/notifications";
 import { BranchSwitcher } from "./components/BranchSwitcher";
 import { SPACING, LAYOUT, COLORS, TYPOGRAPHY, SIZES } from "./constants/design";
+
+// Typed animated components for React 19 compatibility
+const AnimatedText = Animated.Text as React.ComponentClass<Animated.AnimatedProps<TextProps>>;
+const AnimatedView = Animated.View as React.ComponentClass<Animated.AnimatedProps<ViewProps>>;
 
 // WidgetBridge is a simple native module available in the widget runtime
 // ExpoAir is the main app's module (fallback)
@@ -575,12 +579,7 @@ function TabBar({
   );
 }
 
-interface BreathingButtonProps {
-  children: React.ReactNode;
-  onPress: () => void;
-}
-
-function BreathingButton({ children, onPress }: BreathingButtonProps) {
+function BreathingButton({ children, onPress }: React.PropsWithChildren<{ onPress: () => void }>) {
   const opacityAnim = useRef(new Animated.Value(0.6)).current;
 
   useEffect(() => {
@@ -606,9 +605,9 @@ function BreathingButton({ children, onPress }: BreathingButtonProps) {
 
   return (
     <TouchableOpacity onPress={onPress} style={styles.ctaButton} activeOpacity={0.7}>
-      <Animated.Text style={[styles.ctaText, { opacity: opacityAnim }]}>
+      <AnimatedText style={[styles.ctaText, { opacity: opacityAnim }]}>
         {children}
-      </Animated.Text>
+      </AnimatedText>
     </TouchableOpacity>
   );
 }
@@ -678,7 +677,7 @@ function PulsingIndicator({ status }: { status: ConnectionStatus }) {
         ]}
       />
       {isAnimating && (
-        <Animated.View
+        <AnimatedView
           style={[
             styles.indicatorRing,
             {

@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback } from "react";
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, NativeScrollEvent, NativeSyntheticEvent, Keyboard, Platform } from "react-native";
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, NativeScrollEvent, Keyboard, Platform, Linking } from "react-native";
 import type { ServerMessage, ToolMessage, ResultMessage, UserPromptMessage, HistoryResultMessage, SystemDisplayMessage, AssistantPart, AssistantPartsMessage } from "../services/websocket";
 import { SPACING, LAYOUT, COLORS, TYPOGRAPHY } from "../constants/design";
 
@@ -15,7 +15,7 @@ export function ResponseArea({ messages, currentParts }: ResponseAreaProps) {
   const scrollViewHeightRef = useRef(0);
 
   // Track if user is at bottom (within 50px threshold)
-  const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+  const handleScroll = useCallback((event: { nativeEvent: NativeScrollEvent }) => {
     const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
     const distanceFromBottom = contentSize.height - layoutMeasurement.height - contentOffset.y;
     setIsAtBottom(distanceFromBottom < 50);
@@ -110,7 +110,7 @@ export function ResponseArea({ messages, currentParts }: ResponseAreaProps) {
   );
 }
 
-function MessageItem({ message }: { message: ServerMessage }) {
+function MessageItem({ message }: { key?: React.Key; message: ServerMessage }) {
   switch (message.type) {
     case "stream":
       return null; // Handled by currentParts
@@ -192,34 +192,7 @@ function FormattedText({ content, isStreaming }: { content: string; isStreaming?
     const line = lines[i];
     const trimmed = line.trim();
 
-    // Numbered list item (1. 2. 3.)
-    const numberedMatch = trimmed.match(/^(\d+)\.\s+(.+)$/);
-    if (numberedMatch) {
-      const [, num, text] = numberedMatch;
-      elements.push(
-        <View key={i} style={styles.listItem}>
-          <Text style={styles.listNumber}>{num}.</Text>
-          <Text style={styles.listText} selectable>{formatInlineText(text)}</Text>
-        </View>
-      );
-      i++;
-      continue;
-    }
-
-    // Bullet list item (- or *)
-    const bulletMatch = trimmed.match(/^[-*]\s+(.+)$/);
-    if (bulletMatch) {
-      elements.push(
-        <View key={i} style={styles.listItem}>
-          <Text style={styles.listBullet}>•</Text>
-          <Text style={styles.listText} selectable>{formatInlineText(bulletMatch[1])}</Text>
-        </View>
-      );
-      i++;
-      continue;
-    }
-
-    // Code block start
+    // Code block start (check first to avoid matching content inside code blocks)
     if (trimmed.startsWith('```')) {
       const codeLines: string[] = [];
       const lang = trimmed.slice(3).trim();
@@ -235,6 +208,85 @@ function FormattedText({ content, isStreaming }: { content: string; isStreaming?
         </View>
       );
       i++; // skip closing ```
+      continue;
+    }
+
+    // Heading (# ## ### etc.)
+    const headingMatch = trimmed.match(/^(#{1,6})\s+(.+)$/);
+    if (headingMatch) {
+      const level = headingMatch[1].length;
+      const headingStyle = level <= 2 ? styles.heading1 : level <= 4 ? styles.heading2 : styles.heading3;
+      elements.push(
+        <Text key={i} style={headingStyle} selectable>{formatInlineText(headingMatch[2])}</Text>
+      );
+      i++;
+      continue;
+    }
+
+    // Blockquote (> text) - collect consecutive > lines
+    if (trimmed.startsWith('> ') || trimmed === '>') {
+      const quoteLines: string[] = [];
+      while (i < lines.length && (lines[i].trim().startsWith('> ') || lines[i].trim() === '>')) {
+        const qContent = lines[i].trim().startsWith('> ') ? lines[i].trim().slice(2) : '';
+        quoteLines.push(qContent);
+        i++;
+      }
+      elements.push(
+        <View key={`quote-${i}`} style={styles.blockquote}>
+          <Text style={styles.blockquoteText} selectable>{formatInlineText(quoteLines.join('\n'))}</Text>
+        </View>
+      );
+      continue;
+    }
+
+    // Task list item (- [ ] or - [x])
+    const taskMatch = trimmed.match(/^[-*]\s+\[([ xX])\]\s+(.+)$/);
+    if (taskMatch) {
+      const checked = taskMatch[1] !== ' ';
+      elements.push(
+        <View key={i} style={styles.listItem}>
+          <Text style={styles.listBullet}>{checked ? '☑' : '☐'}</Text>
+          <Text style={styles.listText} selectable>{formatInlineText(taskMatch[2])}</Text>
+        </View>
+      );
+      i++;
+      continue;
+    }
+
+    // Numbered list item (1. 2. 3.) - with nesting via indentation
+    const numberedMatch = line.match(/^(\s*)(\d+)\.\s+(.+)$/);
+    if (numberedMatch) {
+      const indent = Math.floor(numberedMatch[1].length / 2);
+      const [, , num, text] = numberedMatch;
+      elements.push(
+        <View key={i} style={[styles.listItem, indent > 0 && { paddingLeft: SPACING.SM + indent * SPACING.LG }]}>
+          <Text style={styles.listNumber}>{num}.</Text>
+          <Text style={styles.listText} selectable>{formatInlineText(text)}</Text>
+        </View>
+      );
+      i++;
+      continue;
+    }
+
+    // Bullet list item (- or *) - with nesting via indentation
+    const bulletMatch = line.match(/^(\s*)[-*]\s+(.+)$/);
+    if (bulletMatch) {
+      const indent = Math.floor(bulletMatch[1].length / 2);
+      const bulletChar = indent === 0 ? '•' : indent === 1 ? '◦' : '▪';
+      elements.push(
+        <View key={i} style={[styles.listItem, indent > 0 && { paddingLeft: SPACING.SM + indent * SPACING.LG }]}>
+          <Text style={styles.listBullet}>{bulletChar}</Text>
+          <Text style={styles.listText} selectable>{formatInlineText(bulletMatch[2])}</Text>
+        </View>
+      );
+      i++;
+      continue;
+    }
+
+    // Horizontal rule (---, ***, ___)
+    if (/^[-*_]{3,}$/.test(trimmed)) {
+      elements.push(<View key={i} style={styles.horizontalRule} />);
+      i++;
       continue;
     }
 
@@ -260,15 +312,59 @@ function FormattedText({ content, isStreaming }: { content: string; isStreaming?
   );
 }
 
-// Format inline elements (bold, code, etc.)
+// Format inline elements: code spans first, then links, then emphasis
 function formatInlineText(text: string): React.ReactNode {
-  // Simple inline code detection (`code`)
-  const parts = text.split(/(`[^`]+`)/g);
+  // Split on inline code first to avoid processing markdown inside code spans
+  const codeParts = text.split(/(`[^`]+`)/g);
+  if (codeParts.length === 1) {
+    return formatLinks(text);
+  }
+
+  return codeParts.map((part, i) => {
+    if (part.startsWith('`') && part.endsWith('`')) {
+      return <Text key={i} style={styles.inlineCode}>{part.slice(1, -1)}</Text>;
+    }
+    return <React.Fragment key={i}>{formatLinks(part)}</React.Fragment>;
+  });
+}
+
+// Format markdown links [text](url)
+function formatLinks(text: string): React.ReactNode {
+  const parts = text.split(/(\[[^\]]+\]\([^)]+\))/g);
+  if (parts.length === 1) return formatEmphasis(text);
+
+  return parts.map((part, i) => {
+    const linkMatch = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+    if (linkMatch) {
+      return (
+        <Text
+          key={i}
+          style={styles.linkText}
+          onPress={() => Linking.openURL(linkMatch[2])}
+        >
+          {linkMatch[1]}
+        </Text>
+      );
+    }
+    return <React.Fragment key={i}>{formatEmphasis(part)}</React.Fragment>;
+  });
+}
+
+// Format bold, italic, and strikethrough emphasis
+function formatEmphasis(text: string): React.ReactNode {
+  // Match **bold**, ~~strikethrough~~, *italic*, and plain text segments
+  const parts = text.split(/(\*\*[^*]+\*\*|~~[^~]+~~|\*[^*]+\*)/g);
   if (parts.length === 1) return text;
 
   return parts.map((part, i) => {
-    if (part.startsWith('`') && part.endsWith('`')) {
-      return <Text key={i} style={styles.inlineCode}>{part.slice(1, -1)}</Text>;
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return <Text key={i} style={styles.boldText}>{part.slice(2, -2)}</Text>;
+    }
+    if (part.startsWith('~~') && part.endsWith('~~')) {
+      return <Text key={i} style={styles.strikethroughText}>{part.slice(2, -2)}</Text>;
+    }
+    if (part.startsWith('*') && part.endsWith('*')) {
+      return <Text key={i} style={styles.italicText}>{part.slice(1, -1)}</Text>;
     }
     return part;
   });
@@ -347,7 +443,7 @@ function ToolDisplay({ toolName, input, isFailed }: { toolName: string; input?: 
 }
 
 // Tool part renderer (for parts in AssistantPartsMessage)
-function ToolPartItem({ part }: { part: AssistantPart & { type: "tool" } }) {
+function ToolPartItem({ part }: { key?: React.Key; part: AssistantPart & { type: "tool" } }) {
   if (part.status === "started") return null;
   return <ToolDisplay toolName={part.toolName} input={part.input} isFailed={part.status === "failed"} />;
 }
@@ -483,6 +579,63 @@ const styles = StyleSheet.create({
     fontSize: TYPOGRAPHY.SIZE_MD,
     paddingHorizontal: 4,
     borderRadius: 3,
+  },
+  heading1: {
+    color: COLORS.TEXT_PRIMARY,
+    fontSize: TYPOGRAPHY.SIZE_XL,
+    fontWeight: TYPOGRAPHY.WEIGHT_SEMIBOLD,
+    lineHeight: 24,
+    marginTop: SPACING.MD,
+    marginBottom: SPACING.XS,
+  },
+  heading2: {
+    color: "rgba(255,255,255,0.9)",
+    fontSize: TYPOGRAPHY.SIZE_LG,
+    fontWeight: TYPOGRAPHY.WEIGHT_SEMIBOLD,
+    lineHeight: 22,
+    marginTop: SPACING.SM,
+    marginBottom: SPACING.XS,
+  },
+  heading3: {
+    color: "rgba(255,255,255,0.85)",
+    fontSize: TYPOGRAPHY.SIZE_LG,
+    fontWeight: TYPOGRAPHY.WEIGHT_MEDIUM,
+    lineHeight: 22,
+    marginTop: SPACING.SM,
+    marginBottom: SPACING.XS,
+  },
+  boldText: {
+    fontWeight: TYPOGRAPHY.WEIGHT_SEMIBOLD,
+    color: COLORS.TEXT_PRIMARY,
+  },
+  italicText: {
+    fontStyle: "italic",
+    color: "rgba(255,255,255,0.85)",
+  },
+  strikethroughText: {
+    textDecorationLine: "line-through",
+    color: COLORS.TEXT_MUTED,
+  },
+  linkText: {
+    color: COLORS.STATUS_INFO,
+    textDecorationLine: "underline",
+  },
+  blockquote: {
+    borderLeftWidth: 3,
+    borderLeftColor: "rgba(255,255,255,0.15)",
+    paddingLeft: SPACING.MD,
+    marginVertical: SPACING.XS,
+  },
+  blockquoteText: {
+    color: COLORS.TEXT_SECONDARY,
+    fontSize: TYPOGRAPHY.SIZE_LG,
+    lineHeight: 22,
+    fontStyle: "italic",
+  },
+  horizontalRule: {
+    height: 1,
+    backgroundColor: COLORS.BORDER,
+    marginVertical: SPACING.MD,
   },
   paragraphBreak: {
     height: SPACING.SM,
