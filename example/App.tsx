@@ -1799,7 +1799,7 @@ const styles = {
   },
   container: {
     flex: 1,
-    backgroundColor: "orange",
+    backgroundColor: "yellow",
   },
   view: {
     flex: 1,

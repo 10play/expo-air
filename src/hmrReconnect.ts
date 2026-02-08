@@ -45,7 +45,6 @@ if (typeof __DEV__ !== "undefined" && __DEV__) {
   const MAX_ATTEMPTS = 50;
   const BASE_DELAY = 2000;
   const MAX_DELAY = 30000;
-  const HEALTH_CHECK_INTERVAL = 5000; // Check server reachability every 5s
 
   function isMetroHMRUrl(url: string): boolean {
     return typeof url === "string" && url.includes("/hot");
@@ -339,40 +338,6 @@ if (typeof __DEV__ !== "undefined" && __DEV__) {
   (globalThis.WebSocket as any).OPEN = OriginalWebSocket.OPEN;
   (globalThis.WebSocket as any).CLOSING = OriginalWebSocket.CLOSING;
   (globalThis.WebSocket as any).CLOSED = OriginalWebSocket.CLOSED;
-
-  // === Periodic health check ===
-  // Backup mechanism: if HMR reconnect + retrigger didn't work through the
-  // WebSocket wrapper, periodically check if the server is reachable and
-  // retrigger when it comes back after being unreachable.
-  if (serverHttpUrl) {
-    let serverWasUnreachable = false;
-
-    setInterval(() => {
-      globalThis
-        .fetch(`${serverHttpUrl}/health`, { method: "GET" })
-        .then((res) => {
-          if (res.ok && serverWasUnreachable) {
-            serverWasUnreachable = false;
-            console.log(
-              "[expo-air:hmr] Server became reachable again, triggering HMR retrigger"
-            );
-            notifyServerOfReconnection();
-          } else if (res.ok) {
-            // Server is reachable, all good
-          }
-        })
-        .catch(() => {
-          if (!serverWasUnreachable) {
-            serverWasUnreachable = true;
-            console.log("[expo-air:hmr] Server became unreachable");
-          }
-        });
-    }, HEALTH_CHECK_INTERVAL);
-
-    console.log(
-      `[expo-air:hmr] Health check started (every ${HEALTH_CHECK_INTERVAL / 1000}s)`
-    );
-  }
 
   // Log final initialization state
   console.log("[expo-air:hmr] Module initialized", {

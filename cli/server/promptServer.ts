@@ -257,12 +257,6 @@ export class PromptServer {
           return;
         }
 
-        if (req.url === "/health" && req.method === "GET") {
-          res.writeHead(200);
-          res.end("OK");
-          return;
-        }
-
         if (req.url === "/hmr-retrigger" && req.method === "POST") {
           this.retriggerHMR();
           res.writeHead(200);
