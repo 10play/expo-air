@@ -1,8 +1,8 @@
 import chalk from "chalk";
-import { spawn, execSync } from "child_process";
+import { spawn, execSync, type ChildProcess } from "child_process";
 import { existsSync, unlinkSync } from "fs";
 import { join } from "path";
-import { DevEnvironment } from "../runner/devEnvironment.js";
+import { DevEnvironment, killProcessTree } from "../runner/devEnvironment.js";
 import { writeLocalConfig, updateInfoPlist, getPackageRoot } from "../utils/common.js";
 
 export interface DevOptions {
@@ -10,6 +10,7 @@ export interface DevOptions {
   widgetPort?: string;
   metroPort?: string;
   project?: string;
+  device?: string;
 }
 
 export async function devCommand(options: DevOptions): Promise<void> {
@@ -27,6 +28,45 @@ export async function devCommand(options: DevOptions): Promise<void> {
     metroCommand: "npm",
     watchServer: true,
   });
+
+  // Track the build process so we can kill it on shutdown
+  let buildProcess: ChildProcess | null = null;
+  let isShuttingDown = false;
+
+  // Set up graceful shutdown early so Ctrl+C works at any point
+  // (during build, during runtime, etc.)
+  const shutdown = async () => {
+    if (isShuttingDown) return;
+    isShuttingDown = true;
+
+    console.log(chalk.gray("\n  Shutting down dev environment..."));
+
+    // Kill the build/run process tree if still running
+    if (buildProcess?.pid) {
+      await killProcessTree(buildProcess.pid);
+    }
+
+    // Kill all managed processes (Metro, prompt server, watchers)
+    const state = env.getState();
+    if (state.widgetProcess?.pid) {
+      await killProcessTree(state.widgetProcess.pid);
+    }
+    if (state.appProcess?.pid) {
+      await killProcessTree(state.appProcess.pid);
+    }
+    if (state.serverWatcher) {
+      await state.serverWatcher.close();
+    }
+    if (state.promptServer) {
+      await state.promptServer.stop();
+    }
+
+    console.log(chalk.green("  ✓ Dev environment stopped.\n"));
+    process.exit(0);
+  };
+
+  process.on("SIGINT", shutdown);
+  process.on("SIGTERM", shutdown);
 
   // Allocate ports
   await env.allocatePorts();
@@ -94,9 +134,17 @@ export async function devCommand(options: DevOptions): Promise<void> {
   console.log(chalk.blue("  📱 Building for iOS Simulator..."));
   console.log(chalk.blue("  ─────────────────────────────────────────────\n"));
 
-  const buildProcess = spawn(
+  const runArgs = ["expo", "run:ios", "--port", String(ports.appMetro)];
+  if (options.device) {
+    runArgs.push("--device", options.device);
+  } else {
+    // Interactive device picker
+    runArgs.push("--device");
+  }
+
+  buildProcess = spawn(
     "npx",
-    ["expo", "run:ios", "--port", String(ports.appMetro)],
+    runArgs,
     {
       cwd: projectRoot,
       stdio: "inherit",
@@ -107,15 +155,16 @@ export async function devCommand(options: DevOptions): Promise<void> {
     }
   );
 
+  const bp = buildProcess;
   await new Promise<void>((resolve, reject) => {
-    buildProcess.on("close", (code) => {
+    bp.on("close", (code) => {
       if (code === 0) {
         resolve();
       } else {
         reject(new Error(`Simulator build failed with code ${code}`));
       }
     });
-    buildProcess.on("error", reject);
+    bp.on("error", reject);
   });
 
   // Build succeeded
@@ -131,7 +180,4 @@ export async function devCommand(options: DevOptions): Promise<void> {
   console.log(chalk.white(`    App:     http://localhost:${ports.appMetro}`));
   console.log(chalk.gray("  ─────────────────────────────────────────────"));
   console.log(chalk.yellow("\n  Waiting for prompts... (Ctrl+C to stop)\n"));
-
-  // Set up graceful shutdown
-  env.setupShutdownHandlers("Shutting down dev environment...");
 }

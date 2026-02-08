@@ -40,7 +40,7 @@ export function isPortAvailable(port: number): Promise<boolean> {
  */
 export async function findFreePort(
   startPort: number,
-  maxAttempts: number = 10,
+  maxAttempts: number = 50,
   excludePorts: number[] = []
 ): Promise<number> {
   for (let i = 0; i < maxAttempts; i++) {
