@@ -311,6 +311,33 @@ export class PromptServer {
         stdio: ["pipe", "pipe", "pipe"],
       });
 
+      // Auto-pop stash if there's an expo-air-auto-stash entry for this branch
+      try {
+        const stashList = execFileSync("git", ["stash", "list"], {
+          cwd: this.projectRoot,
+          encoding: "utf-8",
+          stdio: ["pipe", "pipe", "pipe"],
+        });
+        const stashLines = stashList.split("\n");
+        const autoStashIndex = stashLines.findIndex((line) =>
+          line.includes("expo-air-auto-stash")
+        );
+        if (autoStashIndex !== -1) {
+          try {
+            execFileSync("git", ["stash", "pop", `stash@{${autoStashIndex}}`], {
+              cwd: this.projectRoot,
+              encoding: "utf-8",
+              stdio: ["pipe", "pipe", "pipe"],
+            });
+            this.log("Restored auto-stashed changes", "info");
+          } catch {
+            this.log("Warning: failed to pop auto-stash (possible merge conflict). Stash preserved.", "warn");
+          }
+        }
+      } catch {
+        // stash list failed — not critical, just skip
+      }
+
       // Broadcast updated git status
       const currentBranch = this.getBranchName();
       const changes = this.getGitChanges();
