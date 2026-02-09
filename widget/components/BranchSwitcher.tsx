@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -78,21 +78,8 @@ export function BranchSwitcher({
 }: BranchSwitcherProps) {
   const [showCreateInput, setShowCreateInput] = useState(false);
   const [newBranchName, setNewBranchName] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
-  const searchInputRef = useRef<TextInput>(null);
 
-  const sections = useMemo(
-    () => groupBranches(branches, searchQuery),
-    [branches, searchQuery]
-  );
-
-  useEffect(() => {
-    if (!loading && branches.length > 0) {
-      // Small delay so the dropdown renders before we focus
-      const timer = setTimeout(() => searchInputRef.current?.focus(), 100);
-      return () => clearTimeout(timer);
-    }
-  }, [loading, branches.length]);
+  const sections = groupBranches(branches, "");
 
   const handleCreate = () => {
     const trimmed = newBranchName.trim();
@@ -166,40 +153,20 @@ export function BranchSwitcher({
             <LoadingDots />
           </View>
         ) : (
-          <>
-            <View style={styles.searchContainer}>
-              <TextInput
-                ref={searchInputRef}
-                style={styles.searchInput}
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                placeholder="Filter branches"
-                placeholderTextColor={COLORS.TEXT_MUTED}
-                autoCapitalize="none"
-                autoCorrect={false}
-                returnKeyType="done"
-              />
-            </View>
-            <ScrollView style={styles.branchList} bounces={false}>
-              {sections.map((section) => (
-                <View key={section.title}>
-                  <View style={styles.sectionHeader}>
-                    <Text style={styles.sectionHeaderText}>
-                      {section.title}
-                    </Text>
-                  </View>
-                  {section.branches.map((branch, index) =>
-                    renderBranchItem(branch, index === 0)
-                  )}
+          <ScrollView style={styles.branchList} bounces={false}>
+            {sections.map((section) => (
+              <View key={section.title}>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionHeaderText}>
+                    {section.title}
+                  </Text>
                 </View>
-              ))}
-              {sections.length === 0 && searchQuery.trim() !== "" && (
-                <View style={styles.emptyState}>
-                  <Text style={styles.emptyStateText}>No matching branches</Text>
-                </View>
-              )}
-            </ScrollView>
-          </>
+                {section.branches.map((branch, index) =>
+                  renderBranchItem(branch, index === 0)
+                )}
+              </View>
+            ))}
+          </ScrollView>
         )}
 
         <View style={styles.createSection}>
@@ -326,21 +293,6 @@ const styles = StyleSheet.create({
     borderRadius: 3,
     backgroundColor: "rgba(255,255,255,0.5)",
   },
-  searchContainer: {
-    paddingHorizontal: SPACING.MD,
-    paddingTop: SPACING.MD,
-    paddingBottom: SPACING.SM,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "rgba(255,255,255,0.08)",
-  },
-  searchInput: {
-    backgroundColor: "rgba(255,255,255,0.08)",
-    color: COLORS.TEXT_PRIMARY,
-    fontSize: TYPOGRAPHY.SIZE_MD,
-    paddingHorizontal: SPACING.MD,
-    paddingVertical: SPACING.SM,
-    borderRadius: 10,
-  },
   branchList: {
     maxHeight: 300,
   },
@@ -413,14 +365,6 @@ const styles = StyleSheet.create({
     color: COLORS.STATUS_SUCCESS,
     fontSize: TYPOGRAPHY.SIZE_SM,
     marginLeft: SPACING.SM,
-  },
-  emptyState: {
-    paddingVertical: SPACING.XL,
-    alignItems: "center",
-  },
-  emptyStateText: {
-    color: COLORS.TEXT_MUTED,
-    fontSize: TYPOGRAPHY.SIZE_SM,
   },
   createSection: {
     paddingHorizontal: SPACING.LG,
