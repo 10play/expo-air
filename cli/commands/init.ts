@@ -1,5 +1,5 @@
 import chalk from "chalk";
-import { spawn } from "child_process";
+import { execSync, spawn } from "child_process";
 import * as path from "path";
 import * as fs from "fs";
 interface InitOptions {
@@ -38,7 +38,31 @@ export async function initCommand(options: InitOptions): Promise<void> {
     process.exit(1);
   }
 
-  // Step 2: Create .expo-air.json config file
+  // Step 2: Install @10play/expo-air if not already installed
+  const packageJsonPath = path.join(projectRoot, "package.json");
+  const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf-8"));
+  const allDeps = { ...packageJson.dependencies, ...packageJson.devDependencies };
+
+  if (!allDeps["@10play/expo-air"]) {
+    console.log(chalk.gray("  Installing @10play/expo-air...\n"));
+    const cmd = fs.existsSync(path.join(projectRoot, "bun.lockb")) || fs.existsSync(path.join(projectRoot, "bun.lock"))
+      ? "bun add @10play/expo-air"
+      : fs.existsSync(path.join(projectRoot, "pnpm-lock.yaml"))
+      ? "pnpm add @10play/expo-air"
+      : fs.existsSync(path.join(projectRoot, "yarn.lock"))
+      ? "yarn add @10play/expo-air"
+      : "npm install @10play/expo-air";
+
+    try {
+      execSync(cmd, { cwd: projectRoot, stdio: "inherit" });
+      console.log(chalk.green("  Installed @10play/expo-air"));
+    } catch {
+      console.log(chalk.red(`  Failed to install. Run manually: ${cmd}\n`));
+      process.exit(1);
+    }
+  }
+
+  // Step 3: Create .expo-air.json config file
   const configPath = path.join(projectRoot, ".expo-air.json");
   if (fs.existsSync(configPath) && !options.force) {
     console.log(chalk.yellow("  .expo-air.json already exists (use --force to overwrite)"));
@@ -47,7 +71,7 @@ export async function initCommand(options: InitOptions): Promise<void> {
     console.log(chalk.green("  Created .expo-air.json"));
   }
 
-  // Step 3: Add plugin to app.json
+  // Step 4: Add plugin to app.json
   if (fs.existsSync(appJsonPath)) {
     try {
       const appJsonContent = fs.readFileSync(appJsonPath, "utf-8");
@@ -82,7 +106,7 @@ export async function initCommand(options: InitOptions): Promise<void> {
     console.log(chalk.gray('    plugins: ["@10play/expo-air"]\n'));
   }
 
-  // Step 4: Add .expo-air.local.json to .gitignore
+  // Step 5: Add .expo-air.local.json to .gitignore
   const gitignorePath = path.join(projectRoot, ".gitignore");
   const gitignoreEntry = ".expo-air.local.json";
 
@@ -99,7 +123,7 @@ export async function initCommand(options: InitOptions): Promise<void> {
     console.log(chalk.green("  Created .gitignore with .expo-air.local.json"));
   }
 
-  // Step 5: Run expo prebuild (unless --skip-prebuild)
+  // Step 6: Run expo prebuild (unless --skip-prebuild)
   if (!options.skipPrebuild) {
     console.log(chalk.gray("\n  Running expo prebuild --platform ios --clean..."));
     console.log(chalk.gray("  This generates native iOS code with expo-air plugin\n"));
