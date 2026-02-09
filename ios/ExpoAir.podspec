@@ -21,6 +21,8 @@ Pod::Spec.new do |s|
   s.dependency 'ExpoModulesCore'
   s.dependency 'React-RCTAppDelegate'
 
+  s.frameworks = 'PhotosUI'
+
   bundle_path = File.join(__dir__, 'widget.jsbundle')
   if File.exist?(bundle_path)
     s.resource = 'widget.jsbundle'
