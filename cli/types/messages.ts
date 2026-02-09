@@ -152,6 +152,7 @@ export interface BranchCreatedMessage {
 export interface ConversationEntry {
   role: "user" | "assistant";
   content: string;
+  imagePaths?: string[];
   timestamp: number;
 }
 

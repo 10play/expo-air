@@ -4,7 +4,7 @@ import { type Server as HttpServer } from "http";
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { randomUUID } from "crypto";
 import { execSync, execFileSync } from "child_process";
-import { readFileSync, writeFileSync, existsSync, mkdirSync, rmSync } from "fs";
+import { readFileSync, writeFileSync, existsSync, mkdirSync, rmSync, copyFileSync } from "fs";
 import { join } from "path";
 import chalk from "chalk";
 import type {
@@ -534,6 +534,29 @@ export class PromptServer {
     }
   }
 
+  private persistImages(sourcePaths: string[]): string[] {
+    const imageDir = this.getImageDir();
+    if (!existsSync(imageDir)) {
+      mkdirSync(imageDir, { recursive: true });
+    }
+    const persisted: string[] = [];
+    for (const src of sourcePaths) {
+      try {
+        if (!existsSync(src)) {
+          this.log(`Image file not found, skipping: ${src}`, "error");
+          continue;
+        }
+        const ext = src.split(".").pop() || "png";
+        const dest = join(imageDir, `${randomUUID()}.${ext}`);
+        copyFileSync(src, dest);
+        persisted.push(dest);
+      } catch (error) {
+        this.log(`Failed to persist image ${src}: ${error}`, "error");
+      }
+    }
+    return persisted;
+  }
+
   private handleHttpRequest(req: http.IncomingMessage, res: http.ServerResponse): void {
     const reqUrl = new URL(req.url || "/", `http://localhost:${this.port}`);
 
@@ -879,19 +902,14 @@ export class PromptServer {
         "prompt"
       );
 
-      // Build prompt content, appending image read instructions if images are attached
-      let promptContent = message.content;
+      // Persist images to stable location and track paths
+      let persistedImagePaths: string[] | undefined;
       if (message.imagePaths && message.imagePaths.length > 0) {
-        const imageInstructions = message.imagePaths.map(
-          (p) => `Use the Read tool to view the image at: ${p}`
-        ).join("\n");
-        promptContent = promptContent
-          ? `${promptContent}\n\n[Attached images — please view them first]\n${imageInstructions}`
-          : `[Attached images — please view them]\n${imageInstructions}`;
+        persistedImagePaths = this.persistImages(message.imagePaths);
         this.log(`Prompt includes ${message.imagePaths.length} image(s)`, "info");
       }
 
-      this.executeWithSDK(ws, promptId, promptContent);
+      this.executeWithSDK(ws, promptId, message.content, persistedImagePaths);
       return;
     }
 
@@ -1069,14 +1087,17 @@ export class PromptServer {
   private async executeWithSDK(
     ws: WebSocket,
     promptId: string,
-    content: string
+    content: string,
+    imagePaths?: string[]
   ): Promise<void> {
-    // Add user prompt to history
-    this.conversationHistory.push({
-      role: "user",
+    // Add user prompt to history (original content + image paths for UI persistence)
+    const historyEntry: AnyConversationEntry = {
+      role: "user" as const,
       content,
       timestamp: Date.now(),
-    });
+      ...(imagePaths && imagePaths.length > 0 ? { imagePaths } : {}),
+    };
+    this.conversationHistory.push(historyEntry);
 
     // Send processing status
     this.sendToClient(ws, {
@@ -1094,9 +1115,20 @@ export class PromptServer {
     this.currentStreamedResponse = "";
 
     try {
+      // Build prompt for Claude, appending image read instructions if images are attached
+      let promptContent = content;
+      if (imagePaths && imagePaths.length > 0) {
+        const imageInstructions = imagePaths.map(
+          (p) => `Use the Read tool to view the image at: ${p}`
+        ).join("\n");
+        promptContent = promptContent
+          ? `${promptContent}\n\n[Attached images — please view them first]\n${imageInstructions}`
+          : `[Attached images — please view them]\n${imageInstructions}`;
+      }
+
       // Create the query with Claude Agent SDK
       this.currentQuery = query({
-        prompt: content,
+        prompt: promptContent,
         options: {
           cwd: this.projectRoot,
           abortController: this.abortController,
