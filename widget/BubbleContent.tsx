@@ -466,13 +466,15 @@ export function BubbleContent({
         onViewPR={handleViewPR}
       />
       <View style={styles.body}>
-        {activeTab === "chat" ? (
+        {status === "disconnected" && messages.length === 0 ? (
+          <DisconnectedView />
+        ) : activeTab === "chat" ? (
           <ResponseArea messages={messages} currentParts={currentParts} />
         ) : (
           <GitChangesTab changes={gitChanges} onDiscard={handleDiscard} />
         )}
       </View>
-      {activeTab === "chat" && (
+      {activeTab === "chat" && status !== "disconnected" && (
         <PromptInput
           ref={promptInputRef}
           onSubmit={handleSubmit}
@@ -492,6 +494,20 @@ export function BubbleContent({
           error={branchError}
         />
       )}
+    </View>
+  );
+}
+
+function DisconnectedView() {
+  return (
+    <View style={styles.disconnectedContainer}>
+      <Text style={styles.disconnectedTitle}>Server not running</Text>
+      <Text style={styles.disconnectedSubtitle}>
+        Start the development server from your project directory:
+      </Text>
+      <View style={styles.codeBlock}>
+        <Text style={styles.codeText}>npx expo-air start</Text>
+      </View>
     </View>
   );
 }
@@ -842,5 +858,36 @@ const styles = StyleSheet.create({
   body: {
     flex: 1,
     backgroundColor: COLORS.BACKGROUND_ELEVATED,
+  },
+  disconnectedContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: SPACING.XXL,
+  },
+  disconnectedTitle: {
+    color: COLORS.TEXT_MUTED,
+    fontSize: TYPOGRAPHY.SIZE_LG,
+    fontWeight: TYPOGRAPHY.WEIGHT_SEMIBOLD,
+    marginBottom: SPACING.SM,
+  },
+  disconnectedSubtitle: {
+    color: COLORS.TEXT_MUTED,
+    fontSize: TYPOGRAPHY.SIZE_SM,
+    textAlign: "center",
+    marginBottom: SPACING.LG,
+  },
+  codeBlock: {
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderRadius: LAYOUT.BORDER_RADIUS_SM,
+    paddingHorizontal: SPACING.LG,
+    paddingVertical: SPACING.MD,
+    borderWidth: 1,
+    borderColor: COLORS.BORDER,
+  },
+  codeText: {
+    color: COLORS.TEXT_SECONDARY,
+    fontSize: TYPOGRAPHY.SIZE_SM,
+    fontFamily: "Menlo",
   },
 });
