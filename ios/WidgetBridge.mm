@@ -66,6 +66,17 @@
 
 static WidgetBridge *sharedBridgeInstance = nil;
 static IMP originalTextViewPasteIMP = NULL;
+static IMP originalCanPerformActionIMP = NULL;
+
+static BOOL swizzledCanPerformAction(UITextView *self, SEL _cmd, SEL action, id sender) {
+    if (action == @selector(paste:) && [UIPasteboard generalPasteboard].hasImages) {
+        return YES;
+    }
+    if (originalCanPerformActionIMP) {
+        return ((BOOL(*)(id, SEL, SEL, id))originalCanPerformActionIMP)(self, _cmd, action, sender);
+    }
+    return NO;
+}
 
 static void swizzledTextViewPaste(UITextView *self, SEL _cmd, id sender) {
     UIPasteboard *pb = [UIPasteboard generalPasteboard];
@@ -101,9 +112,13 @@ RCT_EXPORT_MODULE();
 + (void)initialize {
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
-        Method method = class_getInstanceMethod([UITextView class], @selector(paste:));
-        originalTextViewPasteIMP = method_getImplementation(method);
-        method_setImplementation(method, (IMP)swizzledTextViewPaste);
+        Method pasteMethod = class_getInstanceMethod([UITextView class], @selector(paste:));
+        originalTextViewPasteIMP = method_getImplementation(pasteMethod);
+        method_setImplementation(pasteMethod, (IMP)swizzledTextViewPaste);
+
+        Method canPerformMethod = class_getInstanceMethod([UITextView class], @selector(canPerformAction:withSender:));
+        originalCanPerformActionIMP = method_getImplementation(canPerformMethod);
+        method_setImplementation(canPerformMethod, (IMP)swizzledCanPerformAction);
     });
 }
 
