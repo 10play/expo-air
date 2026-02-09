@@ -94,7 +94,7 @@ export function BubbleContent({
 
   // Expanded: Full panel dropping down from Dynamic Island position
   return (
-    <View style={styles.expanded}>
+    <View style={[styles.expanded, { backgroundColor: color }]}>
       <Header
         status={status}
         branchName={git.branchName}

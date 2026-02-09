@@ -1,6 +1,27 @@
 import UIKit
 import React
 
+// MARK: - UIColor Hex Extension
+
+extension UIColor {
+    convenience init?(hex: String) {
+        var hexSanitized = hex.trimmingCharacters(in: .whitespacesAndNewlines)
+        hexSanitized = hexSanitized.replacingOccurrences(of: "#", with: "")
+
+        guard hexSanitized.count == 6,
+              let rgb = UInt64(hexSanitized, radix: 16) else {
+            return nil
+        }
+
+        self.init(
+            red: CGFloat((rgb >> 16) & 0xFF) / 255.0,
+            green: CGFloat((rgb >> 8) & 0xFF) / 255.0,
+            blue: CGFloat(rgb & 0xFF) / 255.0,
+            alpha: 1.0
+        )
+    }
+}
+
 // MARK: - DynamicIslandExtensionView
 // Custom view that draws a smooth shape extending from the Dynamic Island
 // with curved "shoulders" like a mushroom cap
@@ -195,6 +216,7 @@ class FloatingBubbleViewController: UIViewController, UIGestureRecognizerDelegat
         shapeView.topWidth = collapsedTopWidth
         shapeView.bottomWidth = collapsedBottomWidth
         shapeView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        shapeView.fillColor = UIColor(hex: bubbleColor) ?? .black
         bubbleContainer.addSubview(shapeView)
 
         // Native gray placeholder dot — visible until RN bundle loads and renders its colored dot on top
@@ -388,7 +410,7 @@ class FloatingBubbleViewController: UIViewController, UIGestureRecognizerDelegat
         guard let surfaceView = reactSurfaceView as? RCTSurfaceHostingProxyRootView else { return }
         var props: [String: Any] = [
             "size": bubbleSize,
-            "color": "#000000",
+            "color": bubbleColor,
             "expanded": isExpanded,
         ]
         if let serverUrl = serverUrl {
@@ -420,7 +442,7 @@ class FloatingBubbleViewController: UIViewController, UIGestureRecognizerDelegat
 
         // Prepare visual state
         self.shapeView.alpha = 0
-        self.bubbleContainer.backgroundColor = .black
+        self.bubbleContainer.backgroundColor = UIColor(hex: bubbleColor) ?? .black
         self.bubbleContainer.layer.cornerRadius = self.expandedCornerRadius
 
         // Hide collapsed placeholder, show expanded placeholder
