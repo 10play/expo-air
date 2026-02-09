@@ -3,7 +3,7 @@ import { spawn, execSync, type ChildProcess } from "child_process";
 import { existsSync, unlinkSync } from "fs";
 import { join } from "path";
 import { DevEnvironment, killProcessTree } from "../runner/devEnvironment.js";
-import { writeLocalConfig, updateInfoPlist, getPackageRoot } from "../utils/common.js";
+import { writeLocalConfig, updateInfoPlist, getPackageRoot, appendSecret } from "../utils/common.js";
 
 export interface DevOptions {
   port: string;
@@ -113,12 +113,8 @@ export async function devCommand(options: DevOptions): Promise<void> {
   const projectRoot = env.getProjectRoot();
 
   // Write local config with localhost URLs so the app knows where to find the servers
-  const secret = env.getServerSecret();
-  const serverUrl = secret
-    ? `ws://localhost:${ports.promptServer}?secret=${secret}`
-    : `ws://localhost:${ports.promptServer}`;
   const localConfig: Record<string, string> = {
-    serverUrl,
+    serverUrl: appendSecret(`ws://localhost:${ports.promptServer}`, env.getServerSecret()),
   };
   if (ports.widgetMetro) {
     localConfig.widgetMetroUrl = `http://localhost:${ports.widgetMetro}`;

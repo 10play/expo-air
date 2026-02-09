@@ -1,7 +1,7 @@
 import { WebSocketServer, WebSocket } from "ws";
 import { createServer, type Server as HttpServer } from "http";
 import { query } from "@anthropic-ai/claude-agent-sdk";
-import { randomUUID, randomBytes } from "crypto";
+import { randomUUID } from "crypto";
 import { execSync, execFileSync } from "child_process";
 import { readFileSync, writeFileSync, existsSync } from "fs";
 import { join } from "path";
@@ -41,10 +41,10 @@ export class PromptServer {
   private lastToolInput: unknown = undefined;
   private secret: string | null = null;
 
-  constructor(port: number, projectRoot?: string, secret?: string) {
+  constructor(port: number, projectRoot?: string, secret?: string | null) {
     this.port = port;
     this.projectRoot = projectRoot || process.cwd();
-    this.secret = secret || null;
+    this.secret = secret ?? null;
     this.loadSession();
   }
 

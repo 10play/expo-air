@@ -1,5 +1,6 @@
 import chalk from "chalk";
 import { ChildProcess } from "child_process";
+import { randomBytes } from "crypto";
 import * as path from "path";
 import * as fs from "fs";
 import { fileURLToPath } from "url";
@@ -20,6 +21,8 @@ import {
   writeLocalConfig,
   readExpoAirConfig,
   updateEnvFile,
+  maskSecret,
+  appendSecret,
 } from "../utils/common.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -283,7 +286,6 @@ export class DevEnvironment {
     }
 
     console.log(chalk.gray("\n  Starting prompt server..."));
-    const { randomBytes } = await import("crypto");
     this.state.serverSecret = randomBytes(32).toString("hex");
     const { PromptServer } = await import("../server/promptServer.js");
     this.state.promptServer = new PromptServer(this.state.ports.promptServer, this.state.projectRoot, this.state.serverSecret);
@@ -348,7 +350,7 @@ export class DevEnvironment {
           const { PromptServer } = await import(`../server/promptServer.js${cacheBust}`);
 
           // Create and start new server
-          const newServer = new PromptServer(this.state.ports.promptServer, this.state.projectRoot, this.state.serverSecret ?? undefined);
+          const newServer = new PromptServer(this.state.ports.promptServer, this.state.projectRoot, this.state.serverSecret);
           await newServer.start();
           this.state.promptServer = newServer;
 
@@ -381,9 +383,7 @@ export class DevEnvironment {
     try {
       const info = await this.state.promptTunnel.start(this.state.ports.promptServer);
       const wsUrl = info.url.replace("https://", "wss://");
-      this.state.tunnelUrls.promptServer = this.state.serverSecret
-        ? `${wsUrl}?secret=${this.state.serverSecret}`
-        : wsUrl;
+      this.state.tunnelUrls.promptServer = appendSecret(wsUrl, this.state.serverSecret);
       console.log(chalk.green(`  ✓ Prompt tunnel ready`));
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -543,7 +543,7 @@ export class DevEnvironment {
 
     // Build local server URL with secret when tunnels are not used
     const localServerUrl = this.state.serverSecret
-      ? `ws://localhost:${this.state.ports.promptServer}?secret=${this.state.serverSecret}`
+      ? appendSecret(`ws://localhost:${this.state.ports.promptServer}`, this.state.serverSecret)
       : null;
 
     if (!promptServer && !localServerUrl && !widgetMetro && !appMetro) {
@@ -596,8 +596,7 @@ export class DevEnvironment {
     if (hasRemoteTunnels) {
       console.log(chalk.gray("\n  Remote (anywhere):"));
       if (promptServer) {
-        const displayUrl = promptServer.replace(/([?&])secret=[^&]+/, "$1secret=***");
-        console.log(chalk.white(`    Prompt Server: ${displayUrl}`));
+        console.log(chalk.white(`    Prompt Server: ${maskSecret(promptServer)}`));
       }
       if (widgetMetro) {
         console.log(chalk.white(`    Widget Metro:  ${widgetMetro}`));

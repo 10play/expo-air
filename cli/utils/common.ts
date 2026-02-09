@@ -309,6 +309,20 @@ export function updateEnvFile(
  * Bundle IDs can only contain alphanumeric characters and hyphens.
  * The result is lowercased and truncated to 30 characters.
  */
+/**
+ * Mask the secret query parameter in a URL for safe logging.
+ */
+export function maskSecret(url: string): string {
+  return url.replace(/([?&])secret=[^&]+/, "$1secret=***");
+}
+
+/**
+ * Append a secret query parameter to a URL.
+ */
+export function appendSecret(url: string, secret: string | null): string {
+  return secret ? `${url}?secret=${secret}` : url;
+}
+
 export function getGitBranchSuffix(cwd?: string): string | null {
   try {
     const branch = execSync("git rev-parse --abbrev-ref HEAD", {

@@ -23,18 +23,22 @@ if (typeof __DEV__ !== "undefined" && __DEV__) {
 
   const OriginalWebSocket = globalThis.WebSocket;
 
+  function maskSecret(url: string): string {
+    return url.replace(/([?&])secret=[^&]+/, "$1secret=***");
+  }
+
   // Get the prompt server URL for retrigger requests
   let serverHttpUrl: string | null = null;
   try {
     const ExpoAirModule =
       require("./ExpoAirModule").default ?? require("./ExpoAirModule");
     const wsUrl: string = ExpoAirModule.getServerUrl?.();
-    console.log("[expo-air:hmr] Server URL from native module:", wsUrl?.replace(/([?&])secret=[^&]+/, "$1secret=***"));
+    console.log("[expo-air:hmr] Server URL from native module:", wsUrl ? maskSecret(wsUrl) : wsUrl);
     if (wsUrl) {
       serverHttpUrl = wsUrl
         .replace(/^ws:/, "http:")
         .replace(/^wss:/, "https:");
-      console.log("[expo-air:hmr] HTTP URL for retrigger:", serverHttpUrl?.replace(/([?&])secret=[^&]+/, "$1secret=***"));
+      console.log("[expo-air:hmr] HTTP URL for retrigger:", maskSecret(serverHttpUrl));
     } else {
       console.warn("[expo-air:hmr] getServerUrl() returned empty/null");
     }
@@ -61,7 +65,7 @@ if (typeof __DEV__ !== "undefined" && __DEV__) {
     retriggerUrl.pathname = "/hmr-retrigger";
     console.log(
       "[expo-air:hmr] Sending retrigger request to:",
-      retriggerUrl.toString().replace(/([?&])secret=[^&]+/, "$1secret=***")
+      maskSecret(retriggerUrl.toString())
     );
     globalThis
       .fetch(retriggerUrl.toString(), { method: "POST" })
