@@ -19,7 +19,7 @@ const DEFAULT_CONFIG: ExpoAirConfig = {
   autoShow: true,
   ui: {
     bubbleSize: 60,
-    bubbleColor: "#007AFF",
+    bubbleColor: "#000000",
   },
 };
 
@@ -41,17 +41,22 @@ export async function initCommand(options: InitOptions): Promise<void> {
   // Step 2: Install @10play/expo-air if not already installed
   const packageJsonPath = path.join(projectRoot, "package.json");
   const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf-8"));
-  const allDeps = { ...packageJson.dependencies, ...packageJson.devDependencies };
+  const allDeps = {
+    ...packageJson.dependencies,
+    ...packageJson.devDependencies,
+  };
 
   if (!allDeps["@10play/expo-air"]) {
     console.log(chalk.gray("  Installing @10play/expo-air...\n"));
-    const cmd = fs.existsSync(path.join(projectRoot, "bun.lockb")) || fs.existsSync(path.join(projectRoot, "bun.lock"))
-      ? "bun add @10play/expo-air"
-      : fs.existsSync(path.join(projectRoot, "pnpm-lock.yaml"))
-      ? "pnpm add @10play/expo-air"
-      : fs.existsSync(path.join(projectRoot, "yarn.lock"))
-      ? "yarn add @10play/expo-air"
-      : "npm install @10play/expo-air";
+    const cmd =
+      fs.existsSync(path.join(projectRoot, "bun.lockb")) ||
+      fs.existsSync(path.join(projectRoot, "bun.lock"))
+        ? "bun add @10play/expo-air"
+        : fs.existsSync(path.join(projectRoot, "pnpm-lock.yaml"))
+          ? "pnpm add @10play/expo-air"
+          : fs.existsSync(path.join(projectRoot, "yarn.lock"))
+            ? "yarn add @10play/expo-air"
+            : "npm install @10play/expo-air";
 
     try {
       execSync(cmd, { cwd: projectRoot, stdio: "inherit" });
@@ -65,9 +70,16 @@ export async function initCommand(options: InitOptions): Promise<void> {
   // Step 3: Create .expo-air.json config file
   const configPath = path.join(projectRoot, ".expo-air.json");
   if (fs.existsSync(configPath) && !options.force) {
-    console.log(chalk.yellow("  .expo-air.json already exists (use --force to overwrite)"));
+    console.log(
+      chalk.yellow(
+        "  .expo-air.json already exists (use --force to overwrite)",
+      ),
+    );
   } else {
-    fs.writeFileSync(configPath, JSON.stringify(DEFAULT_CONFIG, null, 2) + "\n");
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify(DEFAULT_CONFIG, null, 2) + "\n",
+    );
     console.log(chalk.green("  Created .expo-air.json"));
   }
 
@@ -94,7 +106,9 @@ export async function initCommand(options: InitOptions): Promise<void> {
         fs.writeFileSync(appJsonPath, JSON.stringify(appJson, null, 2) + "\n");
         console.log(chalk.green(`  Added ${pluginName} to app.json plugins`));
       } else {
-        console.log(chalk.yellow(`  ${pluginName} already in app.json plugins`));
+        console.log(
+          chalk.yellow(`  ${pluginName} already in app.json plugins`),
+        );
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -102,7 +116,9 @@ export async function initCommand(options: InitOptions): Promise<void> {
       process.exit(1);
     }
   } else {
-    console.log(chalk.yellow("  app.config.js detected - please add plugin manually:"));
+    console.log(
+      chalk.yellow("  app.config.js detected - please add plugin manually:"),
+    );
     console.log(chalk.gray('    plugins: ["@10play/expo-air"]\n'));
   }
 
@@ -113,20 +129,30 @@ export async function initCommand(options: InitOptions): Promise<void> {
   if (fs.existsSync(gitignorePath)) {
     const gitignoreContent = fs.readFileSync(gitignorePath, "utf-8");
     if (!gitignoreContent.includes(gitignoreEntry)) {
-      fs.appendFileSync(gitignorePath, `\n# expo-air local config (tunnel URLs)\n${gitignoreEntry}\n`);
+      fs.appendFileSync(
+        gitignorePath,
+        `\n# expo-air local config (tunnel URLs)\n${gitignoreEntry}\n`,
+      );
       console.log(chalk.green("  Added .expo-air.local.json to .gitignore"));
     } else {
       console.log(chalk.yellow("  .expo-air.local.json already in .gitignore"));
     }
   } else {
-    fs.writeFileSync(gitignorePath, `# expo-air local config (tunnel URLs)\n${gitignoreEntry}\n`);
+    fs.writeFileSync(
+      gitignorePath,
+      `# expo-air local config (tunnel URLs)\n${gitignoreEntry}\n`,
+    );
     console.log(chalk.green("  Created .gitignore with .expo-air.local.json"));
   }
 
   // Step 6: Run expo prebuild (unless --skip-prebuild)
   if (!options.skipPrebuild) {
     console.log(chalk.gray("\n  Running expo prebuild --clean..."));
-    console.log(chalk.gray("  This generates native code with expo-air plugin for both platforms\n"));
+    console.log(
+      chalk.gray(
+        "  This generates native code with expo-air plugin for both platforms\n",
+      ),
+    );
 
     try {
       await new Promise<void>((resolve, reject) => {
@@ -153,7 +179,9 @@ export async function initCommand(options: InitOptions): Promise<void> {
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       console.log(chalk.red(`\n  Prebuild failed: ${message}`));
-      console.log(chalk.gray("  You can run it manually: npx expo prebuild --clean\n"));
+      console.log(
+        chalk.gray("  You can run it manually: npx expo prebuild --clean\n"),
+      );
       process.exit(1);
     }
   } else {
@@ -164,8 +192,9 @@ export async function initCommand(options: InitOptions): Promise<void> {
   // Success message
   console.log(chalk.blue("\n  expo-air initialized!\n"));
   console.log(chalk.gray("  Next steps:"));
-  console.log(chalk.white("    1. Connect your iOS or Android device via cable"));
+  console.log(
+    chalk.white("    1. Connect your iOS or Android device via cable"),
+  );
   console.log(chalk.white("    2. Run: npx expo-air fly"));
   console.log(chalk.white("    3. The widget will appear on your device\n"));
-
 }
