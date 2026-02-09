@@ -6,7 +6,6 @@ const withMDX = createMDX();
 const nextConfig = {
   reactStrictMode: true,
   output: 'export',
-  basePath: process.env.GITHUB_PAGES ? '/expo-air' : undefined,
 };
 
 export default withMDX(nextConfig);
