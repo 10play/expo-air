@@ -77,6 +77,58 @@ export function HeroScrollAnimation() {
     return () => window.removeEventListener('resize', updateTarget);
   }, []);
 
+  // Scroll "no-stop zones": entering a zone forces you to the exit in your scroll direction
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    // [zoneStart, zoneEnd] — scroll progress ranges that push you through
+    const ZONES: [number, number][] = [
+      [0, 0.28], // hero fade → install fully visible
+    ];
+
+    let prevY = window.scrollY;
+    let dir: 'down' | 'up' = 'down';
+    let dirConfirmed = false;
+    let snapping = false;
+
+    const handler = () => {
+      if (snapping) return;
+      const y = window.scrollY;
+      const delta = y - prevY;
+      if (delta === 0) return;
+      // Only confirm direction for meaningful scroll (ignore trackpad bounce)
+      if (Math.abs(delta) > 4) {
+        dir = delta > 0 ? 'down' : 'up';
+        dirConfirmed = true;
+      }
+      prevY = y;
+
+      if (!dirConfirmed) return;
+
+      const range = container.offsetHeight - window.innerHeight;
+      if (range <= 0) return;
+      const progress = (y - container.offsetTop) / range;
+
+      for (const [start, end] of ZONES) {
+        if (progress > start && progress < end) {
+          snapping = true;
+          dirConfirmed = false; // require fresh direction after snap
+          const target = dir === 'down' ? end : start;
+          window.scrollTo({
+            top: container.offsetTop + target * range,
+            behavior: 'smooth',
+          });
+          setTimeout(() => { snapping = false; }, 1200);
+          break;
+        }
+      }
+    };
+
+    window.addEventListener('scroll', handler, { passive: true });
+    return () => window.removeEventListener('scroll', handler);
+  }, []);
+
   // =============================================
   // SCROLL TRACKS — 500vh timeline
   // =============================================
@@ -462,6 +514,20 @@ export function HeroScrollAnimation() {
             </motion.div>
           </motion.div>
         </div>
+        {/* Scroll-down arrow */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.6, delay: 0.8 }}
+          style={{ opacity: buttonsOpacity }}
+          className="absolute bottom-24 left-1/2 z-30 -translate-x-1/2"
+        >
+          <div className="scroll-arrow flex flex-col items-center gap-0.5">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" className="text-fd-foreground/40">
+              <path d="M7 10L12 15L17 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
+        </motion.div>
       </div>
     </section>
   );
