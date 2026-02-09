@@ -131,7 +131,7 @@ export const PromptInput = forwardRef<PromptInputHandle, PromptInputProps>(({
         <TouchableOpacity
           style={styles.iconButton}
           onPress={handlePickImages}
-          disabled={isProcessing}
+          disabled={isBusy}
           activeOpacity={0.6}
         >
           <PlusIcon />
@@ -144,13 +144,17 @@ export const PromptInput = forwardRef<PromptInputHandle, PromptInputProps>(({
           value={text}
           onChangeText={setText}
           onSubmitEditing={handleSubmit}
-          editable={!isProcessing}
+          editable={!isBusy}
           multiline
           maxLength={2000}
           returnKeyType="send"
           blurOnSubmit
         />
-        {isProcessing ? (
+        {isSending ? (
+          <View style={[styles.submitButton, styles.sendingButton]}>
+            <ActivityIndicator size="small" color={COLORS.TEXT_MUTED} />
+          </View>
+        ) : isProcessing ? (
           <TouchableOpacity
             style={[styles.submitButton, styles.stopButton]}
             onPress={onStop}
@@ -283,6 +287,9 @@ const styles = StyleSheet.create({
   },
   submitButtonDisabled: {
     opacity: 0.4,
+  },
+  sendingButton: {
+    backgroundColor: "transparent",
   },
   stopButton: {
     backgroundColor: COLORS.STATUS_NEUTRAL,

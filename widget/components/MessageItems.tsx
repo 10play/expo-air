@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, Platform, Image, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, Platform, Image } from "react-native";
 import type {
   ServerMessage,
   ToolMessage,
@@ -87,12 +87,7 @@ function UserPromptItem({ message }: { message: UserPromptMessage }) {
         </View>
       )}
       {message.content ? (
-        <View style={styles.userPromptRow}>
-          <Text style={styles.userPromptText} selectable>{message.content}</Text>
-          {message.pending && (
-            <ActivityIndicator size="small" color="rgba(255,255,255,0.4)" style={styles.pendingIndicator} />
-          )}
-        </View>
+        <Text style={styles.userPromptText} selectable>{message.content}</Text>
       ) : null}
     </View>
   );
@@ -320,18 +315,10 @@ const styles = StyleSheet.create({
   userPromptPending: {
     opacity: 0.7,
   },
-  userPromptRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
   userPromptText: {
     color: COLORS.TEXT_PRIMARY,
     fontSize: TYPOGRAPHY.SIZE_LG,
     lineHeight: 20,
-    flexShrink: 1,
-  },
-  pendingIndicator: {
-    marginLeft: SPACING.SM,
   },
   userImages: {
     flexDirection: "row",
