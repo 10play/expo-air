@@ -487,7 +487,7 @@ function GTA2Game() {
         {/* NPCs */}
         {gs.npcs.map((npc) => (
           <Image
-            key={`${npc.id}-${npc.dir}-${npc.frame}`}
+            key={npc.id}
             source={NPC_SPR[npc.dir][npc.frame]}
             style={[
               s.sprite,
@@ -503,7 +503,7 @@ function GTA2Game() {
 
         {/* Player */}
         <Image
-          key={`p-${gs.pdir}-${gs.pf}`}
+          key="player"
           source={PLAYER_SPR[gs.pdir][gs.pf]}
           style={[
             s.sprite,
