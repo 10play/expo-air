@@ -75,7 +75,7 @@ function GameTiger({
             easing: Easing.linear,
             useNativeDriver: true,
           }),
-        ])
+        ]),
       );
 
       // Bounce while running
@@ -93,7 +93,7 @@ function GameTiger({
             easing: Easing.inOut(Easing.ease),
             useNativeDriver: true,
           }),
-        ])
+        ]),
       );
 
       runAnimation.start();
@@ -108,7 +108,15 @@ function GameTiger({
       translateX.setValue(-80);
       mouthOpen.setValue(0);
     }
-  }, [isChasing, carPosition, translateX, legAnimation, bounceY, mouthOpen, onCaught]);
+  }, [
+    isChasing,
+    carPosition,
+    translateX,
+    legAnimation,
+    bounceY,
+    mouthOpen,
+    onCaught,
+  ]);
 
   const frontLegRotate = legAnimation.interpolate({
     inputRange: [0, 1],
@@ -406,7 +414,7 @@ function GameCar({
         duration: 300,
         easing: Easing.linear,
         useNativeDriver: true,
-      })
+      }),
     );
     wheelAnimation.start();
     return () => wheelAnimation.stop();
@@ -589,10 +597,16 @@ function GameCar({
       >
         <View style={gameCarStyles.wheelInner} />
         <View
-          style={[gameCarStyles.wheelSpoke, { transform: [{ rotate: "0deg" }] }]}
+          style={[
+            gameCarStyles.wheelSpoke,
+            { transform: [{ rotate: "0deg" }] },
+          ]}
         />
         <View
-          style={[gameCarStyles.wheelSpoke, { transform: [{ rotate: "90deg" }] }]}
+          style={[
+            gameCarStyles.wheelSpoke,
+            { transform: [{ rotate: "90deg" }] },
+          ]}
         />
       </Animated.View>
 
@@ -609,10 +623,16 @@ function GameCar({
       >
         <View style={gameCarStyles.wheelInner} />
         <View
-          style={[gameCarStyles.wheelSpoke, { transform: [{ rotate: "0deg" }] }]}
+          style={[
+            gameCarStyles.wheelSpoke,
+            { transform: [{ rotate: "0deg" }] },
+          ]}
         />
         <View
-          style={[gameCarStyles.wheelSpoke, { transform: [{ rotate: "90deg" }] }]}
+          style={[
+            gameCarStyles.wheelSpoke,
+            { transform: [{ rotate: "90deg" }] },
+          ]}
         />
       </Animated.View>
     </Animated.View>
@@ -848,7 +868,10 @@ function JumpGame() {
   }, [jumpY]);
 
   // Get random obstacle type - easier obstacles
-  const getRandomObstacle = useCallback((): { type: ObstacleType; height: number } => {
+  const getRandomObstacle = useCallback((): {
+    type: ObstacleType;
+    height: number;
+  } => {
     const rand = Math.random();
     const currentDistance = distanceRef.current;
 
@@ -1011,7 +1034,8 @@ function JumpGame() {
 
     // For double jump, jump from current position to even higher
     const currentY = jumpYValue.current;
-    const targetHeight = jumpCount.current === 1 ? JUMP_HEIGHT : JUMP_HEIGHT + 40; // Double jump goes higher!
+    const targetHeight =
+      jumpCount.current === 1 ? JUMP_HEIGHT : JUMP_HEIGHT + 40; // Double jump goes higher!
 
     currentJumpAnim.current = Animated.sequence([
       Animated.timing(jumpY, {
@@ -1128,7 +1152,9 @@ function JumpGame() {
         {gameState === "idle" && (
           <View style={jumpGameStyles.overlay}>
             <Pressable style={jumpGameStyles.startButton} onPress={startGame}>
-              <Text style={jumpGameStyles.startButtonText}>🚗 PUSH TO START</Text>
+              <Text style={jumpGameStyles.startButtonText}>
+                🚗 PUSH TO START
+              </Text>
             </Pressable>
             <Text style={jumpGameStyles.instructionText}>
               Tap to jump! Tap again for DOUBLE JUMP! 🦘
@@ -1334,7 +1360,7 @@ function PixelTiger({ translateX }: { translateX: Animated.Value }) {
           easing: Easing.linear,
           useNativeDriver: true,
         }),
-      ])
+      ]),
     );
 
     // Bounce while running
@@ -1352,7 +1378,7 @@ function PixelTiger({ translateX }: { translateX: Animated.Value }) {
           easing: Easing.inOut(Easing.ease),
           useNativeDriver: true,
         }),
-      ])
+      ]),
     );
 
     runAnimation.start();
@@ -1389,31 +1415,174 @@ function PixelTiger({ translateX }: { translateX: Animated.Value }) {
       ]}
     >
       {/* Tiger body */}
-      <View style={[tigerStyles.pixel, { width: px * 8, height: px * 4, backgroundColor: "#FFA500", left: px * 2, top: px * 2 }]} />
+      <View
+        style={[
+          tigerStyles.pixel,
+          {
+            width: px * 8,
+            height: px * 4,
+            backgroundColor: "#FFA500",
+            left: px * 2,
+            top: px * 2,
+          },
+        ]}
+      />
 
       {/* Tiger stripes */}
-      <View style={[tigerStyles.pixel, { width: px * 1, height: px * 3, backgroundColor: "#222", left: px * 4, top: px * 2 }]} />
-      <View style={[tigerStyles.pixel, { width: px * 1, height: px * 3, backgroundColor: "#222", left: px * 6, top: px * 2 }]} />
-      <View style={[tigerStyles.pixel, { width: px * 1, height: px * 3, backgroundColor: "#222", left: px * 8, top: px * 2 }]} />
+      <View
+        style={[
+          tigerStyles.pixel,
+          {
+            width: px * 1,
+            height: px * 3,
+            backgroundColor: "#222",
+            left: px * 4,
+            top: px * 2,
+          },
+        ]}
+      />
+      <View
+        style={[
+          tigerStyles.pixel,
+          {
+            width: px * 1,
+            height: px * 3,
+            backgroundColor: "#222",
+            left: px * 6,
+            top: px * 2,
+          },
+        ]}
+      />
+      <View
+        style={[
+          tigerStyles.pixel,
+          {
+            width: px * 1,
+            height: px * 3,
+            backgroundColor: "#222",
+            left: px * 8,
+            top: px * 2,
+          },
+        ]}
+      />
 
       {/* Tiger head */}
-      <View style={[tigerStyles.pixel, { width: px * 4, height: px * 4, backgroundColor: "#FFA500", left: px * 10, top: px * 1 }]} />
+      <View
+        style={[
+          tigerStyles.pixel,
+          {
+            width: px * 4,
+            height: px * 4,
+            backgroundColor: "#FFA500",
+            left: px * 10,
+            top: px * 1,
+          },
+        ]}
+      />
 
       {/* Ears */}
-      <View style={[tigerStyles.pixel, { width: px * 1, height: px * 1, backgroundColor: "#FFA500", left: px * 10, top: 0 }]} />
-      <View style={[tigerStyles.pixel, { width: px * 1, height: px * 1, backgroundColor: "#FFA500", left: px * 13, top: 0 }]} />
+      <View
+        style={[
+          tigerStyles.pixel,
+          {
+            width: px * 1,
+            height: px * 1,
+            backgroundColor: "#FFA500",
+            left: px * 10,
+            top: 0,
+          },
+        ]}
+      />
+      <View
+        style={[
+          tigerStyles.pixel,
+          {
+            width: px * 1,
+            height: px * 1,
+            backgroundColor: "#FFA500",
+            left: px * 13,
+            top: 0,
+          },
+        ]}
+      />
 
       {/* Face details */}
-      <View style={[tigerStyles.pixel, { width: px * 1, height: px * 1, backgroundColor: "#222", left: px * 11, top: px * 2 }]} />
-      <View style={[tigerStyles.pixel, { width: px * 1, height: px * 1, backgroundColor: "#222", left: px * 12, top: px * 2 }]} />
-      <View style={[tigerStyles.pixel, { width: px * 2, height: px * 1, backgroundColor: "#FF6B6B", left: px * 11, top: px * 3 }]} />
+      <View
+        style={[
+          tigerStyles.pixel,
+          {
+            width: px * 1,
+            height: px * 1,
+            backgroundColor: "#222",
+            left: px * 11,
+            top: px * 2,
+          },
+        ]}
+      />
+      <View
+        style={[
+          tigerStyles.pixel,
+          {
+            width: px * 1,
+            height: px * 1,
+            backgroundColor: "#222",
+            left: px * 12,
+            top: px * 2,
+          },
+        ]}
+      />
+      <View
+        style={[
+          tigerStyles.pixel,
+          {
+            width: px * 2,
+            height: px * 1,
+            backgroundColor: "#FF6B6B",
+            left: px * 11,
+            top: px * 3,
+          },
+        ]}
+      />
 
       {/* White muzzle */}
-      <View style={[tigerStyles.pixel, { width: px * 2, height: px * 1, backgroundColor: "#FFF", left: px * 11, top: px * 4 }]} />
+      <View
+        style={[
+          tigerStyles.pixel,
+          {
+            width: px * 2,
+            height: px * 1,
+            backgroundColor: "#FFF",
+            left: px * 11,
+            top: px * 4,
+          },
+        ]}
+      />
 
       {/* Tail */}
-      <View style={[tigerStyles.pixel, { width: px * 3, height: px * 1, backgroundColor: "#FFA500", left: 0, top: px * 2 }]} />
-      <View style={[tigerStyles.pixel, { width: px * 1, height: px * 1, backgroundColor: "#222", left: 0, top: px * 2 }]} />
+      <View
+        style={[
+          tigerStyles.pixel,
+          {
+            width: px * 3,
+            height: px * 1,
+            backgroundColor: "#FFA500",
+            left: 0,
+            top: px * 2,
+          },
+        ]}
+      />
+      <View
+        style={[
+          tigerStyles.pixel,
+          {
+            width: px * 1,
+            height: px * 1,
+            backgroundColor: "#222",
+            left: 0,
+            top: px * 2,
+          },
+        ]}
+      />
 
       {/* Front legs */}
       <Animated.View
@@ -1507,7 +1676,7 @@ function PixelCar() {
           duration: 0,
           useNativeDriver: true,
         }),
-      ])
+      ]),
     );
 
     // Wheel spinning animation
@@ -1517,7 +1686,7 @@ function PixelCar() {
         duration: 500,
         easing: Easing.linear,
         useNativeDriver: true,
-      })
+      }),
     );
 
     // Bounce animation for suspension effect
@@ -1535,7 +1704,7 @@ function PixelCar() {
           easing: Easing.inOut(Easing.ease),
           useNativeDriver: true,
         }),
-      ])
+      ]),
     );
 
     driveAnimation.start();
@@ -1581,31 +1750,132 @@ function PixelCar() {
       >
         {/* Exhaust smoke */}
         <View style={[pixelStyles.smoke, { left: -8, top: 20 }]} />
-        <View style={[pixelStyles.smoke, { left: -14, top: 18, opacity: 0.5 }]} />
+        <View
+          style={[pixelStyles.smoke, { left: -14, top: 18, opacity: 0.5 }]}
+        />
 
         {/* Car body - Main structure using pixel blocks */}
         {/* Top/Roof */}
-        <View style={[pixelStyles.pixel, { width: px * 6, height: px * 3, backgroundColor: "#FF4444", left: px * 4, top: 0 }]} />
+        <View
+          style={[
+            pixelStyles.pixel,
+            {
+              width: px * 6,
+              height: px * 3,
+              backgroundColor: "#FF4444",
+              left: px * 4,
+              top: 0,
+            },
+          ]}
+        />
 
         {/* Windows */}
-        <View style={[pixelStyles.pixel, { width: px * 2, height: px * 2, backgroundColor: "#87CEEB", left: px * 5, top: px * 0.5 }]} />
-        <View style={[pixelStyles.pixel, { width: px * 2, height: px * 2, backgroundColor: "#87CEEB", left: px * 8, top: px * 0.5 }]} />
+        <View
+          style={[
+            pixelStyles.pixel,
+            {
+              width: px * 2,
+              height: px * 2,
+              backgroundColor: "#87CEEB",
+              left: px * 5,
+              top: px * 0.5,
+            },
+          ]}
+        />
+        <View
+          style={[
+            pixelStyles.pixel,
+            {
+              width: px * 2,
+              height: px * 2,
+              backgroundColor: "#87CEEB",
+              left: px * 8,
+              top: px * 0.5,
+            },
+          ]}
+        />
 
         {/* Main body */}
-        <View style={[pixelStyles.pixel, { width: px * 14, height: px * 4, backgroundColor: "#FF4444", left: 0, top: px * 3 }]} />
+        <View
+          style={[
+            pixelStyles.pixel,
+            {
+              width: px * 14,
+              height: px * 4,
+              backgroundColor: "#FF4444",
+              left: 0,
+              top: px * 3,
+            },
+          ]}
+        />
 
         {/* Hood highlight */}
-        <View style={[pixelStyles.pixel, { width: px * 4, height: px * 1, backgroundColor: "#FF6666", left: px * 10, top: px * 3 }]} />
+        <View
+          style={[
+            pixelStyles.pixel,
+            {
+              width: px * 4,
+              height: px * 1,
+              backgroundColor: "#FF6666",
+              left: px * 10,
+              top: px * 3,
+            },
+          ]}
+        />
 
         {/* Headlight */}
-        <View style={[pixelStyles.pixel, { width: px * 1, height: px * 2, backgroundColor: "#FFFF00", left: px * 13, top: px * 4 }]} />
+        <View
+          style={[
+            pixelStyles.pixel,
+            {
+              width: px * 1,
+              height: px * 2,
+              backgroundColor: "#FFFF00",
+              left: px * 13,
+              top: px * 4,
+            },
+          ]}
+        />
 
         {/* Taillight */}
-        <View style={[pixelStyles.pixel, { width: px * 1, height: px * 2, backgroundColor: "#FF0000", left: 0, top: px * 4 }]} />
+        <View
+          style={[
+            pixelStyles.pixel,
+            {
+              width: px * 1,
+              height: px * 2,
+              backgroundColor: "#FF0000",
+              left: 0,
+              top: px * 4,
+            },
+          ]}
+        />
 
         {/* Bumpers */}
-        <View style={[pixelStyles.pixel, { width: px * 2, height: px * 1, backgroundColor: "#333", left: px * 12, top: px * 6 }]} />
-        <View style={[pixelStyles.pixel, { width: px * 2, height: px * 1, backgroundColor: "#333", left: 0, top: px * 6 }]} />
+        <View
+          style={[
+            pixelStyles.pixel,
+            {
+              width: px * 2,
+              height: px * 1,
+              backgroundColor: "#333",
+              left: px * 12,
+              top: px * 6,
+            },
+          ]}
+        />
+        <View
+          style={[
+            pixelStyles.pixel,
+            {
+              width: px * 2,
+              height: px * 1,
+              backgroundColor: "#333",
+              left: 0,
+              top: px * 6,
+            },
+          ]}
+        />
 
         {/* Front wheel */}
         <Animated.View
@@ -1619,8 +1889,18 @@ function PixelCar() {
           ]}
         >
           <View style={pixelStyles.wheelInner} />
-          <View style={[pixelStyles.wheelSpoke, { transform: [{ rotate: "0deg" }] }]} />
-          <View style={[pixelStyles.wheelSpoke, { transform: [{ rotate: "90deg" }] }]} />
+          <View
+            style={[
+              pixelStyles.wheelSpoke,
+              { transform: [{ rotate: "0deg" }] },
+            ]}
+          />
+          <View
+            style={[
+              pixelStyles.wheelSpoke,
+              { transform: [{ rotate: "90deg" }] },
+            ]}
+          />
         </Animated.View>
 
         {/* Rear wheel */}
@@ -1635,8 +1915,18 @@ function PixelCar() {
           ]}
         >
           <View style={pixelStyles.wheelInner} />
-          <View style={[pixelStyles.wheelSpoke, { transform: [{ rotate: "0deg" }] }]} />
-          <View style={[pixelStyles.wheelSpoke, { transform: [{ rotate: "90deg" }] }]} />
+          <View
+            style={[
+              pixelStyles.wheelSpoke,
+              { transform: [{ rotate: "0deg" }] },
+            ]}
+          />
+          <View
+            style={[
+              pixelStyles.wheelSpoke,
+              { transform: [{ rotate: "90deg" }] },
+            ]}
+          />
         </Animated.View>
       </Animated.View>
     </View>

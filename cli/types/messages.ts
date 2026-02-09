@@ -125,6 +125,7 @@ export interface BranchInfo {
   prNumber?: string;
   prTitle?: string;
   lastCommitDate?: string;
+  isRemote?: boolean;
 }
 
 export interface BranchesListMessage {
@@ -152,6 +153,7 @@ export interface BranchCreatedMessage {
 export interface ConversationEntry {
   role: "user" | "assistant";
   content: string;
+  imagePaths?: string[];
   timestamp: number;
 }
 

@@ -1,0 +1,40 @@
+---
+title: Quick Start
+description: Send your first prompt in under 2 minutes
+---
+
+## Start the dev environment
+
+After [installing](/docs/installation) expo-air, start everything with one command:
+
+```bash
+npx expo-air start
+```
+
+This launches three services:
+
+1. **Prompt server** (port 3847) — WebSocket server connecting the widget to Claude
+2. **Widget Metro** (port 8082) — Serves the floating widget UI
+3. **App Metro** (port 8081) — Standard Expo Metro for your app code
+
+## Send your first prompt
+
+1. Open your app on your device
+2. Tap the floating bubble near the Dynamic Island
+3. Type a prompt — for example: *"Add a login button to the home screen"*
+4. Watch your code change in real-time as Claude writes it
+
+The widget streams Claude's response and shows tool executions (file reads, writes, git operations) as they happen.
+
+## Use the Changes tab
+
+Tap the **Changes** tab in the widget to:
+
+- See which files were modified (git diff)
+- Commit changes with a message
+- Create a pull request
+- Switch branches (with automatic stashing)
+
+<Callout type="info">
+For development on a real device over a different network, use `npx expo-air fly` — it sets up Cloudflare tunnels and installs the app automatically. See [Remote Development](/docs/remote-development).
+</Callout>

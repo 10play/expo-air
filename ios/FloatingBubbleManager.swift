@@ -114,6 +114,7 @@ class FloatingBubbleViewController: UIViewController, UIGestureRecognizerDelegat
     private var reactSurfaceView: UIView?
     private var nativeCloseButton: UIButton!
     private var placeholderDot: UIView!
+    private var expandedPlaceholder: UIView!
 
     var bubbleSize: CGFloat = 60
     var bubbleColor: String = "#000000"
@@ -216,7 +217,70 @@ class FloatingBubbleViewController: UIViewController, UIGestureRecognizerDelegat
 
         view.addSubview(bubbleContainer)
 
-        // Add React Native surface view on top
+        // Native expanded placeholder — shown until RN renders its content on top
+        // Added BEFORE reactSurfaceView so RN content covers it naturally
+        expandedPlaceholder = UIView()
+        expandedPlaceholder.isHidden = true
+
+        let titleLabel = UILabel()
+        titleLabel.text = "Server not running"
+        titleLabel.textColor = UIColor.white.withAlphaComponent(0.4)
+        titleLabel.font = .systemFont(ofSize: 15, weight: .semibold)
+        titleLabel.textAlignment = .center
+        titleLabel.translatesAutoresizingMaskIntoConstraints = false
+
+        let subtitleLabel = UILabel()
+        subtitleLabel.text = "Start the development server\nfrom your project directory:"
+        subtitleLabel.textColor = UIColor.white.withAlphaComponent(0.4)
+        subtitleLabel.font = .systemFont(ofSize: 13)
+        subtitleLabel.textAlignment = .center
+        subtitleLabel.numberOfLines = 0
+        subtitleLabel.translatesAutoresizingMaskIntoConstraints = false
+
+        let codeBackground = UIView()
+        codeBackground.backgroundColor = UIColor.white.withAlphaComponent(0.06)
+        codeBackground.layer.cornerRadius = 14
+        codeBackground.layer.borderWidth = 1
+        codeBackground.layer.borderColor = UIColor.white.withAlphaComponent(0.08).cgColor
+        codeBackground.translatesAutoresizingMaskIntoConstraints = false
+
+        let codeLabel = UILabel()
+        codeLabel.text = "npx expo-air fly"
+        codeLabel.textColor = UIColor.white.withAlphaComponent(0.6)
+        codeLabel.font = UIFont(name: "Menlo", size: 13) ?? .monospacedSystemFont(ofSize: 13, weight: .regular)
+        codeLabel.textAlignment = .center
+        codeLabel.translatesAutoresizingMaskIntoConstraints = false
+        codeBackground.addSubview(codeLabel)
+
+        let stack = UIStackView(arrangedSubviews: [titleLabel, subtitleLabel, codeBackground])
+        stack.axis = .vertical
+        stack.alignment = .center
+        stack.spacing = 8
+        stack.translatesAutoresizingMaskIntoConstraints = false
+
+        expandedPlaceholder.addSubview(stack)
+        expandedPlaceholder.translatesAutoresizingMaskIntoConstraints = false
+        bubbleContainer.addSubview(expandedPlaceholder)
+
+        NSLayoutConstraint.activate([
+            expandedPlaceholder.leadingAnchor.constraint(equalTo: bubbleContainer.leadingAnchor),
+            expandedPlaceholder.trailingAnchor.constraint(equalTo: bubbleContainer.trailingAnchor),
+            expandedPlaceholder.topAnchor.constraint(equalTo: bubbleContainer.topAnchor),
+            expandedPlaceholder.bottomAnchor.constraint(equalTo: bubbleContainer.bottomAnchor),
+
+            stack.centerXAnchor.constraint(equalTo: expandedPlaceholder.centerXAnchor),
+            stack.centerYAnchor.constraint(equalTo: expandedPlaceholder.centerYAnchor),
+            stack.widthAnchor.constraint(lessThanOrEqualToConstant: 240),
+
+            subtitleLabel.widthAnchor.constraint(equalTo: stack.widthAnchor),
+
+            codeLabel.topAnchor.constraint(equalTo: codeBackground.topAnchor, constant: 12),
+            codeLabel.bottomAnchor.constraint(equalTo: codeBackground.bottomAnchor, constant: -12),
+            codeLabel.leadingAnchor.constraint(equalTo: codeBackground.leadingAnchor, constant: 16),
+            codeLabel.trailingAnchor.constraint(equalTo: codeBackground.trailingAnchor, constant: -16),
+        ])
+
+        // Add React Native surface view on top (covers expandedPlaceholder when rendered)
         if let surfaceView = reactSurfaceView {
             surfaceView.frame = bubbleContainer.bounds
             surfaceView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
@@ -359,6 +423,10 @@ class FloatingBubbleViewController: UIViewController, UIGestureRecognizerDelegat
         self.bubbleContainer.backgroundColor = .black
         self.bubbleContainer.layer.cornerRadius = self.expandedCornerRadius
 
+        // Hide collapsed placeholder, show expanded placeholder
+        placeholderDot.isHidden = true
+        expandedPlaceholder.isHidden = false
+
         // Show native close button and bring to front
         bubbleContainer.bringSubviewToFront(nativeCloseButton)
         nativeCloseButton.isHidden = false
@@ -399,8 +467,12 @@ class FloatingBubbleViewController: UIViewController, UIGestureRecognizerDelegat
             self.bubbleContainer.backgroundColor = .clear
             self.bubbleContainer.layer.cornerRadius = 0
             self.nativeCloseButton.alpha = 0
+            self.expandedPlaceholder.alpha = 0
         } completion: { _ in
             self.nativeCloseButton.isHidden = true
+            self.expandedPlaceholder.isHidden = true
+            self.expandedPlaceholder.alpha = 1
+            self.placeholderDot.isHidden = false
         }
     }
 

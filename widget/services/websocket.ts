@@ -3,7 +3,7 @@
  * Handles connection lifecycle, message parsing, and reconnection.
  */
 
-export type ConnectionStatus = "disconnected" | "connecting" | "connected" | "processing";
+export type ConnectionStatus = "disconnected" | "connecting" | "connected" | "sending" | "processing";
 
 export interface StreamMessage {
   type: "stream";
@@ -62,6 +62,7 @@ export interface StoppedMessage {
 export interface ConversationEntry {
   role: "user" | "assistant";
   content: string;
+  imagePaths?: string[];
   timestamp: number;
 }
 
@@ -103,6 +104,7 @@ export interface UserPromptMessage {
   type: "user_prompt";
   content: string;
   images?: ImageAttachment[];
+  pending?: boolean;
   timestamp: number;
 }
 
@@ -160,6 +162,7 @@ export interface BranchInfo {
   prNumber?: string;
   prTitle?: string;
   lastCommitDate?: string;
+  isRemote?: boolean;
 }
 
 export interface BranchesListMessage {
@@ -365,7 +368,7 @@ export class WebSocketClient {
     }
 
     this.ws.send(JSON.stringify(message));
-    this.setStatus("processing");
+    this.setStatus("sending");
   }
 
   requestNewSession(): void {

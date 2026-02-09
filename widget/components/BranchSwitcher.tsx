@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -6,25 +6,71 @@ import {
   TouchableOpacity,
   ScrollView,
   TextInput,
+  Animated,
+  Easing,
 } from "react-native";
 import type { BranchInfo } from "../services/websocket";
 import { SPACING, LAYOUT, COLORS, TYPOGRAPHY } from "../constants/design";
 
 // Header height: paddingVertical (14) * 2 + content (~20) + border (1) ≈ 49
 const HEADER_HEIGHT = 49;
+const DEFAULT_BRANCHES = ["main", "master"];
+const RECENT_COUNT = 5;
 
 interface BranchSwitcherProps {
   branches: BranchInfo[];
   currentBranch: string;
+  loading?: boolean;
   onSelect: (branchName: string) => void;
   onCreate: (branchName: string) => void;
   onClose: () => void;
   error?: string | null;
 }
 
+interface BranchSection {
+  title: string;
+  branches: BranchInfo[];
+}
+
+function groupBranches(
+  branches: BranchInfo[],
+  searchQuery: string
+): BranchSection[] {
+  const query = searchQuery.toLowerCase().trim();
+  const filtered = query
+    ? branches.filter((b) => b.name.toLowerCase().includes(query))
+    : branches;
+
+  const defaultBranch = filtered.filter((b) =>
+    DEFAULT_BRANCHES.includes(b.name)
+  );
+  const remaining = filtered.filter(
+    (b) => !DEFAULT_BRANCHES.includes(b.name)
+  );
+
+  // Recent: local non-default branches, top N by commit date (already sorted)
+  const recentLocal = remaining.filter((b) => !b.isRemote);
+  const recent = recentLocal.slice(0, RECENT_COUNT);
+  const recentNames = new Set(recent.map((b) => b.name));
+
+  // Other: everything else
+  const other = remaining.filter((b) => !recentNames.has(b.name));
+
+  const sections: BranchSection[] = [];
+  if (defaultBranch.length > 0)
+    sections.push({ title: "Default", branches: defaultBranch });
+  if (recent.length > 0)
+    sections.push({ title: "Recent", branches: recent });
+  if (other.length > 0)
+    sections.push({ title: "Other", branches: other });
+
+  return sections;
+}
+
 export function BranchSwitcher({
   branches,
   currentBranch,
+  loading,
   onSelect,
   onCreate,
   onClose,
@@ -32,6 +78,8 @@ export function BranchSwitcher({
 }: BranchSwitcherProps) {
   const [showCreateInput, setShowCreateInput] = useState(false);
   const [newBranchName, setNewBranchName] = useState("");
+
+  const sections = groupBranches(branches, "");
 
   const handleCreate = () => {
     const trimmed = newBranchName.trim();
@@ -42,53 +90,84 @@ export function BranchSwitcher({
     }
   };
 
+  const renderBranchItem = (branch: BranchInfo, isFirst: boolean) => {
+    const isCurrent = branch.name === currentBranch;
+    return (
+      <TouchableOpacity
+        key={branch.name}
+        style={[
+          styles.branchItem,
+          isCurrent && styles.branchItemCurrent,
+          isFirst && styles.branchItemFirst,
+        ]}
+        onPress={() => {
+          if (!isCurrent) {
+            onSelect(branch.name);
+          }
+        }}
+        activeOpacity={isCurrent ? 1 : 0.6}
+      >
+        <View style={styles.branchInfo}>
+          <Text
+            style={[
+              styles.branchName,
+              isCurrent && styles.branchNameCurrent,
+            ]}
+            numberOfLines={1}
+          >
+            {branch.name}
+          </Text>
+          {branch.prNumber && (
+            <View style={styles.prBadge}>
+              <Text style={styles.prBadgeText}>#{branch.prNumber}</Text>
+            </View>
+          )}
+          {branch.isRemote && (
+            <View style={styles.remoteBadge}>
+              <Text style={styles.remoteBadgeText}>remote</Text>
+            </View>
+          )}
+        </View>
+        {isCurrent && <Text style={styles.currentIndicator}>✓</Text>}
+      </TouchableOpacity>
+    );
+  };
+
   return (
     <View style={styles.overlay}>
-      <TouchableOpacity style={styles.backdrop} onPress={onClose} activeOpacity={1} />
+      <TouchableOpacity
+        style={styles.backdrop}
+        onPress={onClose}
+        activeOpacity={1}
+      />
       <View style={styles.dropdown}>
         {error && (
           <View style={styles.errorBanner}>
-            <Text style={styles.errorText} numberOfLines={2}>{error}</Text>
+            <Text style={styles.errorText} numberOfLines={2}>
+              {error}
+            </Text>
           </View>
         )}
-        <ScrollView style={styles.branchList} bounces={false}>
-          {branches.map((branch, index) => (
-            <TouchableOpacity
-              key={branch.name}
-              style={[
-                styles.branchItem,
-                branch.isCurrent && styles.branchItemCurrent,
-                index === 0 && styles.branchItemFirst,
-              ]}
-              onPress={() => {
-                if (!branch.isCurrent) {
-                  onSelect(branch.name);
-                }
-              }}
-              activeOpacity={branch.isCurrent ? 1 : 0.6}
-            >
-              <View style={styles.branchInfo}>
-                <Text
-                  style={[
-                    styles.branchName,
-                    branch.isCurrent && styles.branchNameCurrent,
-                  ]}
-                  numberOfLines={1}
-                >
-                  {branch.name}
-                </Text>
-                {branch.prNumber && (
-                  <View style={styles.prBadge}>
-                    <Text style={styles.prBadgeText}>#{branch.prNumber}</Text>
-                  </View>
+        {loading && branches.length === 0 ? (
+          <View style={styles.loadingContainer}>
+            <LoadingDots />
+          </View>
+        ) : (
+          <ScrollView style={styles.branchList} bounces={false}>
+            {sections.map((section) => (
+              <View key={section.title}>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionHeaderText}>
+                    {section.title}
+                  </Text>
+                </View>
+                {section.branches.map((branch, index) =>
+                  renderBranchItem(branch, index === 0)
                 )}
               </View>
-              {branch.isCurrent && (
-                <Text style={styles.currentIndicator}>✓</Text>
-              )}
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+            ))}
+          </ScrollView>
+        )}
 
         <View style={styles.createSection}>
           {showCreateInput ? (
@@ -121,11 +200,59 @@ export function BranchSwitcher({
               style={styles.createButton}
               onPress={() => setShowCreateInput(true)}
             >
-              <Text style={styles.createButtonText}>+ New branch from main</Text>
+              <Text style={styles.createButtonText}>
+                + New branch from main
+              </Text>
             </TouchableOpacity>
           )}
         </View>
       </View>
+    </View>
+  );
+}
+
+function LoadingDots() {
+  const dot1 = useRef(new Animated.Value(0.3)).current;
+  const dot2 = useRef(new Animated.Value(0.3)).current;
+  const dot3 = useRef(new Animated.Value(0.3)).current;
+
+  useEffect(() => {
+    const animate = (dot: Animated.Value, delay: number) =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.timing(dot, {
+            toValue: 1,
+            duration: 300,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: true,
+          }),
+          Animated.timing(dot, {
+            toValue: 0.3,
+            duration: 300,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: true,
+          }),
+        ]),
+      );
+    const a1 = animate(dot1, 0);
+    const a2 = animate(dot2, 150);
+    const a3 = animate(dot3, 300);
+    a1.start();
+    a2.start();
+    a3.start();
+    return () => {
+      a1.stop();
+      a2.stop();
+      a3.stop();
+    };
+  }, [dot1, dot2, dot3]);
+
+  return (
+    <View style={styles.loadingDots}>
+      {[dot1, dot2, dot3].map((dot, i) => (
+        <Animated.View key={i} style={[styles.loadingDot, { opacity: dot }]} />
+      ))}
     </View>
   );
 }
@@ -151,8 +278,35 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.12)",
     overflow: "hidden",
   },
+  loadingContainer: {
+    paddingVertical: SPACING.XL,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  loadingDots: {
+    flexDirection: "row",
+    gap: 6,
+  },
+  loadingDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "rgba(255,255,255,0.5)",
+  },
   branchList: {
     maxHeight: 300,
+  },
+  sectionHeader: {
+    paddingHorizontal: SPACING.LG,
+    paddingTop: SPACING.MD,
+    paddingBottom: SPACING.XS,
+  },
+  sectionHeaderText: {
+    color: COLORS.TEXT_MUTED,
+    fontSize: TYPOGRAPHY.SIZE_XS,
+    fontWeight: TYPOGRAPHY.WEIGHT_SEMIBOLD,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
   branchItem: {
     flexDirection: "row",
@@ -195,6 +349,17 @@ const styles = StyleSheet.create({
     color: COLORS.STATUS_INFO,
     fontSize: TYPOGRAPHY.SIZE_XS,
     fontWeight: TYPOGRAPHY.WEIGHT_MEDIUM,
+  },
+  remoteBadge: {
+    backgroundColor: "rgba(255,255,255,0.06)",
+    paddingHorizontal: SPACING.SM,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  remoteBadgeText: {
+    color: COLORS.TEXT_MUTED,
+    fontSize: TYPOGRAPHY.SIZE_XS,
+    fontWeight: TYPOGRAPHY.WEIGHT_NORMAL,
   },
   currentIndicator: {
     color: COLORS.STATUS_SUCCESS,

@@ -1,0 +1,112 @@
+---
+title: API Reference
+description: expo-air JavaScript API
+---
+
+## ExpoAirModule
+
+The native module for controlling the floating widget. This is the default export.
+
+```typescript
+import ExpoAir from '@10play/expo-air';
+```
+
+### Methods
+
+| Method | Description |
+| --- | --- |
+| `show(options?)` | Show the floating bubble. Options: `{ size?: number, color?: string }` |
+| `hide()` | Hide the floating bubble |
+| `expand()` | Expand the bubble to the full widget view |
+| `collapse()` | Collapse the widget back to the floating bubble |
+| `getServerUrl()` | Returns the WebSocket server URL from Info.plist |
+
+### Usage
+
+```typescript
+import ExpoAir from '@10play/expo-air';
+
+// Show the bubble with custom size and color
+ExpoAir.show({ size: 60, color: '#007AFF' });
+
+// Expand to full widget
+ExpoAir.expand();
+
+// Hide it
+ExpoAir.hide();
+```
+
+## Events
+
+Subscribe to widget events using `addListener`. Returns a subscription object — call `.remove()` to unsubscribe.
+
+```typescript
+const subscription = ExpoAir.addListener('onPress', () => {
+  console.log('Bubble tapped');
+});
+
+// Clean up
+subscription.remove();
+```
+
+| Event | Payload | Description |
+| --- | --- | --- |
+| `onPress` | — | User tapped the bubble |
+| `onExpand` | — | Widget expanded to full view |
+| `onCollapse` | — | Widget collapsed to bubble |
+| `onDragEnd` | `{ x: number, y: number }` | User finished dragging the bubble |
+| `onChange` | `{ value: string }` | Value changed via `setValueAsync()` |
+
+## ExpoAirView
+
+A React component for embedding the widget in a custom view. Renders a native WebView on iOS and an iframe on web.
+
+```tsx
+import { ExpoAirView } from '@10play/expo-air';
+
+<ExpoAirView
+  url="https://your-widget-url.com"
+  onLoad={(event) => console.log('Loaded:', event.nativeEvent.url)}
+  style={{ flex: 1 }}
+/>
+```
+
+### Props
+
+| Prop | Type | Description |
+| --- | --- | --- |
+| `url` | `string` | URL to load in the view |
+| `onLoad` | `(event: { nativeEvent: { url: string } }) => void` | Called when the URL finishes loading |
+| `style` | `StyleProp<ViewStyle>` | Optional React Native styles |
+
+## HMR Reconnect
+
+The auto-reconnect module patches `globalThis.WebSocket` to keep Metro HMR alive through tunnel drops, WiFi transitions, and app backgrounding.
+
+```typescript
+import '@10play/expo-air/build/hmrReconnect';
+```
+
+<Callout type="info">
+You don't need to import this manually — the config plugin auto-injects it into your app entry point during prebuild.
+</Callout>
+
+The module only patches Metro HMR connections (URLs containing `/hot`). All other WebSocket connections pass through unchanged.
+
+## TypeScript types
+
+```typescript
+import type {
+  ExpoAirModuleEvents,
+  ExpoAirViewProps,
+  ChangeEventPayload,
+  OnLoadEventPayload,
+} from '@10play/expo-air';
+```
+
+| Type | Description |
+| --- | --- |
+| `ExpoAirModuleEvents` | All events emitted by ExpoAirModule |
+| `ExpoAirViewProps` | Props for the ExpoAirView component |
+| `ChangeEventPayload` | `{ value: string }` — payload for `onChange` event |
+| `OnLoadEventPayload` | `{ url: string }` — payload for `onLoad` callback |

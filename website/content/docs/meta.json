@@ -1,0 +1,19 @@
+{
+  "root": true,
+  "title": "Documentation",
+  "pages": [
+    "---Getting Started---",
+    "index",
+    "installation",
+    "quick-start",
+    "---Guides---",
+    "how-it-works",
+    "remote-development",
+    "---Reference---",
+    "configuration",
+    "cli",
+    "api",
+    "---Help---",
+    "troubleshooting"
+  ]
+}

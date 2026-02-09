@@ -109,14 +109,5 @@ public class ExpoAirModule: Module {
       #endif
     }
 
-    View(ExpoAirView.self) {
-      Prop("url") { (view: ExpoAirView, url: URL) in
-        if view.webView.url != url {
-          view.webView.load(URLRequest(url: url))
-        }
-      }
-
-      Events("onLoad")
-    }
   }
 }
