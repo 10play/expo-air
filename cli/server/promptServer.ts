@@ -324,7 +324,7 @@ export class PromptServer {
         const stashLines = stashList.split("\n");
         // Look for stash tagged with the target branch name
         const autoStashIndex = stashLines.findIndex((line) =>
-          line.includes(`expo-air-auto-stash:${branchName}`)
+          line.endsWith(`expo-air-auto-stash:${branchName}`)
         );
         if (autoStashIndex !== -1) {
           try {
@@ -335,7 +335,7 @@ export class PromptServer {
             });
             this.log(`Restored auto-stashed changes for branch ${branchName}`, "info");
           } catch {
-            this.log("Warning: failed to pop auto-stash (possible merge conflict). Stash preserved.", "warn");
+            this.log("Warning: failed to pop auto-stash (possible merge conflict). Stash preserved.", "error");
             // Reset the conflicted working directory to clean state (stash is already preserved)
             try {
               execFileSync("git", ["reset", "--hard", "HEAD"], {
@@ -345,7 +345,7 @@ export class PromptServer {
               });
               this.log("Reset working directory after stash conflict", "info");
             } catch {
-              this.log("Warning: failed to reset after stash conflict", "warn");
+              this.log("Warning: failed to reset after stash conflict", "error");
             }
           }
         }
