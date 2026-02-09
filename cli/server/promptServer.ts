@@ -262,13 +262,19 @@ export class PromptServer {
 
     let touched = 0;
     for (const change of changes) {
+      if (change.status === "deleted") continue;
       try {
-        const filePath = join(gitRoot, change.file);
-        if (existsSync(filePath) && change.status !== "deleted") {
+        let filePath = join(gitRoot, change.file);
+        // Fallback: git status paths may be relative to cwd (projectRoot) instead of repo root
+        if (!existsSync(filePath) && this.projectRoot !== gitRoot) {
+          filePath = join(this.projectRoot, change.file);
+        }
+        if (existsSync(filePath)) {
           const content = readFileSync(filePath);
           writeFileSync(filePath, content); // Same content, new mtime → Metro re-pushes HMR
           touched++;
-          this.log(`HMR retrigger: re-touched ${change.file}`, "info");
+        } else {
+          this.log(`HMR retrigger: skipped ${change.file} (not found at ${filePath})`, "info");
         }
       } catch (e) {
         this.log(`HMR retrigger: failed to re-touch ${change.file}: ${e}`, "error");
