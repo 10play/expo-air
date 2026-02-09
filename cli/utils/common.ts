@@ -196,6 +196,15 @@ export function updateInfoPlist(
     if (config.widgetMetroUrl) expoAir.widgetMetroUrl = config.widgetMetroUrl;
     if (config.appMetroUrl) expoAir.appMetroUrl = config.appMetroUrl;
 
+    // Sync UI settings from .expo-air.json
+    const baseConfigPath = path.join(projectRoot, ".expo-air.json");
+    if (fs.existsSync(baseConfigPath)) {
+      const baseConfig = JSON.parse(fs.readFileSync(baseConfigPath, "utf-8"));
+      if (baseConfig.autoShow !== undefined) expoAir.autoShow = baseConfig.autoShow;
+      if (baseConfig.ui?.bubbleSize !== undefined) expoAir.bubbleSize = baseConfig.ui.bubbleSize;
+      if (baseConfig.ui?.bubbleColor !== undefined) expoAir.bubbleColor = baseConfig.ui.bubbleColor;
+    }
+
     // Write back
     plistData.ExpoAir = expoAir;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
