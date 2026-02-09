@@ -380,7 +380,7 @@ export function BubbleContent({
 
   const handleCommit = useCallback(() => {
     setActiveTab("chat");
-    handleSubmit("Look at my current git changes and create a commit with a good conventional commit message. Stage all changes and commit them.");
+    handleSubmit("Look at my current git changes and create a commit with a good conventional commit message. Stage all changes, commit them, and push to the remote.");
   }, [handleSubmit]);
 
   const handleCreatePR = useCallback(() => {

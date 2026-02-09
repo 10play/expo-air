@@ -1,6 +1,26 @@
 import React, { useRef, useEffect, useState, useCallback } from "react";
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, NativeScrollEvent, Keyboard, Platform, Image, Linking } from "react-native";
-import type { ServerMessage, ToolMessage, ResultMessage, UserPromptMessage, HistoryResultMessage, SystemDisplayMessage, AssistantPart, AssistantPartsMessage } from "../services/websocket";
+import {
+  View,
+  Text,
+  ScrollView,
+  StyleSheet,
+  TouchableOpacity,
+  NativeScrollEvent,
+  Keyboard,
+  Platform,
+  Image,
+  Linking,
+} from "react-native";
+import type {
+  ServerMessage,
+  ToolMessage,
+  ResultMessage,
+  UserPromptMessage,
+  HistoryResultMessage,
+  SystemDisplayMessage,
+  AssistantPart,
+  AssistantPartsMessage,
+} from "../services/websocket";
 import { SPACING, LAYOUT, COLORS, TYPOGRAPHY } from "../constants/design";
 
 interface ResponseAreaProps {
@@ -15,21 +35,32 @@ export function ResponseArea({ messages, currentParts }: ResponseAreaProps) {
   const scrollViewHeightRef = useRef(0);
 
   // Track if user is at bottom (within 50px threshold)
-  const handleScroll = useCallback((event: { nativeEvent: NativeScrollEvent }) => {
-    const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
-    const distanceFromBottom = contentSize.height - layoutMeasurement.height - contentOffset.y;
-    setIsAtBottom(distanceFromBottom < 50);
-  }, []);
+  const handleScroll = useCallback(
+    (event: { nativeEvent: NativeScrollEvent }) => {
+      const { contentOffset, contentSize, layoutMeasurement } =
+        event.nativeEvent;
+      const distanceFromBottom =
+        contentSize.height - layoutMeasurement.height - contentOffset.y;
+      setIsAtBottom(distanceFromBottom < 50);
+    },
+    [],
+  );
 
   // Track content size changes
-  const handleContentSizeChange = useCallback((width: number, height: number) => {
-    contentHeightRef.current = height;
-  }, []);
+  const handleContentSizeChange = useCallback(
+    (width: number, height: number) => {
+      contentHeightRef.current = height;
+    },
+    [],
+  );
 
   // Track scroll view layout
-  const handleLayout = useCallback((event: { nativeEvent: { layout: { height: number } } }) => {
-    scrollViewHeightRef.current = event.nativeEvent.layout.height;
-  }, []);
+  const handleLayout = useCallback(
+    (event: { nativeEvent: { layout: { height: number } } }) => {
+      scrollViewHeightRef.current = event.nativeEvent.layout.height;
+    },
+    [],
+  );
 
   // Auto-scroll only when at bottom
   useEffect(() => {
@@ -53,7 +84,8 @@ export function ResponseArea({ messages, currentParts }: ResponseAreaProps) {
 
   // Scroll to bottom when keyboard opens (if already at bottom)
   useEffect(() => {
-    const keyboardEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const keyboardEvent =
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
     const subscription = Keyboard.addListener(keyboardEvent, () => {
       if (isAtBottom) {
         // Delay to let the native resize happen first
@@ -102,7 +134,11 @@ export function ResponseArea({ messages, currentParts }: ResponseAreaProps) {
         )}
       </ScrollView>
       {!isAtBottom && (
-        <TouchableOpacity style={styles.scrollButton} onPress={scrollToBottom} activeOpacity={0.8}>
+        <TouchableOpacity
+          style={styles.scrollButton}
+          onPress={scrollToBottom}
+          activeOpacity={0.8}
+        >
           <Text style={styles.scrollButtonText}>↓</Text>
         </TouchableOpacity>
       )}
@@ -155,12 +191,18 @@ function UserPromptItem({ message }: { message: UserPromptMessage }) {
       {message.images && message.images.length > 0 && (
         <View style={styles.userImages}>
           {message.images.map((img, i) => (
-            <Image key={i} source={{ uri: img.uri }} style={styles.userImageThumb} />
+            <Image
+              key={i}
+              source={{ uri: img.uri }}
+              style={styles.userImageThumb}
+            />
           ))}
         </View>
       )}
       {message.content ? (
-        <Text style={styles.userPromptText} selectable>{message.content}</Text>
+        <Text style={styles.userPromptText} selectable>
+          {message.content}
+        </Text>
       ) : null}
     </View>
   );
@@ -192,8 +234,14 @@ function SystemMessageItem({ message }: { message: SystemDisplayMessage }) {
 }
 
 // Renders formatted text with markdown-style lists, code, and emphasis
-function FormattedText({ content, isStreaming }: { content: string; isStreaming?: boolean }) {
-  const lines = content.split('\n');
+function FormattedText({
+  content,
+  isStreaming,
+}: {
+  content: string;
+  isStreaming?: boolean;
+}) {
+  const lines = content.split("\n");
   const elements: React.ReactNode[] = [];
   let i = 0;
 
@@ -202,19 +250,21 @@ function FormattedText({ content, isStreaming }: { content: string; isStreaming?
     const trimmed = line.trim();
 
     // Code block start (check first to avoid matching content inside code blocks)
-    if (trimmed.startsWith('```')) {
+    if (trimmed.startsWith("```")) {
       const codeLines: string[] = [];
       const lang = trimmed.slice(3).trim();
       i++;
-      while (i < lines.length && !lines[i].trim().startsWith('```')) {
+      while (i < lines.length && !lines[i].trim().startsWith("```")) {
         codeLines.push(lines[i]);
         i++;
       }
       elements.push(
         <View key={`code-${i}`} style={styles.codeBlock}>
           {lang && <Text style={styles.codeLang}>{lang}</Text>}
-          <Text style={styles.codeText} selectable>{codeLines.join('\n')}</Text>
-        </View>
+          <Text style={styles.codeText} selectable>
+            {codeLines.join("\n")}
+          </Text>
+        </View>,
       );
       i++; // skip closing ```
       continue;
@@ -224,26 +274,40 @@ function FormattedText({ content, isStreaming }: { content: string; isStreaming?
     const headingMatch = trimmed.match(/^(#{1,6})\s+(.+)$/);
     if (headingMatch) {
       const level = headingMatch[1].length;
-      const headingStyle = level <= 2 ? styles.heading1 : level <= 4 ? styles.heading2 : styles.heading3;
+      const headingStyle =
+        level <= 2
+          ? styles.heading1
+          : level <= 4
+            ? styles.heading2
+            : styles.heading3;
       elements.push(
-        <Text key={i} style={headingStyle} selectable>{formatInlineText(headingMatch[2])}</Text>
+        <Text key={i} style={headingStyle} selectable>
+          {formatInlineText(headingMatch[2])}
+        </Text>,
       );
       i++;
       continue;
     }
 
     // Blockquote (> text) - collect consecutive > lines
-    if (trimmed.startsWith('> ') || trimmed === '>') {
+    if (trimmed.startsWith("> ") || trimmed === ">") {
       const quoteLines: string[] = [];
-      while (i < lines.length && (lines[i].trim().startsWith('> ') || lines[i].trim() === '>')) {
-        const qContent = lines[i].trim().startsWith('> ') ? lines[i].trim().slice(2) : '';
+      while (
+        i < lines.length &&
+        (lines[i].trim().startsWith("> ") || lines[i].trim() === ">")
+      ) {
+        const qContent = lines[i].trim().startsWith("> ")
+          ? lines[i].trim().slice(2)
+          : "";
         quoteLines.push(qContent);
         i++;
       }
       elements.push(
         <View key={`quote-${i}`} style={styles.blockquote}>
-          <Text style={styles.blockquoteText} selectable>{formatInlineText(quoteLines.join('\n'))}</Text>
-        </View>
+          <Text style={styles.blockquoteText} selectable>
+            {formatInlineText(quoteLines.join("\n"))}
+          </Text>
+        </View>,
       );
       continue;
     }
@@ -251,12 +315,14 @@ function FormattedText({ content, isStreaming }: { content: string; isStreaming?
     // Task list item (- [ ] or - [x])
     const taskMatch = trimmed.match(/^[-*]\s+\[([ xX])\]\s+(.+)$/);
     if (taskMatch) {
-      const checked = taskMatch[1] !== ' ';
+      const checked = taskMatch[1] !== " ";
       elements.push(
         <View key={i} style={styles.listItem}>
-          <Text style={styles.listBullet}>{checked ? '☑' : '☐'}</Text>
-          <Text style={styles.listText} selectable>{formatInlineText(taskMatch[2])}</Text>
-        </View>
+          <Text style={styles.listBullet}>{checked ? "☑" : "☐"}</Text>
+          <Text style={styles.listText} selectable>
+            {formatInlineText(taskMatch[2])}
+          </Text>
+        </View>,
       );
       i++;
       continue;
@@ -268,10 +334,18 @@ function FormattedText({ content, isStreaming }: { content: string; isStreaming?
       const indent = Math.floor(numberedMatch[1].length / 2);
       const [, , num, text] = numberedMatch;
       elements.push(
-        <View key={i} style={[styles.listItem, indent > 0 && { paddingLeft: SPACING.SM + indent * SPACING.LG }]}>
+        <View
+          key={i}
+          style={[
+            styles.listItem,
+            indent > 0 && { paddingLeft: SPACING.SM + indent * SPACING.LG },
+          ]}
+        >
           <Text style={styles.listNumber}>{num}.</Text>
-          <Text style={styles.listText} selectable>{formatInlineText(text)}</Text>
-        </View>
+          <Text style={styles.listText} selectable>
+            {formatInlineText(text)}
+          </Text>
+        </View>,
       );
       i++;
       continue;
@@ -281,12 +355,20 @@ function FormattedText({ content, isStreaming }: { content: string; isStreaming?
     const bulletMatch = line.match(/^(\s*)[-*]\s+(.+)$/);
     if (bulletMatch) {
       const indent = Math.floor(bulletMatch[1].length / 2);
-      const bulletChar = indent === 0 ? '•' : indent === 1 ? '◦' : '▪';
+      const bulletChar = indent === 0 ? "•" : indent === 1 ? "◦" : "▪";
       elements.push(
-        <View key={i} style={[styles.listItem, indent > 0 && { paddingLeft: SPACING.SM + indent * SPACING.LG }]}>
+        <View
+          key={i}
+          style={[
+            styles.listItem,
+            indent > 0 && { paddingLeft: SPACING.SM + indent * SPACING.LG },
+          ]}
+        >
           <Text style={styles.listBullet}>{bulletChar}</Text>
-          <Text style={styles.listText} selectable>{formatInlineText(bulletMatch[2])}</Text>
-        </View>
+          <Text style={styles.listText} selectable>
+            {formatInlineText(bulletMatch[2])}
+          </Text>
+        </View>,
       );
       i++;
       continue;
@@ -308,7 +390,9 @@ function FormattedText({ content, isStreaming }: { content: string; isStreaming?
 
     // Regular text
     elements.push(
-      <Text key={i} style={styles.responseText} selectable>{formatInlineText(line)}</Text>
+      <Text key={i} style={styles.responseText} selectable>
+        {formatInlineText(line)}
+      </Text>,
     );
     i++;
   }
@@ -330,8 +414,12 @@ function formatInlineText(text: string): React.ReactNode {
   }
 
   return codeParts.map((part, i) => {
-    if (part.startsWith('`') && part.endsWith('`')) {
-      return <Text key={i} style={styles.inlineCode}>{part.slice(1, -1)}</Text>;
+    if (part.startsWith("`") && part.endsWith("`")) {
+      return (
+        <Text key={i} style={styles.inlineCode}>
+          {part.slice(1, -1)}
+        </Text>
+      );
     }
     return <React.Fragment key={i}>{formatLinks(part)}</React.Fragment>;
   });
@@ -366,21 +454,39 @@ function formatEmphasis(text: string): React.ReactNode {
   if (parts.length === 1) return text;
 
   return parts.map((part, i) => {
-    if (part.startsWith('**') && part.endsWith('**')) {
-      return <Text key={i} style={styles.boldText}>{part.slice(2, -2)}</Text>;
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return (
+        <Text key={i} style={styles.boldText}>
+          {part.slice(2, -2)}
+        </Text>
+      );
     }
-    if (part.startsWith('~~') && part.endsWith('~~')) {
-      return <Text key={i} style={styles.strikethroughText}>{part.slice(2, -2)}</Text>;
+    if (part.startsWith("~~") && part.endsWith("~~")) {
+      return (
+        <Text key={i} style={styles.strikethroughText}>
+          {part.slice(2, -2)}
+        </Text>
+      );
     }
-    if (part.startsWith('*') && part.endsWith('*')) {
-      return <Text key={i} style={styles.italicText}>{part.slice(1, -1)}</Text>;
+    if (part.startsWith("*") && part.endsWith("*")) {
+      return (
+        <Text key={i} style={styles.italicText}>
+          {part.slice(1, -1)}
+        </Text>
+      );
     }
     return part;
   });
 }
 
 // Renders interleaved text and tool parts in order
-function PartsRenderer({ parts, isStreaming }: { parts: AssistantPart[], isStreaming: boolean }) {
+function PartsRenderer({
+  parts,
+  isStreaming,
+}: {
+  parts: AssistantPart[];
+  isStreaming: boolean;
+}) {
   return (
     <View style={styles.partsContainer}>
       {parts.map((part, index) => {
@@ -388,7 +494,10 @@ function PartsRenderer({ parts, isStreaming }: { parts: AssistantPart[], isStrea
           const isLastPart = index === parts.length - 1;
           return (
             <View key={part.id} style={styles.messageContainer}>
-              <FormattedText content={part.content} isStreaming={isStreaming && isLastPart} />
+              <FormattedText
+                content={part.content}
+                isStreaming={isStreaming && isLastPart}
+              />
             </View>
           );
         } else if (part.type === "tool") {
@@ -413,54 +522,107 @@ function AssistantPartsItem({ message }: { message: AssistantPartsMessage }) {
 }
 
 // Shared helper for tool display info
-function getToolDisplayInfo(toolName: string, input: Record<string, unknown> | undefined): { label: string; value: string } {
-  const getFileName = (path: string): string => path.split('/').pop() || path;
+function getToolDisplayInfo(
+  toolName: string,
+  input: Record<string, unknown> | undefined,
+): { label: string; value: string } {
+  const getFileName = (path: string): string => path.split("/").pop() || path;
 
   switch (toolName) {
     case "Read":
-      return { label: "read", value: getFileName(input?.file_path as string || "file") };
+      return {
+        label: "read",
+        value: getFileName((input?.file_path as string) || "file"),
+      };
     case "Edit":
-      return { label: "edit", value: getFileName(input?.file_path as string || "file") };
+      return {
+        label: "edit",
+        value: getFileName((input?.file_path as string) || "file"),
+      };
     case "Write":
-      return { label: "write", value: getFileName(input?.file_path as string || "file") };
+      return {
+        label: "write",
+        value: getFileName((input?.file_path as string) || "file"),
+      };
     case "Bash": {
-      const cmd = input?.command as string || "";
-      return { label: "$", value: cmd.length > 45 ? cmd.slice(0, 45) + "…" : cmd };
+      const cmd = (input?.command as string) || "";
+      return {
+        label: "$",
+        value: cmd.length > 45 ? cmd.slice(0, 45) + "…" : cmd,
+      };
     }
     case "Glob":
-      return { label: "glob", value: input?.pattern as string || "*" };
+      return { label: "glob", value: (input?.pattern as string) || "*" };
     case "Grep":
-      return { label: "grep", value: input?.pattern as string || "search" };
+      return { label: "grep", value: (input?.pattern as string) || "search" };
     case "Task":
-      return { label: "agent", value: input?.description as string || "task" };
+      return {
+        label: "agent",
+        value: (input?.description as string) || "task",
+      };
     default:
       return { label: toolName.toLowerCase(), value: "" };
   }
 }
 
 // Renders a tool display line (shared between ToolPartItem and ToolItem)
-function ToolDisplay({ toolName, input, isFailed }: { toolName: string; input?: unknown; isFailed: boolean }) {
-  const { label, value } = getToolDisplayInfo(toolName, input as Record<string, unknown> | undefined);
+function ToolDisplay({
+  toolName,
+  input,
+  isFailed,
+}: {
+  toolName: string;
+  input?: unknown;
+  isFailed: boolean;
+}) {
+  const { label, value } = getToolDisplayInfo(
+    toolName,
+    input as Record<string, unknown> | undefined,
+  );
 
   return (
     <View style={styles.toolLine}>
-      <Text style={isFailed ? styles.toolLabelFailed : styles.toolLabel}>{label}</Text>
-      <Text style={isFailed ? styles.toolValueFailed : styles.toolValue} numberOfLines={1}>{value}</Text>
+      <Text style={isFailed ? styles.toolLabelFailed : styles.toolLabel}>
+        {label}
+      </Text>
+      <Text
+        style={isFailed ? styles.toolValueFailed : styles.toolValue}
+        numberOfLines={1}
+      >
+        {value}
+      </Text>
       {isFailed && <Text style={styles.toolLabelFailed}> ✕</Text>}
     </View>
   );
 }
 
 // Tool part renderer (for parts in AssistantPartsMessage)
-function ToolPartItem({ part }: { key?: React.Key; part: AssistantPart & { type: "tool" } }) {
+function ToolPartItem({
+  part,
+}: {
+  key?: React.Key;
+  part: AssistantPart & { type: "tool" };
+}) {
   if (part.status === "started") return null;
-  return <ToolDisplay toolName={part.toolName} input={part.input} isFailed={part.status === "failed"} />;
+  return (
+    <ToolDisplay
+      toolName={part.toolName}
+      input={part.input}
+      isFailed={part.status === "failed"}
+    />
+  );
 }
 
 // Tool item renderer (for legacy ToolMessage from history)
 function ToolItem({ tool }: { tool: ToolMessage }) {
   if (tool.status === "started") return null;
-  return <ToolDisplay toolName={tool.toolName} input={tool.input} isFailed={tool.status === "failed"} />;
+  return (
+    <ToolDisplay
+      toolName={tool.toolName}
+      input={tool.input}
+      isFailed={tool.status === "failed"}
+    />
+  );
 }
 
 function ResultItem({ result }: { result: ResultMessage }) {
@@ -475,12 +637,16 @@ function ResultItem({ result }: { result: ResultMessage }) {
   return (
     <View style={styles.resultContainer}>
       {result.result && (
-        <Text style={styles.responseText} selectable>{result.result}</Text>
+        <Text style={styles.responseText} selectable>
+          {result.result}
+        </Text>
       )}
       {(result.costUsd !== undefined || result.durationMs !== undefined) && (
         <Text style={styles.metaText}>
           {result.durationMs !== undefined && `${result.durationMs}ms`}
-          {result.costUsd !== undefined && result.durationMs !== undefined && " • "}
+          {result.costUsd !== undefined &&
+            result.durationMs !== undefined &&
+            " • "}
           {result.costUsd !== undefined && `$${result.costUsd.toFixed(4)}`}
         </Text>
       )}

@@ -3,10 +3,10 @@ import { WebSocketServer, WebSocket } from "ws";
 import { type Server as HttpServer } from "http";
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { randomUUID } from "crypto";
-import { execSync, execFileSync } from "child_process";
 import { readFileSync, writeFileSync, existsSync, mkdirSync, rmSync } from "fs";
 import { join } from "path";
 import chalk from "chalk";
+import { GitOperations } from "./gitOperations.js";
 import type {
   PromptMessage,
   NewSessionMessage,
@@ -16,7 +16,6 @@ import type {
   ListBranchesMessage,
   SwitchBranchMessage,
   CreateBranchMessage,
-  BranchInfo,
   OutgoingMessage,
   AnyConversationEntry,
   ToolConversationEntry,
@@ -41,11 +40,13 @@ export class PromptServer {
   private currentStreamedResponse: string = "";
   private lastToolInput: unknown = undefined;
   private secret: string | null = null;
+  private git: GitOperations;
 
   constructor(port: number, projectRoot?: string, secret?: string | null) {
     this.port = port;
     this.projectRoot = projectRoot || process.cwd();
     this.secret = secret ?? null;
+    this.git = new GitOperations(this.projectRoot);
     this.loadSession();
   }
 
@@ -53,62 +54,15 @@ export class PromptServer {
     return join(this.projectRoot, ".expo-air-images");
   }
 
-  private getBranchName(): string {
-    try {
-      return execSync("git rev-parse --abbrev-ref HEAD", {
-        cwd: this.projectRoot,
-        encoding: "utf-8",
-        stdio: ["pipe", "pipe", "pipe"],
-      }).trim();
-    } catch {
-      return "main";
-    }
-  }
-
-  private getGitChanges(): GitChange[] {
-    try {
-      const output = execSync("git status --porcelain -u", {
-        cwd: this.projectRoot,
-        encoding: "utf-8",
-        stdio: ["pipe", "pipe", "pipe"],
-      });
-
-      if (!output.trim()) {
-        return [];
-      }
-
-      return output
-        .trim()
-        .split("\n")
-        .map((line) => {
-          const statusCode = line.substring(0, 2);
-          const file = line.substring(3);
-
-          let status: GitChange["status"] = "modified";
-          if (statusCode.includes("A") || statusCode === "??") {
-            status = statusCode === "??" ? "untracked" : "added";
-          } else if (statusCode.includes("D")) {
-            status = "deleted";
-          } else if (statusCode.includes("R")) {
-            status = "renamed";
-          }
-
-          return { file, status };
-        });
-    } catch {
-      return [];
-    }
-  }
-
   private startGitWatcher(): void {
     // Initial state
-    this.lastBranchName = this.getBranchName();
-    this.lastGitChangesHash = JSON.stringify(this.getGitChanges());
+    this.lastBranchName = this.git.getBranchName();
+    this.lastGitChangesHash = JSON.stringify(this.git.getGitChanges());
 
     // Poll every 2 seconds for changes
     this.gitWatchInterval = setInterval(() => {
-      const currentBranch = this.getBranchName();
-      const currentChanges = this.getGitChanges();
+      const currentBranch = this.git.getBranchName();
+      const currentChanges = this.git.getGitChanges();
       const currentChangesHash = JSON.stringify(currentChanges);
 
       // Check if anything changed
@@ -129,82 +83,8 @@ export class PromptServer {
     }
   }
 
-  private getPRStatus(): { hasPR: boolean; prUrl?: string } {
-    try {
-      const result = execSync("gh pr view --json url -q .url", {
-        cwd: this.projectRoot,
-        encoding: "utf-8",
-        stdio: ["pipe", "pipe", "pipe"],
-      }).trim();
-      return { hasPR: true, prUrl: result || undefined };
-    } catch {
-      return { hasPR: false };
-    }
-  }
-
-  private getRecentBranches(): BranchInfo[] {
-    try {
-      const output = execSync(
-        "git branch --sort=-committerdate --format='%(refname:short)|%(committerdate:iso8601)'",
-        {
-          cwd: this.projectRoot,
-          encoding: "utf-8",
-          stdio: ["pipe", "pipe", "pipe"],
-        }
-      ).trim();
-
-      if (!output) return [];
-
-      const currentBranch = this.getBranchName();
-      const branches: BranchInfo[] = output
-        .split("\n")
-        .slice(0, 15)
-        .map((line) => {
-          const [name, lastCommitDate] = line.split("|");
-          return {
-            name: name.trim(),
-            isCurrent: name.trim() === currentBranch,
-            lastCommitDate: lastCommitDate?.trim(),
-          };
-        });
-
-      // Try to enrich with PR info
-      try {
-        const prOutput = execSync(
-          "gh pr list --json headRefName,number,title --limit 10",
-          {
-            cwd: this.projectRoot,
-            encoding: "utf-8",
-            stdio: ["pipe", "pipe", "pipe"],
-          }
-        ).trim();
-
-        if (prOutput) {
-          const prs = JSON.parse(prOutput) as Array<{
-            headRefName: string;
-            number: number;
-            title: string;
-          }>;
-          for (const pr of prs) {
-            const branch = branches.find((b) => b.name === pr.headRefName);
-            if (branch) {
-              branch.prNumber = String(pr.number);
-              branch.prTitle = pr.title;
-            }
-          }
-        }
-      } catch {
-        // gh CLI not available or not authenticated, skip PR enrichment
-      }
-
-      return branches;
-    } catch {
-      return [];
-    }
-  }
-
   private handleListBranches(ws: WebSocket): void {
-    const branches = this.getRecentBranches();
+    const branches = this.git.getRecentBranches();
     this.sendToClient(ws, {
       type: "branches_list",
       branches,
@@ -213,20 +93,8 @@ export class PromptServer {
     this.log(`Sent ${branches.length} branches to client`, "info");
   }
 
-  private isValidBranchName(name: string): boolean {
-    // Reject empty, whitespace-only, or overly long names
-    if (!name || name.trim() !== name || name.length > 250) return false;
-    // Git branch name rules: no space, ~, ^, :, ?, *, [, \, control chars, "..", "//", trailing ".", trailing "/", ".lock"
-    if (/[\s~^:?*\[\]\\]/.test(name)) return false;
-    if (/\.\./.test(name)) return false;
-    if (/\/\//.test(name)) return false;
-    if (name.endsWith(".") || name.endsWith("/") || name.endsWith(".lock")) return false;
-    if (name.startsWith("-") || name.startsWith(".")) return false;
-    return true;
-  }
-
   private handleSwitchBranch(ws: WebSocket, branchName: string): void {
-    if (!this.isValidBranchName(branchName)) {
+    if (!this.git.isValidBranchName(branchName)) {
       this.sendToClient(ws, {
         type: "branch_switched",
         branchName,
@@ -237,49 +105,36 @@ export class PromptServer {
       return;
     }
 
-    let didStash = false;
-    try {
-      // Check for uncommitted changes
-      const status = execSync("git status --porcelain -u", {
-        cwd: this.projectRoot,
-        encoding: "utf-8",
-        stdio: ["pipe", "pipe", "pipe"],
-      }).trim();
+    const currentBranchBeforeSwitch = this.git.getBranchName();
+    const stash = this.git.autoStash(currentBranchBeforeSwitch);
+    if (stash.error) {
+      this.sendToClient(ws, {
+        type: "branch_switched",
+        branchName,
+        success: false,
+        error: `Failed to stash changes: ${stash.error}`,
+        timestamp: Date.now(),
+      });
+      this.log(`Failed to stash before switch: ${stash.error}`, "error");
+      return;
+    }
+    if (stash.didStash) {
+      this.log(`Auto-stashed uncommitted changes for branch ${currentBranchBeforeSwitch}`, "info");
+    }
 
-      if (status) {
-        // Auto-stash (including untracked) before switching
-        try {
-          execFileSync("git", ["stash", "push", "-u", "-m", "expo-air-auto-stash"], {
-            cwd: this.projectRoot,
-            encoding: "utf-8",
-            stdio: ["pipe", "pipe", "pipe"],
-          });
-          didStash = true;
-          this.log("Auto-stashed uncommitted changes", "info");
-        } catch (stashError) {
-          const msg = stashError instanceof Error ? stashError.message : String(stashError);
-          this.sendToClient(ws, {
-            type: "branch_switched",
-            branchName,
-            success: false,
-            error: `Failed to stash changes: ${msg}`,
-            timestamp: Date.now(),
-          });
-          this.log(`Failed to stash before switch: ${msg}`, "error");
-          return;
-        }
+    try {
+      this.git.checkoutBranch(branchName);
+
+      const pop = this.git.autoPopStash(branchName);
+      if (pop.popped) {
+        this.log(`Restored auto-stashed changes for branch ${branchName}`, "info");
+      } else if (pop.conflict) {
+        this.log("Warning: failed to pop auto-stash (possible merge conflict). Stash preserved.", "error");
+        this.log("Reset working directory after stash conflict", "info");
       }
 
-      // Switch branch using execFileSync (no shell interpolation)
-      execFileSync("git", ["checkout", branchName], {
-        cwd: this.projectRoot,
-        encoding: "utf-8",
-        stdio: ["pipe", "pipe", "pipe"],
-      });
-
-      // Broadcast updated git status
-      const currentBranch = this.getBranchName();
-      const changes = this.getGitChanges();
+      const currentBranch = this.git.getBranchName();
+      const changes = this.git.getGitChanges();
       this.broadcastGitStatus(currentBranch, changes);
 
       this.sendToClient(ws, {
@@ -291,16 +146,10 @@ export class PromptServer {
       this.log(`Switched to branch: ${currentBranch}`, "success");
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      // Restore stash if we stashed before the failed checkout
-      if (didStash) {
-        try {
-          execFileSync("git", ["stash", "pop"], {
-            cwd: this.projectRoot,
-            encoding: "utf-8",
-            stdio: ["pipe", "pipe", "pipe"],
-          });
+      if (stash.didStash) {
+        if (this.git.restoreStashAfterFailure()) {
           this.log("Restored stash after failed checkout", "info");
-        } catch {
+        } else {
           this.log("Warning: failed to restore stash after failed checkout", "error");
         }
       }
@@ -316,7 +165,7 @@ export class PromptServer {
   }
 
   private handleCreateBranch(ws: WebSocket, branchName: string): void {
-    if (!this.isValidBranchName(branchName)) {
+    if (!this.git.isValidBranchName(branchName)) {
       this.sendToClient(ws, {
         type: "branch_created",
         branchName,
@@ -327,55 +176,28 @@ export class PromptServer {
       return;
     }
 
-    let didStash = false;
+    const currentBranchBeforeCreate = this.git.getBranchName();
+    const stash = this.git.autoStash(currentBranchBeforeCreate);
+    if (stash.error) {
+      this.sendToClient(ws, {
+        type: "branch_created",
+        branchName,
+        success: false,
+        error: `Failed to stash changes: ${stash.error}`,
+        timestamp: Date.now(),
+      });
+      this.log(`Failed to stash before create: ${stash.error}`, "error");
+      return;
+    }
+    if (stash.didStash) {
+      this.log(`Auto-stashed uncommitted changes for branch ${currentBranchBeforeCreate}`, "info");
+    }
+
     try {
-      // Check for uncommitted changes
-      const status = execSync("git status --porcelain -u", {
-        cwd: this.projectRoot,
-        encoding: "utf-8",
-        stdio: ["pipe", "pipe", "pipe"],
-      }).trim();
+      this.git.createBranchFromMain(branchName);
 
-      if (status) {
-        try {
-          execFileSync("git", ["stash", "push", "-u", "-m", "expo-air-auto-stash"], {
-            cwd: this.projectRoot,
-            encoding: "utf-8",
-            stdio: ["pipe", "pipe", "pipe"],
-          });
-          didStash = true;
-          this.log("Auto-stashed uncommitted changes", "info");
-        } catch (stashError) {
-          const msg = stashError instanceof Error ? stashError.message : String(stashError);
-          this.sendToClient(ws, {
-            type: "branch_created",
-            branchName,
-            success: false,
-            error: `Failed to stash changes: ${msg}`,
-            timestamp: Date.now(),
-          });
-          this.log(`Failed to stash before create: ${msg}`, "error");
-          return;
-        }
-      }
-
-      // Fetch latest main
-      execFileSync("git", ["fetch", "origin", "main"], {
-        cwd: this.projectRoot,
-        encoding: "utf-8",
-        stdio: ["pipe", "pipe", "pipe"],
-      });
-
-      // Create and checkout new branch from origin/main
-      execFileSync("git", ["checkout", "-b", branchName, "origin/main"], {
-        cwd: this.projectRoot,
-        encoding: "utf-8",
-        stdio: ["pipe", "pipe", "pipe"],
-      });
-
-      // Broadcast updated git status
-      const currentBranch = this.getBranchName();
-      const changes = this.getGitChanges();
+      const currentBranch = this.git.getBranchName();
+      const changes = this.git.getGitChanges();
       this.broadcastGitStatus(currentBranch, changes);
 
       this.sendToClient(ws, {
@@ -387,16 +209,10 @@ export class PromptServer {
       this.log(`Created new branch: ${currentBranch}`, "success");
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      // Restore stash if we stashed before the failed operation
-      if (didStash) {
-        try {
-          execFileSync("git", ["stash", "pop"], {
-            cwd: this.projectRoot,
-            encoding: "utf-8",
-            stdio: ["pipe", "pipe", "pipe"],
-          });
+      if (stash.didStash) {
+        if (this.git.restoreStashAfterFailure()) {
           this.log("Restored stash after failed branch creation", "info");
-        } catch {
+        } else {
           this.log("Warning: failed to restore stash after failed branch creation", "error");
         }
       }
@@ -412,7 +228,7 @@ export class PromptServer {
   }
 
   private broadcastGitStatus(branchName: string, changes: GitChange[]): void {
-    const prStatus = this.getPRStatus();
+    const prStatus = this.git.getPRStatus();
     const message: OutgoingMessage = {
       type: "git_status",
       branchName,
@@ -429,27 +245,15 @@ export class PromptServer {
     this.log(`Git status updated: ${branchName} (${changes.length} changes, PR: ${prStatus.hasPR})`, "info");
   }
 
-  private getGitRoot(): string {
-    try {
-      return execSync("git rev-parse --show-toplevel", {
-        cwd: this.projectRoot,
-        encoding: "utf-8",
-        stdio: ["pipe", "pipe", "pipe"],
-      }).trim();
-    } catch {
-      return this.projectRoot;
-    }
-  }
-
   private retriggerHMR(): void {
-    const changes = this.getGitChanges();
+    const changes = this.git.getGitChanges();
     if (changes.length === 0) {
       this.log("HMR retrigger: no uncommitted files to re-touch", "info");
       return;
     }
 
     // git status returns paths relative to the repo root, not projectRoot
-    const gitRoot = this.getGitRoot();
+    const gitRoot = this.git.getGitRoot();
     this.log(`HMR retrigger: re-touching ${changes.length} uncommitted files (root: ${gitRoot})`, "info");
 
     let touched = 0;
@@ -788,9 +592,9 @@ export class PromptServer {
     }
 
     // Send initial git status
-    const branchName = this.getBranchName();
-    const changes = this.getGitChanges();
-    const prStatus = this.getPRStatus();
+    const branchName = this.git.getBranchName();
+    const changes = this.git.getGitChanges();
+    const prStatus = this.git.getPRStatus();
     this.sendToClient(ws, {
       type: "git_status",
       branchName,
@@ -956,23 +760,11 @@ export class PromptServer {
     this.log("Discarding all git changes...", "info");
 
     try {
-      // Reset tracked files to HEAD
-      execSync("git checkout -- .", {
-        cwd: this.projectRoot,
-        stdio: ["pipe", "pipe", "pipe"],
-      });
-
-      // Remove untracked files and directories
-      execSync("git clean -fd", {
-        cwd: this.projectRoot,
-        stdio: ["pipe", "pipe", "pipe"],
-      });
-
+      this.git.discardAllChanges();
       this.log("All changes discarded", "success");
 
-      // Broadcast updated git status to all clients
-      const branchName = this.getBranchName();
-      const changes = this.getGitChanges();
+      const branchName = this.git.getBranchName();
+      const changes = this.git.getGitChanges();
       this.broadcastGitStatus(branchName, changes);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
