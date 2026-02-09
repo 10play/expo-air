@@ -113,6 +113,7 @@ class FloatingBubbleViewController: UIViewController, UIGestureRecognizerDelegat
     private var shapeView: TrapezoidView!
     private var reactSurfaceView: UIView?
     private var nativeCloseButton: UIButton!
+    private var placeholderDot: UIView!
 
     var bubbleSize: CGFloat = 60
     var bubbleColor: String = "#000000"
@@ -194,6 +195,18 @@ class FloatingBubbleViewController: UIViewController, UIGestureRecognizerDelegat
         shapeView.bottomWidth = collapsedBottomWidth
         shapeView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         bubbleContainer.addSubview(shapeView)
+
+        // Native gray placeholder dot — visible until RN bundle loads and renders its colored dot on top
+        let dotSize: CGFloat = 8
+        placeholderDot = UIView(frame: CGRect(
+            x: (collapsedTopWidth - dotSize) / 2,
+            y: (collapsedHeight - dotSize) / 2,
+            width: dotSize,
+            height: dotSize
+        ))
+        placeholderDot.backgroundColor = UIColor(white: 0.56, alpha: 1)
+        placeholderDot.layer.cornerRadius = dotSize / 2
+        bubbleContainer.addSubview(placeholderDot)
 
         // Shadow
         bubbleContainer.layer.shadowColor = UIColor.black.cgColor
