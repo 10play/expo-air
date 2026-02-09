@@ -85,7 +85,18 @@ if (!isInstalledFromNpm()) {
     .option("-m, --metro-port <port>", "Port for main app Metro server", "8081")
     .option("--project <path>", "Path to Expo project")
     .option("-d, --device <name>", "Simulator name or UDID (omit for interactive picker)")
+    .option("--platform <platform>", "Platform to build for (ios or android)", "ios")
     .action(devCommand);
+
+  program
+    .command("dev:android")
+    .description("🛠  SDK development mode for Android emulator")
+    .option("-p, --port <port>", "Port for prompt server", "3847")
+    .option("-w, --widget-port <port>", "Port for widget Metro server", "8082")
+    .option("-m, --metro-port <port>", "Port for main app Metro server", "8081")
+    .option("--project <path>", "Path to Expo project")
+    .option("-d, --device <name>", "Emulator name or serial (omit for interactive picker)")
+    .action((options) => devCommand({ ...options, platform: "android" }));
 }
 
 // Default command (just running `expo-air` starts everything)

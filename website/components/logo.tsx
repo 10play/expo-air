@@ -2,9 +2,10 @@ import type { SVGProps } from 'react';
 
 interface LogoProps extends SVGProps<SVGSVGElement> {
   animated?: boolean;
+  dotColor?: string;
 }
 
-export function Logo({ className, animated, ...props }: LogoProps) {
+export function Logo({ className, animated, dotColor, ...props }: LogoProps) {
   return (
     <svg
       viewBox="0 0 100 32"
@@ -22,8 +23,8 @@ export function Logo({ className, animated, ...props }: LogoProps) {
         cx="50"
         cy="16"
         r="2.8"
-        fill="#4CD964"
-        className={animated ? 'logo-dot-vibe' : undefined}
+        fill={dotColor ?? '#4CD964'}
+        className={animated ? (dotColor ? 'logo-dot-vibe-blue' : 'logo-dot-vibe') : undefined}
       />
     </svg>
   );

@@ -20,12 +20,21 @@ export const metadata: Metadata = {
       'AI-powered on-device development SDK for React Native/Expo.',
     siteName: 'expo-air',
     type: 'website',
+    images: [
+      {
+        url: '/og-image.png',
+        width: 1200,
+        height: 630,
+        type: 'image/png',
+      },
+    ],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'expo-air - Vibe Coding for React Native',
     description:
       'AI-powered on-device development SDK for React Native/Expo.',
+    images: ['/og-image.png'],
   },
 };
 

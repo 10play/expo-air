@@ -41,3 +41,9 @@ android {
     abortOnError false
   }
 }
+
+dependencies {
+  implementation "com.facebook.react:react-android"
+  implementation "com.facebook.react:hermes-android"
+  implementation "androidx.core:core-ktx:1.12.0"
+}
