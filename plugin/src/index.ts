@@ -68,6 +68,24 @@ const withAppDelegatePatch: ConfigPlugin = (config) => {
         console.log("[expo-air] Patched AppDelegate for tunnel support");
       }
 
+      // Patch bridging header to expose RCTBridge to Swift.
+      // The prebuilt React.framework module map doesn't include RCTBridge.h,
+      // but the generated AppDelegate references RCTBridge in sourceURL(for:).
+      const bridgingHeaderPath = path.join(
+        projectRoot,
+        "ios",
+        config.modRequest.projectName || "",
+        `${config.modRequest.projectName || ""}-Bridging-Header.h`
+      );
+      if (fs.existsSync(bridgingHeaderPath)) {
+        let header = fs.readFileSync(bridgingHeaderPath, "utf-8");
+        if (!header.includes("RCTBridge.h")) {
+          header += `#import <React/RCTBridge.h>\n`;
+          fs.writeFileSync(bridgingHeaderPath, header);
+          console.log("[expo-air] Patched bridging header for RCTBridge");
+        }
+      }
+
       return config;
     },
   ]);
