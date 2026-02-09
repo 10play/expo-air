@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, Platform, Image } from "react-native";
+import { View, Text, StyleSheet, Platform, Image, ActivityIndicator } from "react-native";
 import type {
   ServerMessage,
   ToolMessage,

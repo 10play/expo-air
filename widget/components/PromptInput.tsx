@@ -7,7 +7,6 @@ import {
   Image,
   ScrollView,
   Alert,
-  ActivityIndicator,
   NativeModules,
   NativeEventEmitter,
 } from "react-native";
@@ -150,11 +149,7 @@ export const PromptInput = forwardRef<PromptInputHandle, PromptInputProps>(({
           returnKeyType="send"
           blurOnSubmit
         />
-        {isSending ? (
-          <View style={[styles.submitButton, styles.sendingButton]}>
-            <ActivityIndicator size="small" color={COLORS.TEXT_MUTED} />
-          </View>
-        ) : isProcessing ? (
+        {isProcessing ? (
           <TouchableOpacity
             style={[styles.submitButton, styles.stopButton]}
             onPress={onStop}
@@ -287,9 +282,6 @@ const styles = StyleSheet.create({
   },
   submitButtonDisabled: {
     opacity: 0.4,
-  },
-  sendingButton: {
-    backgroundColor: "transparent",
   },
   stopButton: {
     backgroundColor: COLORS.STATUS_NEUTRAL,
