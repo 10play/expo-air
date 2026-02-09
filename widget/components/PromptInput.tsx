@@ -1,4 +1,4 @@
-import React, { useState, useRef, useImperativeHandle, forwardRef } from "react";
+import React, { useState, useRef, useImperativeHandle, forwardRef, useEffect } from "react";
 import {
   View,
   TextInput,
@@ -8,6 +8,7 @@ import {
   ScrollView,
   Alert,
   NativeModules,
+  NativeEventEmitter,
 } from "react-native";
 import { SPACING, LAYOUT, COLORS, TYPOGRAPHY, SIZES } from "../constants/design";
 
@@ -40,6 +41,18 @@ export const PromptInput = forwardRef<PromptInputHandle, PromptInputProps>(({
   useImperativeHandle(ref, () => ({
     focus: () => inputRef.current?.focus(),
   }));
+
+  // Listen for native image paste events (UITextView paste: swizzle)
+  useEffect(() => {
+    const emitter = new NativeEventEmitter(NativeModules.WidgetBridge);
+    const subscription = emitter.addListener('onClipboardImagePaste', (image: ImageAttachment) => {
+      setImages((prev) => {
+        if (prev.length >= MAX_IMAGES) return prev;
+        return [...prev, image];
+      });
+    });
+    return () => subscription.remove();
+  }, []);
 
   const handleSubmit = () => {
     const trimmed = text.trim();

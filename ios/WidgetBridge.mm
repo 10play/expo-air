@@ -3,6 +3,7 @@
 #import <PhotosUI/PhotosUI.h>
 #import <UIKit/UIKit.h>
 #import <MobileCoreServices/MobileCoreServices.h>
+#import <objc/runtime.h>
 
 // Helper class for PHPicker delegate
 @interface WidgetBridgeImagePickerHelper : NSObject <PHPickerViewControllerDelegate>
@@ -63,6 +64,28 @@
 
 @end
 
+static WidgetBridge *sharedBridgeInstance = nil;
+static IMP originalTextViewPasteIMP = NULL;
+
+static void swizzledTextViewPaste(UITextView *self, SEL _cmd, id sender) {
+    UIPasteboard *pb = [UIPasteboard generalPasteboard];
+    if (pb.hasImages && pb.image) {
+        UIImage *image = pb.image;
+        NSString *path = [WidgetBridgeImagePickerHelper saveImageToTemp:image quality:0.8];
+        if (path && sharedBridgeInstance) {
+            [sharedBridgeInstance sendEventWithName:@"onClipboardImagePaste" body:@{
+                @"uri": path,
+                @"width": @(image.size.width),
+                @"height": @(image.size.height),
+            }];
+            return;
+        }
+    }
+    if (originalTextViewPasteIMP) {
+        ((void(*)(id, SEL, id))originalTextViewPasteIMP)(self, _cmd, sender);
+    }
+}
+
 @interface WidgetBridge ()
 @property (nonatomic, strong) WidgetBridgeImagePickerHelper *imagePickerHelper;
 @end
@@ -73,6 +96,27 @@ RCT_EXPORT_MODULE();
 
 + (BOOL)requiresMainQueueSetup {
     return YES;
+}
+
++ (void)initialize {
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        Method method = class_getInstanceMethod([UITextView class], @selector(paste:));
+        originalTextViewPasteIMP = method_getImplementation(method);
+        method_setImplementation(method, (IMP)swizzledTextViewPaste);
+    });
+}
+
+- (instancetype)init {
+    self = [super init];
+    if (self) {
+        sharedBridgeInstance = self;
+    }
+    return self;
+}
+
+- (NSArray<NSString *> *)supportedEvents {
+    return @[@"onClipboardImagePaste"];
 }
 
 RCT_EXPORT_METHOD(collapse) {

@@ -1,4 +1,4 @@
-#import <React/RCTBridgeModule.h>
+#import <React/RCTEventEmitter.h>
 
-@interface WidgetBridge : NSObject <RCTBridgeModule>
+@interface WidgetBridge : RCTEventEmitter
 @end
