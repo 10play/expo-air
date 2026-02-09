@@ -506,7 +506,7 @@ function DisconnectedView() {
         Start the development server from your project directory:
       </Text>
       <View style={styles.codeBlock}>
-        <Text style={styles.codeText}>npx expo-air start</Text>
+        <Text style={styles.codeText}>npx expo-air fly</Text>
       </View>
     </View>
   );
