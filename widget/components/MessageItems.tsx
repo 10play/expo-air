@@ -1,5 +1,5 @@
-import React from "react";
-import { View, Text, StyleSheet, Platform, Image } from "react-native";
+import React, { useState } from "react";
+import { View, Text, StyleSheet, Platform, Image, ActivityIndicator } from "react-native";
 import type {
   ServerMessage,
   ToolMessage,
@@ -52,13 +52,37 @@ export function MessageItem({ message }: { key?: React.Key; message: ServerMessa
   }
 }
 
+function ChatImageThumb({ uri }: { uri: string }) {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  return (
+    <View style={styles.userImageThumb}>
+      {loading && !error && (
+        <ActivityIndicator
+          size="small"
+          color="rgba(255,255,255,0.4)"
+          style={StyleSheet.absoluteFill}
+        />
+      )}
+      {!error ? (
+        <Image
+          source={{ uri }}
+          style={[StyleSheet.absoluteFill, { borderRadius: SPACING.SM }]}
+          onLoad={() => setLoading(false)}
+          onError={() => { setLoading(false); setError(true); }}
+        />
+      ) : null}
+    </View>
+  );
+}
+
 function UserPromptItem({ message }: { message: UserPromptMessage }) {
   return (
     <View style={styles.userPromptContainer}>
       {message.images && message.images.length > 0 && (
         <View style={styles.userImages}>
           {message.images.map((img, i) => (
-            <Image key={i} source={{ uri: img.uri }} style={styles.userImageThumb} />
+            <ChatImageThumb key={i} uri={img.uri} />
           ))}
         </View>
       )}
@@ -304,5 +328,8 @@ const styles = StyleSheet.create({
     height: 80,
     borderRadius: SPACING.SM,
     backgroundColor: "rgba(255,255,255,0.1)",
+    overflow: "hidden",
+    justifyContent: "center",
+    alignItems: "center",
   },
 });

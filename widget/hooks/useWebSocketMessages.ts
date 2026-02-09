@@ -166,9 +166,14 @@ export function useWebSocketMessages({ serverUrl, onGitMessage }: UseWebSocketMe
         // Convert history entries to displayable messages
         const historyMessages: ServerMessage[] = message.entries.flatMap((entry: AnyConversationEntry): ServerMessage[] => {
           if (entry.role === "user") {
+            const images: ImageAttachment[] | undefined =
+              entry.imagePaths && entry.imagePaths.length > 0
+                ? entry.imagePaths.map((uri) => ({ uri }))
+                : undefined;
             return [{
               type: "user_prompt" as const,
               content: entry.content,
+              images,
               timestamp: entry.timestamp,
             }];
           } else if (entry.role === "assistant") {
