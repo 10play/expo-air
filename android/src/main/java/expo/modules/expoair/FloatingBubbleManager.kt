@@ -97,7 +97,6 @@ object FloatingBubbleManager {
         val activity = activityRef?.get() ?: return
         activity.runOnUiThread {
             bubbleView?.expand()
-            widgetRuntime?.emitExpandCollapse(true)
         }
     }
 
@@ -105,7 +104,6 @@ object FloatingBubbleManager {
         val activity = activityRef?.get() ?: return
         activity.runOnUiThread {
             bubbleView?.collapse()
-            widgetRuntime?.emitExpandCollapse(false)
         }
     }
 }

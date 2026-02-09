@@ -8,7 +8,6 @@ import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import expo.modules.kotlin.records.Field
 import expo.modules.kotlin.records.Record
-import java.net.URL
 
 class ShowBubbleOptions : Record {
     @Field var size: Double = 60.0
@@ -134,12 +133,6 @@ class ExpoAirModule : Module() {
             return@Function ""
         }
 
-        View(ExpoAirView::class) {
-            Prop("url") { view: ExpoAirView, url: URL ->
-                view.webView.loadUrl(url.toString())
-            }
-            Events("onLoad")
-        }
     }
 
     companion object {

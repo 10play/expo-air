@@ -2089,7 +2089,7 @@ const styles = {
   },
   container: {
     flex: 1,
-    backgroundColor: "red",
+    backgroundColor: "pink",
   },
   view: {
     flex: 1,
