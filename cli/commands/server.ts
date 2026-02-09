@@ -1,7 +1,9 @@
 import chalk from "chalk";
+import { randomBytes } from "crypto";
 import * as path from "path";
 import * as fs from "fs";
 import { fileURLToPath } from "url";
+import { appendSecret } from "../utils/common.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -29,15 +31,16 @@ export async function serverCommand(options: ServerOptions): Promise<void> {
     }
   }
 
-  // Start prompt server
+  // Start prompt server with authentication secret
+  const secret = randomBytes(32).toString("hex");
   const { PromptServer } = await import("../server/promptServer.js");
-  const server = new PromptServer(port, projectRoot);
+  const server = new PromptServer(port, projectRoot, secret);
   await server.start();
-  console.log(chalk.green(`  ✓ Prompt server started on port ${port}`));
+  console.log(chalk.green(`  ✓ Prompt server started on port ${port} (authenticated)`));
   console.log(chalk.gray(`    Project root: ${projectRoot}`));
 
   console.log(chalk.gray("\n  ─────────────────────────────────────────────"));
-  console.log(chalk.white(`    WebSocket URL: ws://localhost:${port}`));
+  console.log(chalk.white(`    WebSocket URL: ${appendSecret(`ws://localhost:${port}`, secret)}`));
   console.log(chalk.gray("  ─────────────────────────────────────────────"));
   console.log(chalk.yellow("\n  Waiting for prompts... (Ctrl+C to stop)\n"));
 

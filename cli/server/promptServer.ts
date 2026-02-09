@@ -40,10 +40,12 @@ export class PromptServer {
   private pushToken: string | null = null;
   private currentStreamedResponse: string = "";
   private lastToolInput: unknown = undefined;
+  private secret: string | null = null;
 
-  constructor(port: number, projectRoot?: string) {
+  constructor(port: number, projectRoot?: string, secret?: string | null) {
     this.port = port;
     this.projectRoot = projectRoot || process.cwd();
+    this.secret = secret ?? null;
     this.loadSession();
   }
 
@@ -533,9 +535,11 @@ export class PromptServer {
   }
 
   private handleHttpRequest(req: http.IncomingMessage, res: http.ServerResponse): void {
+    const reqUrl = new URL(req.url || "/", `http://localhost:${this.port}`);
+
     // CORS headers for the widget
     res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
     if (req.method === "OPTIONS") {
@@ -544,12 +548,20 @@ export class PromptServer {
       return;
     }
 
-    if (req.method === "POST" && req.url === "/upload") {
+    // Validate secret for all non-OPTIONS requests
+    if (this.secret && reqUrl.searchParams.get("secret") !== this.secret) {
+      this.log("Rejected unauthorized HTTP request", "error");
+      res.writeHead(401);
+      res.end("Unauthorized");
+      return;
+    }
+
+    if (req.method === "POST" && reqUrl.pathname === "/upload") {
       this.handleUpload(req, res);
       return;
     }
 
-    if (req.url === "/hmr-retrigger" && req.method === "POST") {
+    if (reqUrl.pathname === "/hmr-retrigger" && req.method === "POST") {
       this.retriggerHMR();
       res.writeHead(200);
       res.end("OK");
@@ -687,7 +699,20 @@ export class PromptServer {
   async start(): Promise<void> {
     return new Promise((resolve, reject) => {
       this.httpServer = http.createServer((req, res) => this.handleHttpRequest(req, res));
-      this.wss = new WebSocketServer({ server: this.httpServer });
+      this.wss = new WebSocketServer({
+        server: this.httpServer,
+        verifyClient: this.secret
+          ? (info, cb) => {
+              const url = new URL(info.req.url || "/", `http://localhost:${this.port}`);
+              if (url.searchParams.get("secret") === this.secret) {
+                cb(true);
+              } else {
+                this.log("Rejected unauthorized WebSocket connection", "error");
+                cb(false, 401, "Unauthorized");
+              }
+            }
+          : undefined,
+      });
 
       this.wss.on("error", (error) => {
         reject(error);
