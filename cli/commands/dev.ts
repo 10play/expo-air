@@ -3,7 +3,7 @@ import { spawn, execSync, type ChildProcess } from "child_process";
 import { existsSync, unlinkSync } from "fs";
 import { join } from "path";
 import { DevEnvironment, killProcessTree } from "../runner/devEnvironment.js";
-import { writeLocalConfig, updateInfoPlist, getPackageRoot, appendSecret } from "../utils/common.js";
+import { writeLocalConfig, updateInfoPlist, updateAndroidManifest, getPackageRoot, appendSecret, resolveAndroidJavaHome } from "../utils/common.js";
 
 export interface DevOptions {
   port: string;
@@ -11,6 +11,7 @@ export interface DevOptions {
   metroPort?: string;
   project?: string;
   device?: string;
+  platform?: "ios" | "android";
 }
 
 export async function devCommand(options: DevOptions): Promise<void> {
@@ -75,31 +76,36 @@ export async function devCommand(options: DevOptions): Promise<void> {
   env.resolveProject({ exitOnError: true });
 
   // Remove prebuilt widget bundle so Metro is used for development
+  const isAndroid = options.platform === "android";
   const packageRoot = getPackageRoot();
-  const prebuiltBundle = join(packageRoot, "ios", "widget.jsbundle");
+  const prebuiltBundle = isAndroid
+    ? join(packageRoot, "android", "src", "main", "assets", "widget.android.bundle")
+    : join(packageRoot, "ios", "widget.jsbundle");
   if (existsSync(prebuiltBundle)) {
     unlinkSync(prebuiltBundle);
     console.log(chalk.green("  ✓ Removed prebuilt widget bundle (will use Metro)"));
   }
 
-  // Check if Pods still reference the deleted bundle and need a refresh
-  const iosDir = join(env.getProjectRoot(), "ios");
-  const podsDir = join(iosDir, "Pods");
-  if (existsSync(podsDir)) {
-    try {
-      execSync("grep -rq 'widget\\.jsbundle' Pods/", {
-        cwd: iosDir,
-        stdio: ["pipe", "pipe", "pipe"],
-      });
-      // grep succeeded = stale reference exists, run pod install
-      console.log(chalk.blue("  ⟳ Refreshing pods (stale bundle reference)..."));
-      execSync("pod install", {
-        cwd: iosDir,
-        stdio: "inherit",
-      });
-      console.log(chalk.green("  ✓ Pods refreshed"));
-    } catch {
-      // grep failed = no stale references, no pod install needed
+  // Check if Pods still reference the deleted bundle and need a refresh (iOS only)
+  if (!isAndroid) {
+    const iosDir = join(env.getProjectRoot(), "ios");
+    const podsDir = join(iosDir, "Pods");
+    if (existsSync(podsDir)) {
+      try {
+        execSync("grep -rq 'widget\\.jsbundle' Pods/", {
+          cwd: iosDir,
+          stdio: ["pipe", "pipe", "pipe"],
+        });
+        // grep succeeded = stale reference exists, run pod install
+        console.log(chalk.blue("  ⟳ Refreshing pods (stale bundle reference)..."));
+        execSync("pod install", {
+          cwd: iosDir,
+          stdio: "inherit",
+        });
+        console.log(chalk.green("  ✓ Pods refreshed"));
+      } catch {
+        // grep failed = no stale references, no pod install needed
+      }
     }
   }
 
@@ -112,34 +118,60 @@ export async function devCommand(options: DevOptions): Promise<void> {
   const ports = env.getPorts();
   const projectRoot = env.getProjectRoot();
 
-  // Write local config with localhost URLs so the app knows where to find the servers
+  // Write local config with URLs so the app knows where to find the servers
+  // Android emulator uses 10.0.2.2 to reach the host machine
+  const host = isAndroid ? "10.0.2.2" : "localhost";
   const localConfig: Record<string, string> = {
-    serverUrl: appendSecret(`ws://localhost:${ports.promptServer}`, env.getServerSecret()),
+    serverUrl: appendSecret(`ws://${host}:${ports.promptServer}`, env.getServerSecret()),
   };
   if (ports.widgetMetro) {
-    localConfig.widgetMetroUrl = `http://localhost:${ports.widgetMetro}`;
+    localConfig.widgetMetroUrl = `http://${host}:${ports.widgetMetro}`;
   }
-  localConfig.appMetroUrl = `http://localhost:${ports.appMetro}`;
+  localConfig.appMetroUrl = `http://${host}:${ports.appMetro}`;
   writeLocalConfig(projectRoot, localConfig);
-  const plistUpdated = updateInfoPlist(projectRoot, localConfig, { silent: true });
-  if (plistUpdated) {
-    console.log(chalk.green(`  ✓ Updated config with local server URLs`));
+  if (isAndroid) {
+    const manifestUpdated = updateAndroidManifest(projectRoot, localConfig, { silent: true });
+    if (manifestUpdated) {
+      console.log(chalk.green(`  ✓ Updated AndroidManifest.xml with local server URLs`));
+    } else {
+      console.log(chalk.green(`  ✓ Updated .expo-air.local.json with local server URLs`));
+    }
   } else {
-    console.log(chalk.green(`  ✓ Updated .expo-air.local.json with local server URLs`));
+    const plistUpdated = updateInfoPlist(projectRoot, localConfig, { silent: true });
+    if (plistUpdated) {
+      console.log(chalk.green(`  ✓ Updated config with local server URLs`));
+    } else {
+      console.log(chalk.green(`  ✓ Updated .expo-air.local.json with local server URLs`));
+    }
   }
 
-  // Build and run on iOS simulator
+  // Build and run on simulator/emulator
+  const platformLabel = isAndroid ? "Android Emulator" : "iOS Simulator";
 
   console.log(chalk.blue("\n  ─────────────────────────────────────────────"));
-  console.log(chalk.blue("  📱 Building for iOS Simulator..."));
+  console.log(chalk.blue(`  📱 Building for ${platformLabel}...`));
   console.log(chalk.blue("  ─────────────────────────────────────────────\n"));
 
-  const runArgs = ["expo", "run:ios", "--port", String(ports.appMetro)];
+  const runCommand = isAndroid ? "run:android" : "run:ios";
+  const runArgs = ["expo", runCommand, "--port", String(ports.appMetro)];
   if (options.device) {
     runArgs.push("--device", options.device);
   } else {
     // Interactive device picker
     runArgs.push("--device");
+  }
+
+  const buildEnv: Record<string, string> = {
+    ...(process.env as Record<string, string>),
+    FORCE_COLOR: "1",
+  };
+
+  // Android builds require Java 17+. Auto-detect Android Studio's JDK if JAVA_HOME is not set or too old.
+  if (isAndroid) {
+    const javaHome = resolveAndroidJavaHome();
+    if (javaHome) {
+      buildEnv.JAVA_HOME = javaHome;
+    }
   }
 
   buildProcess = spawn(
@@ -148,10 +180,7 @@ export async function devCommand(options: DevOptions): Promise<void> {
     {
       cwd: projectRoot,
       stdio: "inherit",
-      env: {
-        ...(process.env as Record<string, string>),
-        FORCE_COLOR: "1",
-      },
+      env: buildEnv,
     }
   );
 
@@ -161,7 +190,7 @@ export async function devCommand(options: DevOptions): Promise<void> {
       if (code === 0) {
         resolve();
       } else {
-        reject(new Error(`Simulator build failed with code ${code}`));
+        reject(new Error(`${platformLabel} build failed with code ${code}`));
       }
     });
     bp.on("error", reject);

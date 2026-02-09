@@ -4,6 +4,7 @@ export interface ConnectedDevice {
   udid: string;
   name: string;
   type: "usb" | "wifi";
+  platform: "ios" | "android";
 }
 
 /**
@@ -48,6 +49,7 @@ export function detectConnectedDevices(): ConnectedDevice[] {
               udid: udid.trim(),
               name: name.trim(),
               type: "usb", // xctrace shows USB-connected devices primarily
+              platform: "ios",
             });
           }
         }
@@ -68,6 +70,7 @@ export function detectConnectedDevices(): ConnectedDevice[] {
           udid: "auto",
           name: "iOS Device (USB)",
           type: "usb",
+          platform: "ios",
         });
       }
     } catch {
@@ -76,6 +79,59 @@ export function detectConnectedDevices(): ConnectedDevice[] {
   }
 
   return devices;
+}
+
+/**
+ * Detect connected Android devices via adb
+ */
+export function detectConnectedAndroidDevices(): ConnectedDevice[] {
+  const devices: ConnectedDevice[] = [];
+
+  try {
+    const output = execSync("adb devices -l 2>/dev/null", {
+      encoding: "utf-8",
+      timeout: 10000,
+    });
+
+    const lines = output.split("\n");
+    for (const line of lines) {
+      // Parse "SERIAL device ..." lines (skip header and empty lines)
+      const match = line.match(/^(\S+)\s+device\s/);
+      if (match) {
+        const serial = match[1];
+
+        // Get device model name
+        let name = serial;
+        try {
+          const model = execSync(`adb -s ${serial} shell getprop ro.product.model 2>/dev/null`, {
+            encoding: "utf-8",
+            timeout: 5000,
+          }).trim();
+          if (model) name = model;
+        } catch {
+          // Use serial as name
+        }
+
+        devices.push({
+          udid: serial,
+          name,
+          type: serial.startsWith("emulator-") ? "wifi" : "usb",
+          platform: "android",
+        });
+      }
+    }
+  } catch {
+    // adb not installed or not available
+  }
+
+  return devices;
+}
+
+/**
+ * Detect all connected devices (iOS + Android)
+ */
+export function detectAllDevices(): ConnectedDevice[] {
+  return [...detectConnectedDevices(), ...detectConnectedAndroidDevices()];
 }
 
 /**

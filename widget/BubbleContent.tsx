@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { View, Text, StyleSheet, NativeModules, TouchableOpacity, Animated, Easing, Linking, type TextProps, type ViewProps } from "react-native";
+import { View, Text, StyleSheet, NativeModules, NativeEventEmitter, TouchableOpacity, Animated, Easing, Linking, Platform, type TextProps, type ViewProps } from "react-native";
 import { PromptInput, type PromptInputHandle } from "./components/PromptInput";
 import { ResponseArea } from "./components/ResponseArea";
 import { GitChangesTab } from "./components/GitChangesTab";
@@ -54,7 +54,7 @@ interface BubbleContentProps {
 export function BubbleContent({
   size = 60,
   color = "#000000",  // Black to match Dynamic Island
-  expanded = false,
+  expanded: initialExpanded = false,
   serverUrl = "ws://localhost:3847",
 }: BubbleContentProps) {
   const [status, setStatus] = useState<ConnectionStatus>("disconnected");
@@ -74,6 +74,25 @@ export function BubbleContent({
   const currentPartsRef = useRef<AssistantPart[]>([]);
   const currentPromptIdRef = useRef<string | null>(null);
   const promptInputRef = useRef<PromptInputHandle>(null);
+
+  // On Android, expanded state is driven by native events (WidgetBridge emits onExpandCollapse).
+  // On iOS, it comes as a prop update from the native surface.
+  const [expanded, setExpanded] = useState(initialExpanded);
+
+  // Listen for native expand/collapse events (Android)
+  useEffect(() => {
+    if (Platform.OS !== "android" || !WidgetBridge) return;
+    const emitter = new NativeEventEmitter(WidgetBridge);
+    const subscription = emitter.addListener("onExpandCollapse", (event: { expanded: boolean }) => {
+      setExpanded(event.expanded);
+    });
+    return () => subscription.remove();
+  }, []);
+
+  // Sync with prop changes (iOS)
+  useEffect(() => {
+    setExpanded(initialExpanded);
+  }, [initialExpanded]);
 
   // Auto-focus input when widget expands
   useEffect(() => {

@@ -2,6 +2,8 @@ import {
   ConfigPlugin,
   withInfoPlist,
   withDangerousMod,
+  AndroidConfig,
+  withAndroidManifest,
 } from "@expo/config-plugins";
 import * as fs from "fs";
 import * as path from "path";
@@ -91,99 +93,189 @@ const withAppDelegatePatch: ConfigPlugin = (config) => {
   ]);
 };
 
-// Inject HMR auto-reconnect import into the app's JS entry point
+// Inject HMR auto-reconnect import into the app's JS entry point.
+// Triggered on "ios" mod but modifies JS files (platform-agnostic).
+// Also triggered on "android" to ensure it runs during android-only prebuild.
+const injectHMRReconnect = async (config: any) => {
+  const projectRoot = config.modRequest.projectRoot;
+  const hmrImport = `import "@10play/expo-air/build/hmrReconnect";\n`;
+
+  const candidates = [
+    "app/_layout.tsx",
+    "app/_layout.js",
+    "App.tsx",
+    "App.js",
+    "index.tsx",
+    "index.js",
+  ];
+
+  for (const candidate of candidates) {
+    const entryPath = path.join(projectRoot, candidate);
+    if (fs.existsSync(entryPath)) {
+      let content = fs.readFileSync(entryPath, "utf-8");
+      if (content.includes("@10play/expo-air/build/hmrReconnect")) {
+        return config;
+      }
+      content = hmrImport + content;
+      fs.writeFileSync(entryPath, content);
+      console.log(`[expo-air] Injected HMR auto-reconnect into ${candidate}`);
+      return config;
+    }
+  }
+
+  console.warn("[expo-air] Could not find app entry point for HMR reconnect injection");
+  return config;
+};
+
 const withHMRReconnect: ConfigPlugin = (config) => {
+  // Run on iOS prebuild
+  config = withDangerousMod(config, ["ios", injectHMRReconnect]);
+  // Also run on Android prebuild (modifies JS, not native)
+  config = withDangerousMod(config, ["android", injectHMRReconnect]);
+  return config;
+};
+
+// Load expo-air config from .expo-air.json + .expo-air.local.json
+function loadExpoAirConfig(projectRoot: string): ExpoAirConfig {
+  let expoAirConfig: ExpoAirConfig = {};
+
+  const configPath = path.join(projectRoot, ".expo-air.json");
+  const localConfigPath = path.join(projectRoot, ".expo-air.local.json");
+
+  if (fs.existsSync(configPath)) {
+    try {
+      expoAirConfig = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+    } catch (e) {
+      console.warn("[expo-air] Failed to parse .expo-air.json:", e);
+    }
+  }
+
+  if (fs.existsSync(localConfigPath)) {
+    try {
+      const localConfig = JSON.parse(fs.readFileSync(localConfigPath, "utf-8"));
+      expoAirConfig = {
+        ...expoAirConfig,
+        ...localConfig,
+        ui: { ...expoAirConfig.ui, ...localConfig.ui },
+      };
+      console.log("[expo-air] Merged local config from .expo-air.local.json");
+    } catch (e) {
+      console.warn("[expo-air] Failed to parse .expo-air.local.json:", e);
+    }
+  }
+
+  return expoAirConfig;
+}
+
+// Add <meta-data> entries to AndroidManifest.xml under <application>
+const withAndroidManifestConfig: ConfigPlugin = (config) => {
+  return withAndroidManifest(config, (config) => {
+    const projectRoot = config.modRequest.projectRoot;
+    const expoAirConfig = loadExpoAirConfig(projectRoot);
+
+    const mainApplication = AndroidConfig.Manifest.getMainApplicationOrThrow(
+      config.modResults
+    );
+
+    if (!mainApplication["meta-data"]) {
+      mainApplication["meta-data"] = [];
+    }
+
+    const metaData: Record<string, string> = {
+      "expo.modules.expoair.AUTO_SHOW": String(expoAirConfig.autoShow ?? true),
+      "expo.modules.expoair.BUBBLE_SIZE": String(expoAirConfig.ui?.bubbleSize ?? 60),
+      "expo.modules.expoair.BUBBLE_COLOR": expoAirConfig.ui?.bubbleColor ?? "#007AFF",
+      "expo.modules.expoair.SERVER_URL": expoAirConfig.serverUrl ?? "",
+      "expo.modules.expoair.WIDGET_METRO_URL": expoAirConfig.widgetMetroUrl ?? "",
+      "expo.modules.expoair.APP_METRO_URL": expoAirConfig.appMetroUrl ?? "",
+    };
+
+    for (const [name, value] of Object.entries(metaData)) {
+      // Remove existing entry if present
+      mainApplication["meta-data"] = mainApplication["meta-data"].filter(
+        (item: any) => item.$?.["android:name"] !== name
+      );
+      // Add new entry
+      mainApplication["meta-data"].push({
+        $: {
+          "android:name": name,
+          "android:value": value,
+        },
+      });
+    }
+
+    return config;
+  });
+};
+
+// Write network_security_config.xml for cleartext traffic to tunnel domains and emulator
+const withNetworkSecurityConfig: ConfigPlugin = (config) => {
   return withDangerousMod(config, [
-    "ios",
+    "android",
     async (config) => {
       const projectRoot = config.modRequest.projectRoot;
-      const hmrImport = `import "@10play/expo-air/build/hmrReconnect";\n`;
+      const resXmlDir = path.join(projectRoot, "android", "app", "src", "main", "res", "xml");
 
-      // Common entry points for Expo Router and vanilla RN apps
-      const candidates = [
-        "app/_layout.tsx",
-        "app/_layout.js",
-        "App.tsx",
-        "App.js",
-        "index.tsx",
-        "index.js",
-      ];
-
-      for (const candidate of candidates) {
-        const entryPath = path.join(projectRoot, candidate);
-        if (fs.existsSync(entryPath)) {
-          let content = fs.readFileSync(entryPath, "utf-8");
-          if (content.includes("@10play/expo-air/build/hmrReconnect")) {
-            // Already injected
-            return config;
-          }
-          content = hmrImport + content;
-          fs.writeFileSync(entryPath, content);
-          console.log(`[expo-air] Injected HMR auto-reconnect into ${candidate}`);
-          return config;
-        }
+      if (!fs.existsSync(resXmlDir)) {
+        fs.mkdirSync(resXmlDir, { recursive: true });
       }
 
-      console.warn("[expo-air] Could not find app entry point for HMR reconnect injection");
+      const networkSecurityConfig = `<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+  <domain-config cleartextTrafficPermitted="true">
+    <domain includeSubdomains="true">bore.pub</domain>
+    <domain includeSubdomains="true">loca.lt</domain>
+    <domain includeSubdomains="true">trycloudflare.com</domain>
+    <domain includeSubdomains="true">10.0.2.2</domain>
+    <domain includeSubdomains="true">localhost</domain>
+  </domain-config>
+</network-security-config>`;
+
+      fs.writeFileSync(
+        path.join(resXmlDir, "network_security_config.xml"),
+        networkSecurityConfig
+      );
+      console.log("[expo-air] Wrote network_security_config.xml");
+
       return config;
     },
   ]);
 };
 
+// Add networkSecurityConfig attribute to AndroidManifest <application>
+const withNetworkSecurityAttribute: ConfigPlugin = (config) => {
+  return withAndroidManifest(config, (config) => {
+    const mainApplication = AndroidConfig.Manifest.getMainApplicationOrThrow(
+      config.modResults
+    );
+
+    mainApplication.$["android:networkSecurityConfig"] =
+      "@xml/network_security_config";
+
+    return config;
+  });
+};
+
 const withExpoAir: ConfigPlugin = (config) => {
-  // First patch AppDelegate
+  // iOS: Patch AppDelegate for tunnel support
   config = withAppDelegatePatch(config);
 
-  // Inject HMR auto-reconnect
+  // Android: Add <meta-data> to AndroidManifest
+  config = withAndroidManifestConfig(config);
+
+  // Android: Network security config for cleartext traffic
+  config = withNetworkSecurityConfig(config);
+  config = withNetworkSecurityAttribute(config);
+
+  // Both: Inject HMR auto-reconnect
   config = withHMRReconnect(config);
 
-  // NOTE: We do NOT add aps-environment entitlement here.
-  // Adding "development" would break production builds (entitlement mismatch with distribution profile).
-  // If developer wants push notifications, they should enable Push Notifications capability in Xcode,
-  // which correctly handles dev vs prod environments.
-  // Our runtime code fails silently if push isn't configured.
-
-  // Then modify Info.plist
+  // iOS: Modify Info.plist
   return withInfoPlist(config, (config) => {
     const projectRoot = config.modRequest.projectRoot;
-
-    // Read base config from .expo-air.json (committed, UI settings)
-    const configPath = path.join(projectRoot, ".expo-air.json");
-    // Read local config from .expo-air.local.json (gitignored, URLs/secrets)
-    const localConfigPath = path.join(projectRoot, ".expo-air.local.json");
-
-    let expoAirConfig: ExpoAirConfig = {};
-
-    // Load base config
-    if (fs.existsSync(configPath)) {
-      try {
-        const content = fs.readFileSync(configPath, "utf-8");
-        expoAirConfig = JSON.parse(content);
-      } catch (e) {
-        console.warn("[expo-air] Failed to parse .expo-air.json:", e);
-      }
-    }
-
-    // Merge local config (overrides base config)
-    if (fs.existsSync(localConfigPath)) {
-      try {
-        const localContent = fs.readFileSync(localConfigPath, "utf-8");
-        const localConfig = JSON.parse(localContent);
-        // Merge: local values override base values
-        expoAirConfig = {
-          ...expoAirConfig,
-          ...localConfig,
-          ui: { ...expoAirConfig.ui, ...localConfig.ui },
-        };
-        console.log("[expo-air] Merged local config from .expo-air.local.json");
-      } catch (e) {
-        console.warn("[expo-air] Failed to parse .expo-air.local.json:", e);
-      }
-    }
+    const expoAirConfig = loadExpoAirConfig(projectRoot);
 
     // Write to Info.plist under ExpoAir key
-    // Note: Empty strings for URLs will trigger fallback logic in native code
-    // SDK developers get localhost fallback, npm users get pre-built bundle
     config.modResults.ExpoAir = {
       autoShow: expoAirConfig.autoShow ?? true,
       bubbleSize: expoAirConfig.ui?.bubbleSize ?? 60,
@@ -193,14 +285,12 @@ const withExpoAir: ConfigPlugin = (config) => {
       appMetroUrl: expoAirConfig.appMetroUrl ?? "",
     };
 
-    // Allow HTTP connections to bore.pub for tunnel support
-    // This is needed because iOS ATS blocks non-HTTPS by default
+    // Allow HTTP connections for tunnel support (iOS ATS)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const modResults = config.modResults as any;
     const ats = modResults.NSAppTransportSecurity || {};
     const exceptionDomains = ats.NSExceptionDomains || {};
 
-    // Add tunnel domain exceptions for various tunnel providers
     exceptionDomains["bore.pub"] = {
       NSExceptionAllowsInsecureHTTPLoads: true,
       NSIncludesSubdomains: true,
@@ -216,9 +306,6 @@ const withExpoAir: ConfigPlugin = (config) => {
 
     ats.NSExceptionDomains = exceptionDomains;
     modResults.NSAppTransportSecurity = ats;
-
-    // Note: UIBackgroundModes for remote notifications is handled by expo-notifications plugin
-    // when enableBackgroundRemoteNotifications: true is set (done by expo-air init)
 
     return config;
   });

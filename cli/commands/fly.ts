@@ -1,8 +1,8 @@
 import chalk from "chalk";
 import { spawn } from "child_process";
 import { DevEnvironment } from "../runner/devEnvironment.js";
-import { detectConnectedDevices, selectDevice, ConnectedDevice } from "../utils/devices.js";
-import { getGitBranchSuffix, maskSecret } from "../utils/common.js";
+import { detectAllDevices, selectDevice, ConnectedDevice } from "../utils/devices.js";
+import { getGitBranchSuffix, maskSecret, resolveAndroidJavaHome } from "../utils/common.js";
 
 export interface FlyOptions {
   port: string;
@@ -19,25 +19,25 @@ export async function flyCommand(options: FlyOptions): Promise<void> {
   console.log(chalk.gray("  One command to rule them all...\n"));
 
   // Step 1: Check for connected devices
-  console.log(chalk.gray("  Detecting connected iOS devices..."));
-  const devices = detectConnectedDevices();
+  console.log(chalk.gray("  Detecting connected devices..."));
+  const devices = detectAllDevices();
 
   if (devices.length === 0) {
-    console.log(chalk.red("\n  ✗ No iOS device connected via USB\n"));
+    console.log(chalk.red("\n  ✗ No device connected\n"));
     console.log(chalk.gray("  To use expo-air fly:"));
-    console.log(chalk.white("    1. Connect your iPhone/iPad with a cable"));
+    console.log(chalk.white("    1. Connect your iPhone/iPad or Android device with a cable"));
     console.log(chalk.white("    2. Unlock your device and trust this computer"));
     console.log(chalk.white("    3. Run this command again\n"));
-    console.log(chalk.gray("  Tip: Simulators are not supported for expo-air fly."));
-    console.log(chalk.gray("       Use a real device for the best experience.\n"));
+    console.log(chalk.gray("  Tip: Use a real device for the best experience.\n"));
     process.exit(1);
   }
 
   // Show detected devices
   console.log(chalk.green(`  ✓ Found ${devices.length} device(s):`));
   devices.forEach((device) => {
-    const icon = device.type === "usb" ? "🔌" : "📶";
-    console.log(chalk.white(`    ${icon} ${device.name}`));
+    const platformIcon = device.platform === "ios" ? "🍎" : "🤖";
+    const connIcon = device.type === "usb" ? "🔌" : "📶";
+    console.log(chalk.white(`    ${platformIcon} ${connIcon} ${device.name}`));
   });
 
   // Select device
@@ -139,14 +139,33 @@ export async function flyCommand(options: FlyOptions): Promise<void> {
     buildEnv.EXPO_AIR_APP_NAME_SUFFIX = branchSuffix;
   }
 
-  const buildArgs = [
-    "expo",
-    "run:ios",
-    "--device",
-    selectedDevice.udid,
-    "--port",
-    String(ports.appMetro),
-  ];
+  const isAndroid = selectedDevice.platform === "android";
+
+  // Android builds require Java 17+
+  if (isAndroid) {
+    const javaHome = resolveAndroidJavaHome();
+    if (javaHome) {
+      buildEnv.JAVA_HOME = javaHome;
+    }
+  }
+
+  const buildArgs = isAndroid
+    ? [
+        "expo",
+        "run:android",
+        "--device",
+        selectedDevice.udid,
+        "--port",
+        String(ports.appMetro),
+      ]
+    : [
+        "expo",
+        "run:ios",
+        "--device",
+        selectedDevice.udid,
+        "--port",
+        String(ports.appMetro),
+      ];
 
   const buildProcess = spawn("npx", buildArgs, {
     cwd: projectRoot,
