@@ -29,12 +29,12 @@ if (typeof __DEV__ !== "undefined" && __DEV__) {
     const ExpoAirModule =
       require("./ExpoAirModule").default ?? require("./ExpoAirModule");
     const wsUrl: string = ExpoAirModule.getServerUrl?.();
-    console.log("[expo-air:hmr] Server URL from native module:", wsUrl);
+    console.log("[expo-air:hmr] Server URL from native module:", wsUrl?.replace(/([?&])secret=[^&]+/, "$1secret=***"));
     if (wsUrl) {
       serverHttpUrl = wsUrl
         .replace(/^ws:/, "http:")
         .replace(/^wss:/, "https:");
-      console.log("[expo-air:hmr] HTTP URL for retrigger:", serverHttpUrl);
+      console.log("[expo-air:hmr] HTTP URL for retrigger:", serverHttpUrl?.replace(/([?&])secret=[^&]+/, "$1secret=***"));
     } else {
       console.warn("[expo-air:hmr] getServerUrl() returned empty/null");
     }
@@ -57,12 +57,14 @@ if (typeof __DEV__ !== "undefined" && __DEV__) {
       );
       return;
     }
+    const retriggerUrl = new URL(serverHttpUrl);
+    retriggerUrl.pathname = "/hmr-retrigger";
     console.log(
       "[expo-air:hmr] Sending retrigger request to:",
-      `${serverHttpUrl}/hmr-retrigger`
+      retriggerUrl.toString().replace(/([?&])secret=[^&]+/, "$1secret=***")
     );
     globalThis
-      .fetch(`${serverHttpUrl}/hmr-retrigger`, { method: "POST" })
+      .fetch(retriggerUrl.toString(), { method: "POST" })
       .then((res) => {
         console.log("[expo-air:hmr] Retrigger response status:", res.status);
       })

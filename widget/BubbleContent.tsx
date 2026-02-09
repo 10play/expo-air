@@ -88,7 +88,7 @@ export function BubbleContent({
   // Initialize WebSocket connection immediately (even when collapsed)
   // so it's already connected when user expands the widget
   useEffect(() => {
-    console.log("[expo-air] Connecting to:", serverUrl);
+    console.log("[expo-air] Connecting to:", serverUrl?.replace(/([?&])secret=[^&]+/, "$1secret=***"));
     const client = createWebSocketClient({
       url: serverUrl,
       onStatusChange: setStatus,

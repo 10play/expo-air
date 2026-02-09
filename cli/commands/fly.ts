@@ -186,7 +186,7 @@ export async function flyCommand(options: FlyOptions): Promise<void> {
 
   if (tunnelUrls.promptServer) {
     console.log(chalk.gray("\n  Remote access (tunnels):"));
-    console.log(chalk.white(`    Prompt:  ${tunnelUrls.promptServer}`));
+    console.log(chalk.white(`    Prompt:  ${tunnelUrls.promptServer.replace(/([?&])secret=[^&]+/, "$1secret=***")}`));
     if (tunnelUrls.widgetMetro) {
       console.log(chalk.white(`    Widget:  ${tunnelUrls.widgetMetro}`));
     }

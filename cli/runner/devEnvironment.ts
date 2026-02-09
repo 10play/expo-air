@@ -94,6 +94,7 @@ export interface DevEnvironmentState {
   extraTunnels: ExtraTunnelState[];
   envFile: string | null;
   serverWatcher: chokidar.FSWatcher | null;
+  serverSecret: string | null;
 }
 
 /**
@@ -152,6 +153,7 @@ export class DevEnvironment {
       extraTunnels: [],
       envFile: null,
       serverWatcher: null,
+      serverSecret: null,
     };
   }
 
@@ -281,10 +283,12 @@ export class DevEnvironment {
     }
 
     console.log(chalk.gray("\n  Starting prompt server..."));
+    const { randomBytes } = await import("crypto");
+    this.state.serverSecret = randomBytes(32).toString("hex");
     const { PromptServer } = await import("../server/promptServer.js");
-    this.state.promptServer = new PromptServer(this.state.ports.promptServer, this.state.projectRoot);
+    this.state.promptServer = new PromptServer(this.state.ports.promptServer, this.state.projectRoot, this.state.serverSecret);
     await this.state.promptServer.start();
-    console.log(chalk.green(`  ✓ Prompt server started on port ${this.state.ports.promptServer}`));
+    console.log(chalk.green(`  ✓ Prompt server started on port ${this.state.ports.promptServer} (authenticated)`));
 
     // Start watching for changes if in watch mode
     if (this.options.watchServer) {
@@ -344,7 +348,7 @@ export class DevEnvironment {
           const { PromptServer } = await import(`../server/promptServer.js${cacheBust}`);
 
           // Create and start new server
-          const newServer = new PromptServer(this.state.ports.promptServer, this.state.projectRoot);
+          const newServer = new PromptServer(this.state.ports.promptServer, this.state.projectRoot, this.state.serverSecret ?? undefined);
           await newServer.start();
           this.state.promptServer = newServer;
 
@@ -376,7 +380,10 @@ export class DevEnvironment {
     this.state.promptTunnel = new CloudflareTunnel();
     try {
       const info = await this.state.promptTunnel.start(this.state.ports.promptServer);
-      this.state.tunnelUrls.promptServer = info.url.replace("https://", "wss://");
+      const wsUrl = info.url.replace("https://", "wss://");
+      this.state.tunnelUrls.promptServer = this.state.serverSecret
+        ? `${wsUrl}?secret=${this.state.serverSecret}`
+        : wsUrl;
       console.log(chalk.green(`  ✓ Prompt tunnel ready`));
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -534,12 +541,18 @@ export class DevEnvironment {
   updateConfigFiles(): void {
     const { promptServer, widgetMetro, appMetro } = this.state.tunnelUrls;
 
-    if (!promptServer && !widgetMetro && !appMetro) {
+    // Build local server URL with secret when tunnels are not used
+    const localServerUrl = this.state.serverSecret
+      ? `ws://localhost:${this.state.ports.promptServer}?secret=${this.state.serverSecret}`
+      : null;
+
+    if (!promptServer && !localServerUrl && !widgetMetro && !appMetro) {
       return;
     }
 
     const localConfig: Partial<ExpoAirConfig> = {};
     if (promptServer) localConfig.serverUrl = promptServer;
+    else if (localServerUrl) localConfig.serverUrl = localServerUrl;
     if (widgetMetro) localConfig.widgetMetroUrl = widgetMetro;
     if (appMetro) localConfig.appMetroUrl = appMetro;
 
@@ -583,7 +596,8 @@ export class DevEnvironment {
     if (hasRemoteTunnels) {
       console.log(chalk.gray("\n  Remote (anywhere):"));
       if (promptServer) {
-        console.log(chalk.white(`    Prompt Server: ${promptServer}`));
+        const displayUrl = promptServer.replace(/([?&])secret=[^&]+/, "$1secret=***");
+        console.log(chalk.white(`    Prompt Server: ${displayUrl}`));
       }
       if (widgetMetro) {
         console.log(chalk.white(`    Widget Metro:  ${widgetMetro}`));
@@ -673,6 +687,13 @@ export class DevEnvironment {
    */
   getTunnelUrls(): TunnelUrls {
     return this.state.tunnelUrls;
+  }
+
+  /**
+   * Get the server authentication secret
+   */
+  getServerSecret(): string | null {
+    return this.state.serverSecret;
   }
 
   /**

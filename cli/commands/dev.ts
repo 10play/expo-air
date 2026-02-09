@@ -113,8 +113,12 @@ export async function devCommand(options: DevOptions): Promise<void> {
   const projectRoot = env.getProjectRoot();
 
   // Write local config with localhost URLs so the app knows where to find the servers
+  const secret = env.getServerSecret();
+  const serverUrl = secret
+    ? `ws://localhost:${ports.promptServer}?secret=${secret}`
+    : `ws://localhost:${ports.promptServer}`;
   const localConfig: Record<string, string> = {
-    serverUrl: `ws://localhost:${ports.promptServer}`,
+    serverUrl,
   };
   if (ports.widgetMetro) {
     localConfig.widgetMetroUrl = `http://localhost:${ports.widgetMetro}`;

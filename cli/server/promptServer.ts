@@ -1,7 +1,7 @@
 import { WebSocketServer, WebSocket } from "ws";
 import { createServer, type Server as HttpServer } from "http";
 import { query } from "@anthropic-ai/claude-agent-sdk";
-import { randomUUID } from "crypto";
+import { randomUUID, randomBytes } from "crypto";
 import { execSync, execFileSync } from "child_process";
 import { readFileSync, writeFileSync, existsSync } from "fs";
 import { join } from "path";
@@ -39,10 +39,12 @@ export class PromptServer {
   private pushToken: string | null = null;
   private currentStreamedResponse: string = "";
   private lastToolInput: unknown = undefined;
+  private secret: string | null = null;
 
-  constructor(port: number, projectRoot?: string) {
+  constructor(port: number, projectRoot?: string, secret?: string) {
     this.port = port;
     this.projectRoot = projectRoot || process.cwd();
+    this.secret = secret || null;
     this.loadSession();
   }
 
@@ -519,7 +521,8 @@ export class PromptServer {
     return new Promise((resolve, reject) => {
       // HTTP server handles /hmr-retrigger and /health requests alongside the WebSocket server
       this.httpServer = createServer((req, res) => {
-        this.log(`HTTP ${req.method} ${req.url}`, "info");
+        const reqUrl = new URL(req.url || "/", `http://localhost:${this.port}`);
+        this.log(`HTTP ${req.method} ${reqUrl.pathname}`, "info");
 
         res.setHeader("Access-Control-Allow-Origin", "*");
         res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
@@ -530,7 +533,15 @@ export class PromptServer {
           return;
         }
 
-        if (req.url === "/hmr-retrigger" && req.method === "POST") {
+        // Validate secret for all non-OPTIONS requests
+        if (this.secret && reqUrl.searchParams.get("secret") !== this.secret) {
+          this.log("Rejected unauthorized HTTP request", "error");
+          res.writeHead(401);
+          res.end("Unauthorized");
+          return;
+        }
+
+        if (reqUrl.pathname === "/hmr-retrigger" && req.method === "POST") {
           this.retriggerHMR();
           res.writeHead(200);
           res.end("OK");
@@ -541,7 +552,20 @@ export class PromptServer {
         res.end();
       });
 
-      this.wss = new WebSocketServer({ server: this.httpServer });
+      this.wss = new WebSocketServer({
+        server: this.httpServer,
+        verifyClient: this.secret
+          ? (info, cb) => {
+              const url = new URL(info.req.url || "/", `http://localhost:${this.port}`);
+              if (url.searchParams.get("secret") === this.secret) {
+                cb(true);
+              } else {
+                this.log("Rejected unauthorized WebSocket connection", "error");
+                cb(false, 401, "Unauthorized");
+              }
+            }
+          : undefined,
+      });
 
       this.wss.on("error", (error) => {
         reject(error);

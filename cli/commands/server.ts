@@ -29,15 +29,17 @@ export async function serverCommand(options: ServerOptions): Promise<void> {
     }
   }
 
-  // Start prompt server
+  // Start prompt server with authentication secret
+  const { randomBytes } = await import("crypto");
+  const secret = randomBytes(32).toString("hex");
   const { PromptServer } = await import("../server/promptServer.js");
-  const server = new PromptServer(port, projectRoot);
+  const server = new PromptServer(port, projectRoot, secret);
   await server.start();
-  console.log(chalk.green(`  ✓ Prompt server started on port ${port}`));
+  console.log(chalk.green(`  ✓ Prompt server started on port ${port} (authenticated)`));
   console.log(chalk.gray(`    Project root: ${projectRoot}`));
 
   console.log(chalk.gray("\n  ─────────────────────────────────────────────"));
-  console.log(chalk.white(`    WebSocket URL: ws://localhost:${port}`));
+  console.log(chalk.white(`    WebSocket URL: ws://localhost:${port}?secret=${secret}`));
   console.log(chalk.gray("  ─────────────────────────────────────────────"));
   console.log(chalk.yellow("\n  Waiting for prompts... (Ctrl+C to stop)\n"));
 
