@@ -1,0 +1,55 @@
+---
+title: How It Works
+description: Architecture and data flow behind expo-air
+---
+
+## Architecture
+
+expo-air runs three local servers during development:
+
+| Service | Default Port | Purpose |
+| --- | --- | --- |
+| **Prompt Server** | 3847 | WebSocket server connecting the widget to Claude |
+| **Widget Metro** | 8082 | Serves the floating widget React Native bundle |
+| **App Metro** | 8081 | Standard Expo Metro for your app code |
+
+## Data flow
+
+```mermaid
+graph LR
+    A[You type a prompt] --> B[Widget]
+    B -->|WebSocket| C[Prompt Server]
+    C --> D[Claude Agent SDK]
+    D -->|Edits files| E[Your Codebase]
+    E -->|Metro HMR| F[App updates live]
+```
+
+1. You type a prompt in the floating widget on your device
+2. The widget sends it over WebSocket to the prompt server
+3. The prompt server passes it to Claude via the Claude Agent SDK
+4. Claude reads and edits your files using agentic tool calls
+5. Metro detects file changes and pushes hot updates to your device
+6. Your app updates in real-time — no manual refresh needed
+
+## HMR auto-reconnect
+
+When developing over tunnels, connections can drop due to WiFi transitions, app backgrounding, or tunnel instability. expo-air includes an HMR reconnect module that:
+
+- Patches `globalThis.WebSocket` to wrap Metro's HMR connection
+- Detects disconnections and auto-reconnects with exponential backoff (up to 50 retries)
+- Captures and replays HMR protocol messages (`register-entrypoints`, `log-opt-in`) on reconnect
+- Notifies the prompt server to re-touch modified files so Metro picks up changes
+- Only affects Metro HMR connections (URLs containing `/hot`) — all other WebSockets pass through unchanged
+
+The config plugin auto-injects this module into your app entry point. No manual setup required.
+
+## Zero production impact
+
+expo-air is strictly development-only:
+
+- **All native code** is wrapped in `#if DEBUG` preprocessor guards — compiled out of release builds entirely
+- **The widget** only loads its bundle from Metro dev server — no JavaScript is bundled into production
+- **`ExpoAirAppDelegateSubscriber`** only activates in DEBUG mode — it's completely absent from release builds
+- **No runtime overhead** — zero CPU, memory, or bundle size impact on your production app
+
+Your users will never see, load, or execute any expo-air code.

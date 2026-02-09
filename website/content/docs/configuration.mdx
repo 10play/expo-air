@@ -1,0 +1,66 @@
+---
+title: Configuration
+description: All expo-air configuration options
+---
+
+## `.expo-air.json`
+
+The main configuration file, created by `expo-air init`. Committed to git.
+
+```json
+{
+  "autoShow": true,
+  "ui": {
+    "bubbleSize": 60,
+    "bubbleColor": "#007AFF"
+  }
+}
+```
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `autoShow` | `boolean` | `true` | Automatically show the widget when the app launches (DEBUG only) |
+| `ui.bubbleSize` | `number` | `60` | Size of the floating bubble in pixels |
+| `ui.bubbleColor` | `string` | `"#007AFF"` | Bubble color as a hex string |
+| `envFile` | `string` | — | Path to an env file where extra tunnel URLs are written |
+| `extraTunnels` | `ExtraTunnelConfig[]` | — | Additional local services to tunnel (see [Extra Tunnels](/docs/remote-development#extra-tunnels)) |
+
+## `.expo-air.local.json`
+
+Auto-generated file containing tunnel URLs for the current dev session. **Gitignored** — do not edit manually.
+
+```json
+{
+  "serverUrl": "wss://random-name.trycloudflare.com",
+  "widgetMetroUrl": "https://random-name.trycloudflare.com",
+  "appMetroUrl": "https://random-name.trycloudflare.com"
+}
+```
+
+This file is regenerated every time you run `expo-air start` or `expo-air fly`. The config plugin reads these URLs and writes them into `Info.plist` during prebuild.
+
+## Config plugin
+
+Added to your `app.json` during initialization:
+
+```json
+{
+  "plugins": ["@10play/expo-air"]
+}
+```
+
+The plugin handles:
+
+- **AppDelegate patching** — Overrides `bundleURL()` in DEBUG to load from tunnel URLs
+- **HMR reconnect injection** — Injects `@10play/expo-air/build/hmrReconnect` import into your app entry
+- **Info.plist configuration** — Writes all expo-air settings under an `ExpoAir` key
+- **ATS exceptions** — Allows HTTPS connections to `trycloudflare.com`, `loca.lt`, and `bore.pub`
+
+## Environment variables
+
+Override config values with environment variables:
+
+| Variable | Description |
+| --- | --- |
+| `EXPO_AIR_METRO_URL` | Override the widget Metro server URL |
+| `EXPO_AIR_SERVER_URL` | Override the WebSocket server URL |

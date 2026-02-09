@@ -1,0 +1,69 @@
+---
+title: Troubleshooting
+description: Common issues and how to fix them
+---
+
+## Widget not appearing
+
+- Make sure you're running a **DEBUG** build. The widget is wrapped in `#if DEBUG` guards and won't appear in release builds.
+- Check that `autoShow` is `true` in `.expo-air.json`.
+- Run `expo prebuild --platform ios --clean` to re-apply native changes.
+- Verify the config plugin is in your `app.json`:
+  ```json
+  {
+    "plugins": ["@10play/expo-air"]
+  }
+  ```
+
+## HMR disconnects
+
+The [HMR auto-reconnect](/docs/how-it-works#hmr-auto-reconnect) module handles most disconnections automatically. If you're still experiencing issues:
+
+- Check your tunnel status — restart with `expo-air start` if needed
+- Ensure your device has stable WiFi or cellular connectivity
+- Look for `[expo-air:hmr]` log messages in the console for reconnection status
+
+## Tunnel rate limits
+
+Cloudflare may rate-limit tunnel creation if you restart frequently in a short period. Options:
+
+- Wait a few minutes before restarting
+- Use `--no-tunnel` for local-only development:
+  ```bash
+  npx expo-air start --no-tunnel
+  ```
+- The CLI automatically falls back to localtunnel or bore if Cloudflare is unavailable
+
+## Build fails after init
+
+If `expo prebuild` fails during initialization:
+
+```bash
+npx expo prebuild --platform ios --clean
+```
+
+This runs a clean prebuild that reapplies all config plugin changes. The `--clean` flag removes the existing `ios/` directory first.
+
+## Port conflicts
+
+If a default port is already in use, specify different ports:
+
+```bash
+npx expo-air start \
+  --port 4000 \
+  --widget-port 8083 \
+  --metro-port 8082
+```
+
+Default ports: prompt server (3847), widget Metro (8082), app Metro (8081).
+
+## Widget bundle not loading
+
+If the widget appears but shows a blank or loading state:
+
+- Ensure Widget Metro is running on port 8082
+- Check that `.expo-air.local.json` has the correct `widgetMetroUrl`
+- Try setting the URL manually via environment variable:
+  ```bash
+  EXPO_AIR_METRO_URL=http://localhost:8082 npx expo-air start
+  ```

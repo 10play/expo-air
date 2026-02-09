@@ -1,0 +1,62 @@
+@import 'tailwindcss';
+@import 'fumadocs-ui/css/black.css';
+@import 'fumadocs-ui/css/preset.css';
+
+/*
+ * @10play/expo-air docs theme
+ * Base: black.css (monochrome B&W)
+ * Override: Green accent derived from logo dot #4CD964
+ */
+
+/* Light mode: override primary to green */
+@theme {
+  --color-fd-primary: hsl(131, 50%, 38%);
+  --color-fd-primary-foreground: hsl(0, 0%, 100%);
+  --color-fd-ring: hsl(131, 50%, 38%);
+}
+
+/* Dark mode: brighter green for contrast */
+.dark {
+  --color-fd-primary: hsl(131, 52%, 62%);
+  --color-fd-primary-foreground: hsl(0, 0%, 2%);
+  --color-fd-ring: hsl(131, 52%, 62%);
+}
+
+/* Logo styling */
+.logo-shape {
+  stroke: transparent;
+  stroke-width: 0.8px;
+}
+.dark .logo-shape {
+  stroke: rgba(255, 255, 255, 0.22);
+}
+.dark .logo-sm .logo-shape {
+  stroke: rgba(255, 255, 255, 0.3);
+  stroke-width: 1.5px;
+}
+.dark .logo-sm {
+  filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.2));
+}
+.logo-svg {
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.06));
+}
+.dark .logo-svg {
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.5));
+}
+
+/* Green dot "vibe" animation */
+@keyframes dot-vibe {
+  0%, 100% {
+    opacity: 0.9;
+    r: 2.4;
+    filter: drop-shadow(0 0 0px #4CD964);
+  }
+  50% {
+    opacity: 1;
+    r: 3;
+    filter: drop-shadow(0 0 4px #4CD964);
+  }
+}
+.logo-dot-vibe {
+  animation: dot-vibe 2s ease-in-out infinite;
+}
