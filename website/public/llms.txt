@@ -1,0 +1,19 @@
+# @10play/expo-air
+
+> Vibe Coding for React Native — AI-powered on-device development with Claude.
+
+expo-air is a development SDK that adds a floating widget overlay to iOS devices running Expo/React Native apps. Developers can send prompts to Claude directly from their phone, and see real-time code changes via Metro hot reload.
+
+## Docs
+
+- [Introduction](/docs): Overview of expo-air and its features
+- [Installation](/docs/installation): Prerequisites and setup instructions
+- [Quick Start](/docs/quick-start): Get running in under 5 minutes
+- [Configuration](/docs/configuration): Configuration options and config plugin
+- [CLI Reference](/docs/cli): All available CLI commands (init, start, fly, server)
+- [API Reference](/docs/api): JavaScript API, components, and types
+
+## Links
+
+- Source: https://github.com/10play/expo-air
+- npm: https://www.npmjs.com/package/@10play/expo-air

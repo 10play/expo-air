@@ -1,6 +1,7 @@
 #import "WidgetBridge.h"
 #import <UserNotifications/UserNotifications.h>
 #import <UIKit/UIKit.h>
+#import <PhotosUI/PhotosUI.h>
 #import <objc/runtime.h>
 
 static NSString *saveImageToTemp(UIImage *image, CGFloat quality) {
@@ -47,7 +48,10 @@ static void swizzledTextViewPaste(UITextView *self, SEL _cmd, id sender) {
     }
 }
 
-@interface WidgetBridge ()
+@interface WidgetBridge () <PHPickerViewControllerDelegate>
+@property (nonatomic, copy) RCTPromiseResolveBlock pickResolve;
+@property (nonatomic, copy) RCTPromiseRejectBlock pickReject;
+@property (nonatomic, assign) CGFloat pickQuality;
 @end
 
 @implementation WidgetBridge
@@ -172,12 +176,7 @@ RCT_EXPORT_METHOD(requestPushToken:(RCTPromiseResolveBlock)resolve
                 NSString *bundleId = [[NSBundle mainBundle] bundleIdentifier];
 
                 // Get EAS project ID from expo config (stored in Info.plist by expo prebuild)
-                NSString *projectId = nil;
-                NSDictionary *expoConfig = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"EXUpdatesRuntimeVersion"];
-                if (!projectId) {
-                    // Try getting from EASProjectId
-                    projectId = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"EASProjectID"];
-                }
+                NSString *projectId = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"EASProjectID"];
                 if (!projectId) {
                     // Fallback: use bundle ID as experience ID format
                     projectId = bundleId;
@@ -202,6 +201,80 @@ RCT_EXPORT_METHOD(requestPushToken:(RCTPromiseResolveBlock)resolve
             });
         });
     }];
+}
+
+RCT_EXPORT_METHOD(pickImages:(int)selectionLimit
+                  quality:(double)quality
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject) {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        self.pickResolve = resolve;
+        self.pickReject = reject;
+        self.pickQuality = (CGFloat)quality;
+
+        PHPickerConfiguration *config = [[PHPickerConfiguration alloc] init];
+        config.selectionLimit = selectionLimit;
+        config.filter = [PHPickerFilter imagesFilter];
+
+        PHPickerViewController *picker = [[PHPickerViewController alloc] initWithConfiguration:config];
+        picker.delegate = self;
+
+        UIViewController *root = [UIApplication sharedApplication].keyWindow.rootViewController;
+        while (root.presentedViewController) {
+            root = root.presentedViewController;
+        }
+        [root presentViewController:picker animated:YES completion:nil];
+    });
+}
+
+#pragma mark - PHPickerViewControllerDelegate
+
+- (void)picker:(PHPickerViewController *)picker didFinishPicking:(NSArray<PHPickerResult *> *)results {
+    [picker dismissViewControllerAnimated:YES completion:nil];
+
+    if (results.count == 0) {
+        if (self.pickResolve) {
+            self.pickResolve(@{ @"canceled": @YES, @"assets": @[] });
+        }
+        self.pickResolve = nil;
+        self.pickReject = nil;
+        return;
+    }
+
+    CGFloat quality = self.pickQuality;
+    NSMutableArray *assets = [NSMutableArray new];
+    dispatch_group_t group = dispatch_group_create();
+
+    for (PHPickerResult *result in results) {
+        NSItemProvider *provider = result.itemProvider;
+        if ([provider canLoadObjectOfClass:[UIImage class]]) {
+            dispatch_group_enter(group);
+            [provider loadObjectOfClass:[UIImage class] completionHandler:^(id<NSItemProviderReading> object, NSError *error) {
+                if (!error && [object isKindOfClass:[UIImage class]]) {
+                    UIImage *image = (UIImage *)object;
+                    NSString *path = saveImageToTemp(image, quality);
+                    if (path) {
+                        @synchronized (assets) {
+                            [assets addObject:@{
+                                @"uri": path,
+                                @"width": @(image.size.width),
+                                @"height": @(image.size.height),
+                            }];
+                        }
+                    }
+                }
+                dispatch_group_leave(group);
+            }];
+        }
+    }
+
+    dispatch_group_notify(group, dispatch_get_main_queue(), ^{
+        if (self.pickResolve) {
+            self.pickResolve(@{ @"canceled": @NO, @"assets": assets });
+        }
+        self.pickResolve = nil;
+        self.pickReject = nil;
+    });
 }
 
 - (void)getExpoPushTokenWithDeviceToken:(NSString *)deviceToken

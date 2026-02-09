@@ -125,12 +125,12 @@ export async function initCommand(options: InitOptions): Promise<void> {
 
   // Step 6: Run expo prebuild (unless --skip-prebuild)
   if (!options.skipPrebuild) {
-    console.log(chalk.gray("\n  Running expo prebuild --platform ios --clean..."));
-    console.log(chalk.gray("  This generates native iOS code with expo-air plugin\n"));
+    console.log(chalk.gray("\n  Running expo prebuild --clean..."));
+    console.log(chalk.gray("  This generates native code with expo-air plugin for both platforms\n"));
 
     try {
       await new Promise<void>((resolve, reject) => {
-        const prebuild = spawn("npx", ["expo", "prebuild", "--platform", "ios", "--clean"], {
+        const prebuild = spawn("npx", ["expo", "prebuild", "--clean"], {
           cwd: projectRoot,
           stdio: "inherit",
           shell: true,
@@ -153,18 +153,18 @@ export async function initCommand(options: InitOptions): Promise<void> {
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       console.log(chalk.red(`\n  Prebuild failed: ${message}`));
-      console.log(chalk.gray("  You can run it manually: npx expo prebuild --platform ios --clean\n"));
+      console.log(chalk.gray("  You can run it manually: npx expo prebuild --clean\n"));
       process.exit(1);
     }
   } else {
     console.log(chalk.yellow("\n  Skipped prebuild (--skip-prebuild)"));
-    console.log(chalk.gray("  Run manually: npx expo prebuild --platform ios --clean\n"));
+    console.log(chalk.gray("  Run manually: npx expo prebuild --clean\n"));
   }
 
   // Success message
   console.log(chalk.blue("\n  expo-air initialized!\n"));
   console.log(chalk.gray("  Next steps:"));
-  console.log(chalk.white("    1. Connect your iOS device via cable"));
+  console.log(chalk.white("    1. Connect your iOS or Android device via cable"));
   console.log(chalk.white("    2. Run: npx expo-air fly"));
   console.log(chalk.white("    3. The widget will appear on your device\n"));
 

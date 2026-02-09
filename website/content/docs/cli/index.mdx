@@ -1,0 +1,65 @@
+---
+title: CLI Reference
+description: All expo-air CLI commands and options
+---
+
+## `expo-air init`
+
+Initialize expo-air in your project. Creates configuration files and runs prebuild.
+
+```bash
+npx expo-air init
+```
+
+| Flag | Description |
+| --- | --- |
+| `--force` | Overwrite existing configuration files |
+| `--skip-prebuild` | Skip running `expo prebuild` after init |
+
+## `expo-air start`
+
+Start the full development environment — prompt server, widget Metro, app Metro, and tunnels.
+
+```bash
+npx expo-air start [options]
+```
+
+| Flag | Default | Description |
+| --- | --- | --- |
+| `--port <number>` | `3847` | Prompt server WebSocket port |
+| `--widget-port <number>` | `8082` | Widget Metro dev server port |
+| `--metro-port <number>` | `8081` | App Metro dev server port |
+| `--no-tunnel` | — | Skip tunnel setup (local network only) |
+| `--no-build` | — | Skip building the app |
+| `--no-server` | — | Skip starting the WebSocket server |
+
+## `expo-air fly`
+
+Build, install on a real iOS device, and start everything with Cloudflare tunnels. Use this when your device is not on the same network.
+
+```bash
+npx expo-air fly
+```
+
+This command:
+1. Allocates ports for all three servers
+2. Creates Cloudflare tunnels for remote access
+3. Updates `.expo-air.local.json` with tunnel URLs
+4. Builds and installs the app on your connected device
+5. Starts the prompt server and both Metro instances
+
+## `expo-air dev`
+
+SDK development mode — runs the widget with live source changes on the simulator. Primarily used for developing expo-air itself.
+
+```bash
+npx expo-air dev
+```
+
+## `expo-air server`
+
+Run only the prompt server without launching Metro or building the app. Useful when you want to manage Metro separately.
+
+```bash
+npx expo-air server
+```

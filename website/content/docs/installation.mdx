@@ -1,0 +1,49 @@
+---
+title: Installation
+description: Add expo-air to your Expo project
+---
+
+## Prerequisites
+
+- Expo SDK 54+
+- iOS 15.1+
+- Node.js 18+
+
+## Install
+
+```bash
+npx expo install @10play/expo-air
+```
+
+## Initialize
+
+```bash
+npx expo-air init
+```
+
+This will:
+
+1. Create a `.expo-air.json` configuration file with default settings
+2. Add the expo-air config plugin to your `app.json`
+3. Update `.gitignore` to exclude `.expo-air.local.json`
+4. Run `expo prebuild` to apply native changes
+
+### Flags
+
+| Flag | Description |
+| --- | --- |
+| `--force` | Overwrite existing configuration |
+| `--skip-prebuild` | Skip the `expo prebuild` step |
+
+## What the config plugin does
+
+The Expo config plugin runs during prebuild and handles:
+
+- **AppDelegate patching** — Enables tunnel URL support for the app bundle in DEBUG mode
+- **HMR reconnect injection** — Auto-imports the WebSocket reconnect module into your app entry point
+- **Info.plist updates** — Stores expo-air config (autoShow, bubble size/color, server URLs)
+- **ATS exceptions** — Adds App Transport Security exceptions for tunnel domains (`trycloudflare.com`, `loca.lt`, `bore.pub`)
+
+## Next steps
+
+Head to the [Quick Start](/docs/quick-start) guide to send your first prompt.

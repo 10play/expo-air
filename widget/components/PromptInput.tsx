@@ -10,8 +10,17 @@ import {
   NativeModules,
   NativeEventEmitter,
 } from "react-native";
-import * as ImagePicker from "expo-image-picker";
 import { SPACING, LAYOUT, COLORS, TYPOGRAPHY, SIZES } from "../constants/design";
+
+// Lazy-load expo-image-picker: in the isolated widget runtime on Android,
+// expo-modules-core may not be fully initialized (no globalThis.expo),
+// so a top-level import would crash the entire bundle.
+let ImagePicker: typeof import("expo-image-picker") | null = null;
+try {
+  ImagePicker = require("expo-image-picker");
+} catch {
+  // expo-image-picker not available in this runtime (Android widget)
+}
 import type { ImageAttachment } from "../services/websocket";
 
 export interface PromptInputHandle {
@@ -22,6 +31,7 @@ interface PromptInputProps {
   onSubmit: (prompt: string, images?: ImageAttachment[]) => void;
   onStop?: () => void;
   disabled?: boolean;
+  isSending?: boolean;
   isProcessing?: boolean;
 }
 
@@ -31,6 +41,7 @@ export const PromptInput = forwardRef<PromptInputHandle, PromptInputProps>(({
   onSubmit,
   onStop,
   disabled = false,
+  isSending = false,
   isProcessing = false,
 }, ref) => {
   const [text, setText] = useState("");
@@ -41,8 +52,9 @@ export const PromptInput = forwardRef<PromptInputHandle, PromptInputProps>(({
     focus: () => inputRef.current?.focus(),
   }));
 
-  // Listen for native image paste events (UITextView paste: swizzle)
+  // Listen for native image paste events (iOS: UITextView paste swizzle, Android: OnReceiveContentListener)
   useEffect(() => {
+    if (!NativeModules.WidgetBridge) return;
     const emitter = new NativeEventEmitter(NativeModules.WidgetBridge);
     const subscription = emitter.addListener('onClipboardImagePaste', (image: ImageAttachment) => {
       setImages((prev) => {
@@ -53,10 +65,12 @@ export const PromptInput = forwardRef<PromptInputHandle, PromptInputProps>(({
     return () => subscription.remove();
   }, []);
 
+  const isBusy = isSending || isProcessing;
+
   const handleSubmit = () => {
     const trimmed = text.trim();
     const hasContent = trimmed.length > 0 || images.length > 0;
-    if (hasContent && !disabled && !isProcessing) {
+    if (hasContent && !disabled && !isBusy) {
       onSubmit(trimmed, images.length > 0 ? images : undefined);
       setText("");
       setImages([]);
@@ -64,21 +78,20 @@ export const PromptInput = forwardRef<PromptInputHandle, PromptInputProps>(({
   };
 
   const handlePickImages = async () => {
+    if (!ImagePicker) return;
     if (images.length >= MAX_IMAGES) {
       Alert.alert("Limit reached", `Maximum ${MAX_IMAGES} images per message.`);
       return;
     }
 
     try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ["images"],
-        allowsMultipleSelection: true,
-        selectionLimit: MAX_IMAGES - images.length,
-        quality: 0.7,
-      });
+      const result = await NativeModules.WidgetBridge.pickImages(
+        MAX_IMAGES - images.length,
+        0.7
+      );
 
       if (!result.canceled && result.assets.length > 0) {
-        const picked: ImageAttachment[] = result.assets.map((asset) => ({
+        const picked: ImageAttachment[] = result.assets.map((asset: ImageAttachment) => ({
           uri: asset.uri,
           width: asset.width,
           height: asset.height,
@@ -94,7 +107,7 @@ export const PromptInput = forwardRef<PromptInputHandle, PromptInputProps>(({
     setImages((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const canSubmit = (text.trim().length > 0 || images.length > 0) && !disabled && !isProcessing;
+  const canSubmit = (text.trim().length > 0 || images.length > 0) && !disabled && !isBusy;
 
   return (
     <View style={styles.outerContainer}>
@@ -126,7 +139,7 @@ export const PromptInput = forwardRef<PromptInputHandle, PromptInputProps>(({
         <TouchableOpacity
           style={styles.iconButton}
           onPress={handlePickImages}
-          disabled={isProcessing}
+          disabled={isBusy}
           activeOpacity={0.6}
         >
           <PlusIcon />
@@ -139,7 +152,7 @@ export const PromptInput = forwardRef<PromptInputHandle, PromptInputProps>(({
           value={text}
           onChangeText={setText}
           onSubmitEditing={handleSubmit}
-          editable={!isProcessing}
+          editable={!isBusy}
           multiline
           maxLength={2000}
           returnKeyType="send"

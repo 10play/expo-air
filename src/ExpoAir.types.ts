@@ -1,9 +1,3 @@
-import type { StyleProp, ViewStyle } from "react-native";
-
-export type OnLoadEventPayload = {
-  url: string;
-};
-
 export type ExpoAirModuleEvents = {
   onChange: (params: ChangeEventPayload) => void;
   onPress: () => void;
@@ -14,10 +8,4 @@ export type ExpoAirModuleEvents = {
 
 export type ChangeEventPayload = {
   value: string;
-};
-
-export type ExpoAirViewProps = {
-  url: string;
-  onLoad: (event: { nativeEvent: OnLoadEventPayload }) => void;
-  style?: StyleProp<ViewStyle>;
 };
