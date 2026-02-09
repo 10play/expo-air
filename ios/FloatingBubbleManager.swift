@@ -217,33 +217,8 @@ class FloatingBubbleViewController: UIViewController, UIGestureRecognizerDelegat
 
         view.addSubview(bubbleContainer)
 
-        // Add React Native surface view on top
-        if let surfaceView = reactSurfaceView {
-            surfaceView.frame = bubbleContainer.bounds
-            surfaceView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-            surfaceView.backgroundColor = .clear
-            bubbleContainer.addSubview(surfaceView)
-        }
-
-        // Tap gesture
-        let tap = UITapGestureRecognizer(target: self, action: #selector(handleTap(_:)))
-        tap.delegate = self
-        bubbleContainer.addGestureRecognizer(tap)
-
-        // Native close button (hidden by default, shown when expanded)
-        // Positioned to match the React Native close button location
-        nativeCloseButton = UIButton(type: .system)
-        nativeCloseButton.frame = CGRect(x: 16, y: 14, width: 30, height: 30)
-        nativeCloseButton.backgroundColor = UIColor.white.withAlphaComponent(0.12)
-        nativeCloseButton.layer.cornerRadius = 15
-        nativeCloseButton.setTitle("✕", for: .normal)
-        nativeCloseButton.setTitleColor(UIColor.white.withAlphaComponent(0.9), for: .normal)
-        nativeCloseButton.titleLabel?.font = .systemFont(ofSize: 14, weight: .semibold)
-        nativeCloseButton.addTarget(self, action: #selector(closeButtonTapped), for: .touchUpInside)
-        nativeCloseButton.isHidden = true
-        bubbleContainer.addSubview(nativeCloseButton)
-
         // Native expanded placeholder — shown until RN renders its content on top
+        // Added BEFORE reactSurfaceView so RN content covers it naturally
         expandedPlaceholder = UIView()
         expandedPlaceholder.isHidden = true
 
@@ -304,6 +279,32 @@ class FloatingBubbleViewController: UIViewController, UIGestureRecognizerDelegat
             codeLabel.leadingAnchor.constraint(equalTo: codeBackground.leadingAnchor, constant: 16),
             codeLabel.trailingAnchor.constraint(equalTo: codeBackground.trailingAnchor, constant: -16),
         ])
+
+        // Add React Native surface view on top (covers expandedPlaceholder when rendered)
+        if let surfaceView = reactSurfaceView {
+            surfaceView.frame = bubbleContainer.bounds
+            surfaceView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+            surfaceView.backgroundColor = .clear
+            bubbleContainer.addSubview(surfaceView)
+        }
+
+        // Tap gesture
+        let tap = UITapGestureRecognizer(target: self, action: #selector(handleTap(_:)))
+        tap.delegate = self
+        bubbleContainer.addGestureRecognizer(tap)
+
+        // Native close button (hidden by default, shown when expanded)
+        // Positioned to match the React Native close button location
+        nativeCloseButton = UIButton(type: .system)
+        nativeCloseButton.frame = CGRect(x: 16, y: 14, width: 30, height: 30)
+        nativeCloseButton.backgroundColor = UIColor.white.withAlphaComponent(0.12)
+        nativeCloseButton.layer.cornerRadius = 15
+        nativeCloseButton.setTitle("✕", for: .normal)
+        nativeCloseButton.setTitleColor(UIColor.white.withAlphaComponent(0.9), for: .normal)
+        nativeCloseButton.titleLabel?.font = .systemFont(ofSize: 14, weight: .semibold)
+        nativeCloseButton.addTarget(self, action: #selector(closeButtonTapped), for: .touchUpInside)
+        nativeCloseButton.isHidden = true
+        bubbleContainer.addSubview(nativeCloseButton)
 
         // Register for keyboard notifications
         NotificationCenter.default.addObserver(
@@ -427,7 +428,6 @@ class FloatingBubbleViewController: UIViewController, UIGestureRecognizerDelegat
         expandedPlaceholder.isHidden = false
 
         // Show native close button and bring to front
-        bubbleContainer.bringSubviewToFront(expandedPlaceholder)
         bubbleContainer.bringSubviewToFront(nativeCloseButton)
         nativeCloseButton.isHidden = false
         nativeCloseButton.alpha = 0
