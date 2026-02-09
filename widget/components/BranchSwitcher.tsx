@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   View,
   Text,
@@ -14,6 +14,8 @@ import { SPACING, LAYOUT, COLORS, TYPOGRAPHY } from "../constants/design";
 
 // Header height: paddingVertical (14) * 2 + content (~20) + border (1) ≈ 49
 const HEADER_HEIGHT = 49;
+const DEFAULT_BRANCHES = ["main", "master"];
+const RECENT_COUNT = 5;
 
 interface BranchSwitcherProps {
   branches: BranchInfo[];
@@ -23,6 +25,46 @@ interface BranchSwitcherProps {
   onCreate: (branchName: string) => void;
   onClose: () => void;
   error?: string | null;
+}
+
+interface BranchSection {
+  title: string;
+  branches: BranchInfo[];
+}
+
+function groupBranches(
+  branches: BranchInfo[],
+  searchQuery: string
+): BranchSection[] {
+  const query = searchQuery.toLowerCase().trim();
+  const filtered = query
+    ? branches.filter((b) => b.name.toLowerCase().includes(query))
+    : branches;
+
+  const defaultBranch = filtered.filter((b) =>
+    DEFAULT_BRANCHES.includes(b.name)
+  );
+  const remaining = filtered.filter(
+    (b) => !DEFAULT_BRANCHES.includes(b.name)
+  );
+
+  // Recent: local non-default branches, top N by commit date (already sorted)
+  const recentLocal = remaining.filter((b) => !b.isRemote);
+  const recent = recentLocal.slice(0, RECENT_COUNT);
+  const recentNames = new Set(recent.map((b) => b.name));
+
+  // Other: everything else
+  const other = remaining.filter((b) => !recentNames.has(b.name));
+
+  const sections: BranchSection[] = [];
+  if (defaultBranch.length > 0)
+    sections.push({ title: "Default", branches: defaultBranch });
+  if (recent.length > 0)
+    sections.push({ title: "Recent", branches: recent });
+  if (other.length > 0)
+    sections.push({ title: "Other", branches: other });
+
+  return sections;
 }
 
 export function BranchSwitcher({
@@ -36,6 +78,21 @@ export function BranchSwitcher({
 }: BranchSwitcherProps) {
   const [showCreateInput, setShowCreateInput] = useState(false);
   const [newBranchName, setNewBranchName] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const searchInputRef = useRef<TextInput>(null);
+
+  const sections = useMemo(
+    () => groupBranches(branches, searchQuery),
+    [branches, searchQuery]
+  );
+
+  useEffect(() => {
+    if (!loading && branches.length > 0) {
+      // Small delay so the dropdown renders before we focus
+      const timer = setTimeout(() => searchInputRef.current?.focus(), 100);
+      return () => clearTimeout(timer);
+    }
+  }, [loading, branches.length]);
 
   const handleCreate = () => {
     const trimmed = newBranchName.trim();
@@ -44,6 +101,49 @@ export function BranchSwitcher({
       setNewBranchName("");
       setShowCreateInput(false);
     }
+  };
+
+  const renderBranchItem = (branch: BranchInfo, isFirst: boolean) => {
+    const isCurrent = branch.name === currentBranch;
+    return (
+      <TouchableOpacity
+        key={branch.name}
+        style={[
+          styles.branchItem,
+          isCurrent && styles.branchItemCurrent,
+          isFirst && styles.branchItemFirst,
+        ]}
+        onPress={() => {
+          if (!isCurrent) {
+            onSelect(branch.name);
+          }
+        }}
+        activeOpacity={isCurrent ? 1 : 0.6}
+      >
+        <View style={styles.branchInfo}>
+          <Text
+            style={[
+              styles.branchName,
+              isCurrent && styles.branchNameCurrent,
+            ]}
+            numberOfLines={1}
+          >
+            {branch.name}
+          </Text>
+          {branch.prNumber && (
+            <View style={styles.prBadge}>
+              <Text style={styles.prBadgeText}>#{branch.prNumber}</Text>
+            </View>
+          )}
+          {branch.isRemote && (
+            <View style={styles.remoteBadge}>
+              <Text style={styles.remoteBadgeText}>remote</Text>
+            </View>
+          )}
+        </View>
+        {isCurrent && <Text style={styles.currentIndicator}>✓</Text>}
+      </TouchableOpacity>
+    );
   };
 
   return (
@@ -66,49 +166,40 @@ export function BranchSwitcher({
             <LoadingDots />
           </View>
         ) : (
-          <ScrollView style={styles.branchList} bounces={false}>
-            {branches.map((branch, index) => {
-              const isCurrent = branch.name === currentBranch;
-              return (
-                <TouchableOpacity
-                  key={branch.name}
-                  style={[
-                    styles.branchItem,
-                    isCurrent && styles.branchItemCurrent,
-                    index === 0 && styles.branchItemFirst,
-                  ]}
-                  onPress={() => {
-                    if (!isCurrent) {
-                      onSelect(branch.name);
-                    }
-                  }}
-                  activeOpacity={isCurrent ? 1 : 0.6}
-                >
-                  <View style={styles.branchInfo}>
-                    <Text
-                      style={[
-                        styles.branchName,
-                        isCurrent && styles.branchNameCurrent,
-                      ]}
-                      numberOfLines={1}
-                    >
-                      {branch.name}
+          <>
+            <View style={styles.searchContainer}>
+              <TextInput
+                ref={searchInputRef}
+                style={styles.searchInput}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                placeholder="Filter branches"
+                placeholderTextColor={COLORS.TEXT_MUTED}
+                autoCapitalize="none"
+                autoCorrect={false}
+                returnKeyType="done"
+              />
+            </View>
+            <ScrollView style={styles.branchList} bounces={false}>
+              {sections.map((section) => (
+                <View key={section.title}>
+                  <View style={styles.sectionHeader}>
+                    <Text style={styles.sectionHeaderText}>
+                      {section.title}
                     </Text>
-                    {branch.prNumber && (
-                      <View style={styles.prBadge}>
-                        <Text style={styles.prBadgeText}>
-                          #{branch.prNumber}
-                        </Text>
-                      </View>
-                    )}
                   </View>
-                  {isCurrent && (
-                    <Text style={styles.currentIndicator}>✓</Text>
+                  {section.branches.map((branch, index) =>
+                    renderBranchItem(branch, index === 0)
                   )}
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
+                </View>
+              ))}
+              {sections.length === 0 && searchQuery.trim() !== "" && (
+                <View style={styles.emptyState}>
+                  <Text style={styles.emptyStateText}>No matching branches</Text>
+                </View>
+              )}
+            </ScrollView>
+          </>
         )}
 
         <View style={styles.createSection}>
@@ -235,8 +326,35 @@ const styles = StyleSheet.create({
     borderRadius: 3,
     backgroundColor: "rgba(255,255,255,0.5)",
   },
+  searchContainer: {
+    paddingHorizontal: SPACING.MD,
+    paddingTop: SPACING.MD,
+    paddingBottom: SPACING.SM,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(255,255,255,0.08)",
+  },
+  searchInput: {
+    backgroundColor: "rgba(255,255,255,0.08)",
+    color: COLORS.TEXT_PRIMARY,
+    fontSize: TYPOGRAPHY.SIZE_MD,
+    paddingHorizontal: SPACING.MD,
+    paddingVertical: SPACING.SM,
+    borderRadius: 10,
+  },
   branchList: {
     maxHeight: 300,
+  },
+  sectionHeader: {
+    paddingHorizontal: SPACING.LG,
+    paddingTop: SPACING.MD,
+    paddingBottom: SPACING.XS,
+  },
+  sectionHeaderText: {
+    color: COLORS.TEXT_MUTED,
+    fontSize: TYPOGRAPHY.SIZE_XS,
+    fontWeight: TYPOGRAPHY.WEIGHT_SEMIBOLD,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
   branchItem: {
     flexDirection: "row",
@@ -280,10 +398,29 @@ const styles = StyleSheet.create({
     fontSize: TYPOGRAPHY.SIZE_XS,
     fontWeight: TYPOGRAPHY.WEIGHT_MEDIUM,
   },
+  remoteBadge: {
+    backgroundColor: "rgba(255,255,255,0.06)",
+    paddingHorizontal: SPACING.SM,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  remoteBadgeText: {
+    color: COLORS.TEXT_MUTED,
+    fontSize: TYPOGRAPHY.SIZE_XS,
+    fontWeight: TYPOGRAPHY.WEIGHT_NORMAL,
+  },
   currentIndicator: {
     color: COLORS.STATUS_SUCCESS,
     fontSize: TYPOGRAPHY.SIZE_SM,
     marginLeft: SPACING.SM,
+  },
+  emptyState: {
+    paddingVertical: SPACING.XL,
+    alignItems: "center",
+  },
+  emptyStateText: {
+    color: COLORS.TEXT_MUTED,
+    fontSize: TYPOGRAPHY.SIZE_SM,
   },
   createSection: {
     paddingHorizontal: SPACING.LG,

@@ -158,7 +158,6 @@ export class PromptServer {
       const currentBranch = this.getBranchName();
       const branches: BranchInfo[] = output
         .split("\n")
-        .slice(0, 15)
         .map((line) => {
           const [name, lastCommitDate] = line.split("|");
           return {
@@ -167,6 +166,41 @@ export class PromptServer {
             lastCommitDate: lastCommitDate?.trim(),
           };
         });
+
+      const localBranchNames = new Set(branches.map((b) => b.name));
+
+      // Fetch remote branches
+      try {
+        const remoteOutput = execSync(
+          "git branch -r --sort=-committerdate --format='%(refname:short)|%(committerdate:iso8601)'",
+          {
+            cwd: this.projectRoot,
+            encoding: "utf-8",
+            stdio: ["pipe", "pipe", "pipe"],
+          }
+        ).trim();
+
+        if (remoteOutput) {
+          for (const line of remoteOutput.split("\n")) {
+            const [rawName, lastCommitDate] = line.split("|");
+            const trimmedRaw = rawName.trim();
+            // Skip HEAD pointer
+            if (trimmedRaw === "origin/HEAD" || trimmedRaw.endsWith("/HEAD")) continue;
+            // Strip origin/ prefix
+            const name = trimmedRaw.replace(/^origin\//, "");
+            // Deduplicate: skip if local branch exists
+            if (localBranchNames.has(name)) continue;
+            branches.push({
+              name,
+              isCurrent: false,
+              lastCommitDate: lastCommitDate?.trim(),
+              isRemote: true,
+            });
+          }
+        }
+      } catch {
+        // No remote branches or git error, skip
+      }
 
       // Try to enrich with PR info
       try {

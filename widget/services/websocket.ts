@@ -160,6 +160,7 @@ export interface BranchInfo {
   prNumber?: string;
   prTitle?: string;
   lastCommitDate?: string;
+  isRemote?: boolean;
 }
 
 export interface BranchesListMessage {
