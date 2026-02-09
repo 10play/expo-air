@@ -28,7 +28,7 @@
   stroke-width: 0.8px;
 }
 .dark .logo-shape {
-  stroke: rgba(255, 255, 255, 0.22);
+  stroke: rgba(255, 255, 255, 0.3);
 }
 .dark .logo-sm .logo-shape {
   stroke: rgba(255, 255, 255, 0.3);
@@ -59,4 +59,16 @@
 }
 .logo-dot-vibe {
   animation: dot-vibe 2s ease-in-out infinite;
+}
+
+/* iPhone frame styling */
+.iphone-frame {
+  filter: drop-shadow(0 25px 50px rgba(0, 0, 0, 0.15));
+}
+.dark .iphone-frame {
+  filter: drop-shadow(0 25px 50px rgba(0, 0, 0, 0.4));
+}
+.dark .iphone-frame-border {
+  stroke: rgba(255, 255, 255, 0.08);
+  stroke-width: 1;
 }
