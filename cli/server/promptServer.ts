@@ -228,6 +228,9 @@ export class PromptServer {
   }
 
   private broadcastGitStatus(branchName: string, changes: GitChange[]): void {
+    this.lastBranchName = branchName;
+    this.lastGitChangesHash = JSON.stringify(changes);
+
     const prStatus = this.git.getPRStatus();
     const message: OutgoingMessage = {
       type: "git_status",
