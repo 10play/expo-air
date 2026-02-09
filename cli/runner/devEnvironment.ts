@@ -18,6 +18,7 @@ import {
   resolveProjectRoot,
   validateExpoProject,
   updateInfoPlist,
+  updateAndroidManifest,
   writeLocalConfig,
   readExpoAirConfig,
   updateEnvFile,
@@ -559,9 +560,13 @@ export class DevEnvironment {
     // Write to .expo-air.local.json
     writeLocalConfig(this.state.projectRoot, localConfig);
 
-    // Update Info.plist
+    // Update Info.plist (iOS)
     const plistUpdated = updateInfoPlist(this.state.projectRoot, localConfig, { silent: true });
-    if (plistUpdated) {
+
+    // Update AndroidManifest.xml (Android)
+    const manifestUpdated = updateAndroidManifest(this.state.projectRoot, localConfig, { silent: true });
+
+    if (plistUpdated || manifestUpdated) {
       console.log(chalk.green(`  ✓ Updated config with tunnel URLs`));
     } else {
       console.log(chalk.green(`  ✓ Updated .expo-air.local.json with tunnel URLs`));

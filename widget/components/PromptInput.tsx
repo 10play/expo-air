@@ -10,8 +10,17 @@ import {
   NativeModules,
   NativeEventEmitter,
 } from "react-native";
-import * as ImagePicker from "expo-image-picker";
 import { SPACING, LAYOUT, COLORS, TYPOGRAPHY, SIZES } from "../constants/design";
+
+// Lazy-load expo-image-picker: in the isolated widget runtime on Android,
+// expo-modules-core may not be fully initialized (no globalThis.expo),
+// so a top-level import would crash the entire bundle.
+let ImagePicker: typeof import("expo-image-picker") | null = null;
+try {
+  ImagePicker = require("expo-image-picker");
+} catch {
+  // expo-image-picker not available in this runtime (Android widget)
+}
 import type { ImageAttachment } from "../services/websocket";
 
 export interface PromptInputHandle {
@@ -43,8 +52,9 @@ export const PromptInput = forwardRef<PromptInputHandle, PromptInputProps>(({
     focus: () => inputRef.current?.focus(),
   }));
 
-  // Listen for native image paste events (UITextView paste: swizzle)
+  // Listen for native image paste events (iOS: UITextView paste swizzle, Android: OnReceiveContentListener)
   useEffect(() => {
+    if (!NativeModules.WidgetBridge) return;
     const emitter = new NativeEventEmitter(NativeModules.WidgetBridge);
     const subscription = emitter.addListener('onClipboardImagePaste', (image: ImageAttachment) => {
       setImages((prev) => {
@@ -68,6 +78,7 @@ export const PromptInput = forwardRef<PromptInputHandle, PromptInputProps>(({
   };
 
   const handlePickImages = async () => {
+    if (!ImagePicker) return;
     if (images.length >= MAX_IMAGES) {
       Alert.alert("Limit reached", `Maximum ${MAX_IMAGES} images per message.`);
       return;
