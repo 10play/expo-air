@@ -78,7 +78,7 @@ function ChatImageThumb({ uri }: { uri: string }) {
 
 function UserPromptItem({ message }: { message: UserPromptMessage }) {
   return (
-    <View style={styles.userPromptContainer}>
+    <View style={[styles.userPromptContainer, message.pending && styles.userPromptPending]}>
       {message.images && message.images.length > 0 && (
         <View style={styles.userImages}>
           {message.images.map((img, i) => (
@@ -311,6 +311,9 @@ const styles = StyleSheet.create({
     marginVertical: SPACING.SM,
     alignSelf: "flex-end",
     maxWidth: "85%",
+  },
+  userPromptPending: {
+    opacity: 0.7,
   },
   userPromptText: {
     color: COLORS.TEXT_PRIMARY,

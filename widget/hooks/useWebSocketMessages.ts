@@ -142,7 +142,16 @@ export function useWebSocketMessages({ serverUrl, onGitMessage }: UseWebSocketMe
         setCurrentParts([]);
         break;
       case "status":
-        // Status is handled by the status indicator
+        // Clear pending flag on user prompt once server acknowledges
+        if (message.status === "processing") {
+          setMessages((prev) => {
+            const last = prev[prev.length - 1];
+            if (last?.type === "user_prompt" && last.pending) {
+              return [...prev.slice(0, -1), { ...last, pending: false }];
+            }
+            return prev;
+          });
+        }
         break;
       case "session_cleared":
         // Clear all messages for new session
@@ -250,25 +259,14 @@ export function useWebSocketMessages({ serverUrl, onGitMessage }: UseWebSocketMe
   }, []);
 
   const handleSubmit = useCallback(async (prompt: string, images?: ImageAttachment[]) => {
-    // Request push token on first submit (dev-only, lazy permission)
-    if (!pushTokenSentRef.current) {
-      const token = await requestPushToken();
-      if (token) {
-        const client = getWebSocketClient();
-        if (client?.isConnected()) {
-          client.sendPushToken(token);
-          pushTokenSentRef.current = true;
-        }
-      }
-    }
-
-    // Add user prompt to messages for display (with local image URIs)
+    // Add user prompt to messages immediately for optimistic display
     setMessages((prev) => [
       ...prev,
       {
         type: "user_prompt" as const,
         content: prompt,
         images,
+        pending: true,
         timestamp: Date.now(),
       },
     ]);
@@ -286,6 +284,18 @@ export function useWebSocketMessages({ serverUrl, onGitMessage }: UseWebSocketMe
     const client = getWebSocketClient();
     if (client) {
       client.sendPrompt(prompt, imagePaths);
+    }
+
+    // Request push token lazily on first submit (don't block UI)
+    if (!pushTokenSentRef.current) {
+      const token = await requestPushToken();
+      if (token) {
+        const wsClient = getWebSocketClient();
+        if (wsClient?.isConnected()) {
+          wsClient.sendPushToken(token);
+          pushTokenSentRef.current = true;
+        }
+      }
     }
   }, []);
 

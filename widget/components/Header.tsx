@@ -32,10 +32,11 @@ interface HeaderProps {
 }
 
 export function Header({ status, branchName, onBranchPress }: HeaderProps) {
-  const statusColors = {
+  const statusColors: Record<ConnectionStatus, string> = {
     disconnected: COLORS.STATUS_ERROR,
     connecting: COLORS.STATUS_INFO,
     connected: COLORS.STATUS_SUCCESS,
+    sending: COLORS.STATUS_INFO,
     processing: COLORS.STATUS_INFO,
   };
 
@@ -64,14 +65,15 @@ export function Header({ status, branchName, onBranchPress }: HeaderProps) {
 }
 
 export function PulsingIndicator({ status }: { status: ConnectionStatus }) {
-  const colors = {
+  const colors: Record<ConnectionStatus, string> = {
     disconnected: COLORS.STATUS_ERROR,
     connecting: COLORS.STATUS_INFO,
     connected: COLORS.STATUS_SUCCESS,
+    sending: COLORS.STATUS_INFO,
     processing: COLORS.STATUS_INFO,
   };
 
-  const isAnimating = status === "processing" || status === "connecting";
+  const isAnimating = status === "processing" || status === "connecting" || status === "sending";
 
   // Animated values for the pulsing ring
   const scaleAnim = useRef(new Animated.Value(1)).current;

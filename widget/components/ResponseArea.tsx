@@ -1,15 +1,16 @@
 import React, { useRef, useEffect, useState, useCallback } from "react";
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, NativeScrollEvent, Keyboard, Platform } from "react-native";
-import type { ServerMessage, AssistantPart } from "../services/websocket";
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, NativeScrollEvent, Keyboard, Platform, Animated, Easing } from "react-native";
+import type { ServerMessage, AssistantPart, ConnectionStatus } from "../services/websocket";
 import { MessageItem, PartsRenderer } from "./MessageItems";
 import { SPACING, LAYOUT, COLORS, TYPOGRAPHY } from "../constants/design";
 
 interface ResponseAreaProps {
   messages: ServerMessage[];
   currentParts: AssistantPart[];
+  status: ConnectionStatus;
 }
 
-export function ResponseArea({ messages, currentParts }: ResponseAreaProps) {
+export function ResponseArea({ messages, currentParts, status }: ResponseAreaProps) {
   const scrollViewRef = useRef<ScrollView>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
   const contentHeightRef = useRef(0);
@@ -113,6 +114,9 @@ export function ResponseArea({ messages, currentParts }: ResponseAreaProps) {
         {currentParts.length > 0 && (
           <PartsRenderer parts={currentParts} isStreaming={true} />
         )}
+        {status === "processing" && currentParts.length === 0 && (
+          <ThinkingDots />
+        )}
       </ScrollView>
       {!isAtBottom && (
         <TouchableOpacity
@@ -123,6 +127,36 @@ export function ResponseArea({ messages, currentParts }: ResponseAreaProps) {
           <Text style={styles.scrollButtonText}>↓</Text>
         </TouchableOpacity>
       )}
+    </View>
+  );
+}
+
+function ThinkingDots() {
+  const dot1 = useRef(new Animated.Value(0.3)).current;
+  const dot2 = useRef(new Animated.Value(0.3)).current;
+  const dot3 = useRef(new Animated.Value(0.3)).current;
+
+  useEffect(() => {
+    const animate = (dot: Animated.Value, delay: number) =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.timing(dot, { toValue: 1, duration: 400, easing: Easing.ease, useNativeDriver: true }),
+          Animated.timing(dot, { toValue: 0.3, duration: 400, easing: Easing.ease, useNativeDriver: true }),
+        ])
+      );
+    const a1 = animate(dot1, 0);
+    const a2 = animate(dot2, 150);
+    const a3 = animate(dot3, 300);
+    a1.start(); a2.start(); a3.start();
+    return () => { a1.stop(); a2.stop(); a3.stop(); };
+  }, [dot1, dot2, dot3]);
+
+  return (
+    <View style={styles.thinkingContainer}>
+      {[dot1, dot2, dot3].map((opacity, i) => (
+        <Animated.View key={i} style={[styles.thinkingDot, { opacity }]} />
+      ))}
     </View>
   );
 }
@@ -139,6 +173,17 @@ const styles = StyleSheet.create({
   content: {
     padding: LAYOUT.CONTENT_PADDING_H,
     paddingBottom: SPACING.XXL,
+  },
+  thinkingContainer: {
+    flexDirection: "row",
+    gap: 6,
+    paddingVertical: SPACING.MD,
+  },
+  thinkingDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: COLORS.TEXT_MUTED,
   },
   emptyContainer: {
     flex: 1,

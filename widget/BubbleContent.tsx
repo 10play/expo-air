@@ -94,7 +94,7 @@ export function BubbleContent({
         {status === "disconnected" && messages.length === 0 ? (
           <DisconnectedView />
         ) : activeTab === "chat" ? (
-          <ResponseArea messages={messages} currentParts={currentParts} />
+          <ResponseArea messages={messages} currentParts={currentParts} status={status} />
         ) : (
           <GitChangesTab changes={git.gitChanges} onDiscard={git.handleDiscard} />
         )}
@@ -105,6 +105,7 @@ export function BubbleContent({
           onSubmit={handleSubmit}
           onStop={handleStop}
           disabled={status === "disconnected"}
+          isSending={status === "sending"}
           isProcessing={status === "processing"}
         />
       )}
