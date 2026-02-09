@@ -10,9 +10,8 @@ import {
   NativeModules,
   NativeEventEmitter,
 } from "react-native";
+import * as ImagePicker from "expo-image-picker";
 import { SPACING, LAYOUT, COLORS, TYPOGRAPHY, SIZES } from "../constants/design";
-
-const WidgetBridge = NativeModules.WidgetBridge as any;
 import type { ImageAttachment } from "../services/websocket";
 
 export interface PromptInputHandle {
@@ -71,13 +70,20 @@ export const PromptInput = forwardRef<PromptInputHandle, PromptInputProps>(({
     }
 
     try {
-      if (!WidgetBridge) {
-        console.warn("[expo-air] WidgetBridge native module not available");
-        return;
-      }
-      const results: ImageAttachment[] = await WidgetBridge.pickImages(MAX_IMAGES - images.length);
-      if (results && results.length > 0) {
-        setImages((prev) => [...prev, ...results].slice(0, MAX_IMAGES));
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsMultipleSelection: true,
+        selectionLimit: MAX_IMAGES - images.length,
+        quality: 0.7,
+      });
+
+      if (!result.canceled && result.assets.length > 0) {
+        const picked: ImageAttachment[] = result.assets.map((asset) => ({
+          uri: asset.uri,
+          width: asset.width,
+          height: asset.height,
+        }));
+        setImages((prev) => [...prev, ...picked].slice(0, MAX_IMAGES));
       }
     } catch (e) {
       console.warn("[expo-air] Image picker error:", e);
