@@ -172,12 +172,7 @@ RCT_EXPORT_METHOD(requestPushToken:(RCTPromiseResolveBlock)resolve
                 NSString *bundleId = [[NSBundle mainBundle] bundleIdentifier];
 
                 // Get EAS project ID from expo config (stored in Info.plist by expo prebuild)
-                NSString *projectId = nil;
-                NSDictionary *expoConfig = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"EXUpdatesRuntimeVersion"];
-                if (!projectId) {
-                    // Try getting from EASProjectId
-                    projectId = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"EASProjectID"];
-                }
+                NSString *projectId = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"EASProjectID"];
                 if (!projectId) {
                     // Fallback: use bundle ID as experience ID format
                     projectId = bundleId;
