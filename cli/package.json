@@ -1,6 +1,6 @@
 {
   "name": "@10play/expo-air-cli",
-  "version": "0.12.12",
+  "version": "0.12.13",
   "private": true,
   "type": "module",
   "description": "CLI for expo-air development server",
