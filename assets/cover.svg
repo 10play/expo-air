@@ -1,0 +1,94 @@
+<svg width="1200" height="400" viewBox="0 0 1200 400" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Background gradient -->
+    <radialGradient id="bgGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#0a1a0a"/>
+      <stop offset="100%" stop-color="#050505"/>
+    </radialGradient>
+
+    <!-- Green glow behind logo -->
+    <radialGradient id="logoGlow" cx="50%" cy="45%" r="30%">
+      <stop offset="0%" stop-color="#4CD964" stop-opacity="0.12"/>
+      <stop offset="50%" stop-color="#4CD964" stop-opacity="0.04"/>
+      <stop offset="100%" stop-color="#4CD964" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Dot glow -->
+    <radialGradient id="dotGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#4CD964" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#4CD964" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Subtle top edge shine -->
+    <linearGradient id="hatShine" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="white" stop-opacity="0.08"/>
+      <stop offset="100%" stop-color="white" stop-opacity="0"/>
+    </linearGradient>
+
+    <!-- Noise filter for texture -->
+    <filter id="noise">
+      <feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" stitchTiles="stitch"/>
+      <feColorMatrix type="saturate" values="0"/>
+      <feComponentTransfer>
+        <feFuncA type="linear" slope="0.03"/>
+      </feComponentTransfer>
+      <feBlend in="SourceGraphic" mode="overlay"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="400" fill="#050505"/>
+  <rect width="1200" height="400" fill="url(#bgGlow)"/>
+
+  <!-- Ambient glow -->
+  <rect width="1200" height="400" fill="url(#logoGlow)"/>
+
+  <!-- Subtle grid lines -->
+  <g opacity="0.03" stroke="white" stroke-width="0.5">
+    <line x1="0" y1="100" x2="1200" y2="100"/>
+    <line x1="0" y1="200" x2="1200" y2="200"/>
+    <line x1="0" y1="300" x2="1200" y2="300"/>
+    <line x1="300" y1="0" x2="300" y2="400"/>
+    <line x1="600" y1="0" x2="600" y2="400"/>
+    <line x1="900" y1="0" x2="900" y2="400"/>
+  </g>
+
+  <!-- Hat logo - scaled and centered -->
+  <g transform="translate(510, 80) scale(1.8)">
+    <!-- Green glow circle behind dot -->
+    <circle cx="50" cy="16" r="20" fill="url(#dotGlow)"/>
+
+    <!-- Hat shape -->
+    <path
+      d="M 0 0 H 100 C 100 12.8, 82.5 3.2, 82.5 16 V 22 Q 82.5 32, 72.5 32 H 27.5 Q 17.5 32, 17.5 22 V 16 C 17.5 3.2, 0 12.8, 0 0 Z"
+      fill="#111111"
+    />
+
+    <!-- Subtle border/outline on hat -->
+    <path
+      d="M 0 0 H 100 C 100 12.8, 82.5 3.2, 82.5 16 V 22 Q 82.5 32, 72.5 32 H 27.5 Q 17.5 32, 17.5 22 V 16 C 17.5 3.2, 0 12.8, 0 0 Z"
+      fill="none"
+      stroke="white"
+      stroke-opacity="0.06"
+      stroke-width="0.8"
+    />
+
+    <!-- Top shine on hat -->
+    <path
+      d="M 0 0 H 100 C 100 12.8, 82.5 3.2, 82.5 16 V 22 Q 82.5 32, 72.5 32 H 27.5 Q 17.5 32, 17.5 22 V 16 C 17.5 3.2, 0 12.8, 0 0 Z"
+      fill="url(#hatShine)"
+    />
+
+    <!-- Green dot -->
+    <circle cx="50" cy="16" r="2.8" fill="#4CD964"/>
+  </g>
+
+  <!-- "expo-air" text -->
+  <text x="600" y="200" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="42" font-weight="700" letter-spacing="-1" fill="white">expo-air</text>
+
+  <!-- Tagline -->
+  <text x="600" y="240" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="16" font-weight="400" fill="white" opacity="0.5">work with expo anywhere</text>
+
+  <!-- Bottom accent line -->
+  <rect x="540" y="310" width="120" height="1.5" rx="0.75" fill="#4CD964" opacity="0.3"/>
+</svg>
