@@ -16,6 +16,7 @@ import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
 import com.facebook.react.modules.core.DeviceEventManagerModule
+import com.facebook.react.ReactApplication
 import java.io.File
 import java.io.FileOutputStream
 
@@ -42,6 +43,18 @@ class WidgetBridge(private val reactContext: ReactApplicationContext) : ReactCon
 
     @ReactMethod
     fun removeListeners(@Suppress("UNUSED_PARAMETER") count: Int) {}
+
+    @ReactMethod
+    fun reloadMainApp() {
+        try {
+            val app = reactContext.applicationContext as? ReactApplication
+            val host = app?.reactHost
+            host?.reload("expo-air force reload")
+            Log.d(TAG, "Main app reload triggered")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to reload main app", e)
+        }
+    }
 
     /**
      * Attach image paste listener to all EditText views found in the given view hierarchy.

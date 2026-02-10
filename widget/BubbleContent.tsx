@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { View, Text, StyleSheet, NativeModules, NativeEventEmitter, Platform } from "react-native";
+import { View, Text, StyleSheet, NativeModules, NativeEventEmitter, Platform, TouchableOpacity } from "react-native";
 
 import { PromptInput, type PromptInputHandle } from "./components/PromptInput";
 import { ResponseArea } from "./components/ResponseArea";
