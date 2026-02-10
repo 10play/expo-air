@@ -12,15 +12,6 @@ import {
 } from "react-native";
 import { SPACING, LAYOUT, COLORS, TYPOGRAPHY, SIZES } from "../constants/design";
 
-// Lazy-load expo-image-picker: in the isolated widget runtime on Android,
-// expo-modules-core may not be fully initialized (no globalThis.expo),
-// so a top-level import would crash the entire bundle.
-let ImagePicker: typeof import("expo-image-picker") | null = null;
-try {
-  ImagePicker = require("expo-image-picker");
-} catch {
-  // expo-image-picker not available in this runtime (Android widget)
-}
 import type { ImageAttachment } from "../services/websocket";
 
 export interface PromptInputHandle {
@@ -78,7 +69,7 @@ export const PromptInput = forwardRef<PromptInputHandle, PromptInputProps>(({
   };
 
   const handlePickImages = async () => {
-    if (!ImagePicker) return;
+    if (!NativeModules.WidgetBridge) return;
     if (images.length >= MAX_IMAGES) {
       Alert.alert("Limit reached", `Maximum ${MAX_IMAGES} images per message.`);
       return;
@@ -264,11 +255,13 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.MD,
   },
   iconButton: {
-    width: 36,
+    width: SIZES.SUBMIT_BUTTON,
     height: SIZES.SUBMIT_BUTTON,
+    borderRadius: SIZES.SUBMIT_BUTTON / 2,
+    backgroundColor: COLORS.BACKGROUND_INPUT,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 4,
+    marginRight: SPACING.SM,
   },
   input: {
     flex: 1,
@@ -337,13 +330,13 @@ const styles = StyleSheet.create({
     width: 16,
     height: 2,
     borderRadius: 1,
-    backgroundColor: COLORS.TEXT_MUTED,
+    backgroundColor: COLORS.TEXT_SECONDARY,
   },
   plusV: {
     position: "absolute",
     width: 2,
     height: 16,
     borderRadius: 1,
-    backgroundColor: COLORS.TEXT_MUTED,
+    backgroundColor: COLORS.TEXT_SECONDARY,
   },
 });
