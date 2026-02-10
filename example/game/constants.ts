@@ -11,7 +11,7 @@ export const MAP_WIDTH = COLS * TILE_SIZE;
 export const MAP_HEIGHT = ROWS * TILE_SIZE;
 
 // Player configuration
-export const PLAYER_SIZE = 48;    // render size (3x scale from ~16px sprite)
+export const PLAYER_SIZE = 32;    // render size (2x scale from ~16px sprite)
 export const PLAYER_SPEED = 3;
 export const HITBOX = 14;         // collision hitbox half-size
 
