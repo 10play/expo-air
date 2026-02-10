@@ -398,14 +398,6 @@ export class WebSocketClient {
     this.ws.send(JSON.stringify({ type: "discard_changes" }));
   }
 
-  sendPushToken(token: string): void {
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      return;
-    }
-
-    this.ws.send(JSON.stringify({ type: "register_push_token", token }));
-  }
-
   requestBranches(): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       return;

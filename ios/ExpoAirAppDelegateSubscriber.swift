@@ -109,20 +109,4 @@ public class ExpoAirAppDelegateSubscriber: ExpoAppDelegateSubscriber {
 
         print("[expo-air] Bubble auto-injected (size: \(bubbleSize), color: \(bubbleColor), server: \(effectiveServerUrl))")
     }
-
-    // Handle device token for push notifications
-    public func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
-        #if DEBUG
-        let tokenParts = deviceToken.map { data in String(format: "%02.2hhx", data) }
-        let token = tokenParts.joined()
-        print("[expo-air] Device token received: \(token)")
-        UserDefaults.standard.set(token, forKey: "expo-air-device-token")
-        #endif
-    }
-
-    public func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
-        #if DEBUG
-        print("[expo-air] Failed to register for remote notifications: \(error)")
-        #endif
-    }
 }

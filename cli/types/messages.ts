@@ -25,11 +25,6 @@ export interface DiscardChangesMessage {
   type: "discard_changes";
 }
 
-export interface RegisterPushTokenMessage {
-  type: "register_push_token";
-  token: string;
-}
-
 export interface ListBranchesMessage {
   type: "list_branches";
 }
@@ -113,12 +108,6 @@ export interface StoppedMessage {
   timestamp: number;
 }
 
-export interface PushTokenAckMessage {
-  type: "push_token_ack";
-  success: boolean;
-  timestamp: number;
-}
-
 export interface BranchInfo {
   name: string;
   isCurrent: boolean;
@@ -194,7 +183,6 @@ export type OutgoingMessage =
   | StoppedMessage
   | HistoryMessage
   | GitStatusMessage
-  | PushTokenAckMessage
   | BranchesListMessage
   | BranchSwitchedMessage
   | BranchCreatedMessage;
@@ -204,7 +192,6 @@ export type IncomingMessage =
   | NewSessionMessage
   | StopMessage
   | DiscardChangesMessage
-  | RegisterPushTokenMessage
   | ListBranchesMessage
   | SwitchBranchMessage
   | CreateBranchMessage;

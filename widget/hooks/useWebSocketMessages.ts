@@ -9,8 +9,6 @@ import {
   type AnyConversationEntry,
   type ImageAttachment,
 } from "../services/websocket";
-import { requestPushToken, setupTapHandler } from "../services/notifications";
-
 interface UseWebSocketMessagesOptions {
   serverUrl: string;
   onGitMessage: (message: ServerMessage) => void;
@@ -24,7 +22,6 @@ export function useWebSocketMessages({ serverUrl, onGitMessage }: UseWebSocketMe
   const currentPartsRef = useRef<AssistantPart[]>([]);
   const currentPromptIdRef = useRef<string | null>(null);
   const partIdCounter = useRef(0);
-  const pushTokenSentRef = useRef(false);
   const onGitMessageRef = useRef(onGitMessage);
 
   // Keep ref in sync to avoid stale closures
@@ -245,20 +242,7 @@ export function useWebSocketMessages({ serverUrl, onGitMessage }: UseWebSocketMe
     };
   }, [serverUrl]);
 
-  // Setup notification tap handler (dev-only, expands widget on tap)
-  useEffect(() => {
-    const cleanup = setupTapHandler((promptId, success) => {
-      // When user taps notification, ensure WebSocket is connected
-      const client = getWebSocketClient();
-      if (client && !client.isConnected()) {
-        client.connect();
-      }
-      // The native side handles expanding the widget when app opens from notification
-    });
-    return cleanup;
-  }, []);
-
-  const handleSubmit = useCallback(async (prompt: string, images?: ImageAttachment[]) => {
+  const handleSubmit = useCallback((prompt: string, images?: ImageAttachment[]) => {
     // Add user prompt to messages immediately for optimistic display
     setMessages((prev) => [
       ...prev,
@@ -284,18 +268,6 @@ export function useWebSocketMessages({ serverUrl, onGitMessage }: UseWebSocketMe
     const client = getWebSocketClient();
     if (client) {
       client.sendPrompt(prompt, imagePaths);
-    }
-
-    // Request push token lazily on first submit (don't block UI)
-    if (!pushTokenSentRef.current) {
-      const token = await requestPushToken();
-      if (token) {
-        const wsClient = getWebSocketClient();
-        if (wsClient?.isConnected()) {
-          wsClient.sendPushToken(token);
-          pushTokenSentRef.current = true;
-        }
-      }
     }
   }, []);
 
