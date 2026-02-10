@@ -53,9 +53,10 @@ export class GitOperations {
 
       return output
         .split("\n")
+        .filter((line) => line.length >= 3)
         .map((line) => {
           const statusCode = line.substring(0, 2);
-          const file = line.substring(3);
+          const file = line.substring(3).trim();
 
           let status: GitChange["status"] = "modified";
           if (statusCode.includes("A") || statusCode === "??") {

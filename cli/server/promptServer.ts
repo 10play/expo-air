@@ -262,7 +262,10 @@ export class PromptServer {
 
     let touched = 0;
     for (const change of changes) {
-      if (change.status === "deleted") continue;
+      if (change.status === "deleted") {
+        this.log(`HMR retrigger: skipped ${change.file} (status: deleted)`, "info");
+        continue;
+      }
       try {
         let filePath = join(gitRoot, change.file);
         // Fallback: git status paths may be relative to cwd (projectRoot) instead of repo root
