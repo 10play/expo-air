@@ -8,11 +8,12 @@ import {
   useTransform,
   useMotionValueEvent,
 } from 'framer-motion';
-import { Smartphone, Terminal as TerminalIcon, Zap, GitBranch } from 'lucide-react';
+import { Smartphone, Terminal as TerminalIcon, Zap, GitBranch, Copy, Check } from 'lucide-react';
 import { Logo } from './logo';
 import { IPhoneFrame } from './iphone-frame';
 
 const PROMPT_MESSAGE = 'what can I do with expo air?';
+const TERMINAL_COMMANDS = 'npx expo-air init\nnpx expo-air fly';
 
 const features = [
   {
@@ -51,6 +52,14 @@ export function HeroScrollAnimation() {
   const [phoneWidth, setPhoneWidth] = useState<number | null>(null);
   const [textTopOffset, setTextTopOffset] = useState<number | null>(null);
   const [logoInitialOffset, setLogoInitialOffset] = useState(-150);
+  const [copied, setCopied] = useState(false);
+
+  function handleCopy() {
+    navigator.clipboard.writeText(TERMINAL_COMMANDS).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
 
   const { scrollYProgress } = useScroll({
     target: containerRef,
@@ -118,56 +127,129 @@ export function HeroScrollAnimation() {
     return () => window.removeEventListener('resize', updateTarget);
   }, []);
 
-  // Scroll "no-stop zones": entering a zone forces you to the exit in your scroll direction
+  // Scroll snap to fixed animation stops using wheel/touch events
+  // (wheel/touch only fire on real user input, unlike scroll which fires during smooth-scroll)
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
-    // [zoneStart, zoneEnd] — scroll progress ranges that push you through
-    const ZONES: [number, number][] = [
-      [0, 0.28], // hero fade → install fully visible
-    ];
+    // Fixed stop points — scroll progress values where the animation pauses.
+    // 0.56 = typing complete, 0.60 = message sent + typing dots
+    const STOPS = [0, 0.28, 0.56, 0.60, 0.85];
 
-    let prevY = window.scrollY;
-    let dir: 'down' | 'up' = 'down';
-    let dirConfirmed = false;
     let snapping = false;
+    let rafId = 0;
 
-    const handler = () => {
-      if (snapping) return;
-      const y = window.scrollY;
-      const delta = y - prevY;
-      if (delta === 0) return;
-      // Only confirm direction for meaningful scroll (ignore trackpad bounce)
-      if (Math.abs(delta) > 4) {
-        dir = delta > 0 ? 'down' : 'up';
-        dirConfirmed = true;
+    const getRange = () => container.offsetHeight - window.innerHeight;
+
+    const getClosestStopIndex = () => {
+      const range = getRange();
+      if (range <= 0) return 0;
+      const progress = (window.scrollY - container.offsetTop) / range;
+      let closest = 0;
+      let minDist = Infinity;
+      for (let i = 0; i < STOPS.length; i++) {
+        const dist = Math.abs(progress - STOPS[i]);
+        if (dist < minDist) { minDist = dist; closest = i; }
       }
-      prevY = y;
-
-      if (!dirConfirmed) return;
-
-      const range = container.offsetHeight - window.innerHeight;
-      if (range <= 0) return;
-      const progress = (y - container.offsetTop) / range;
-
-      for (const [start, end] of ZONES) {
-        if (progress > start && progress < end) {
-          snapping = true;
-          dirConfirmed = false; // require fresh direction after snap
-          const target = dir === 'down' ? end : start;
-          window.scrollTo({
-            top: container.offsetTop + target * range,
-            behavior: 'smooth',
-          });
-          setTimeout(() => { snapping = false; }, 1200);
-          break;
-        }
-      }
+      return closest;
     };
 
-    window.addEventListener('scroll', handler, { passive: true });
-    return () => window.removeEventListener('scroll', handler);
+    // Custom eased scroll — duration scales with distance so longer steps
+    // (like the typing section) get enough time to play the animation.
+    const easeInOutCubic = (t: number) =>
+      t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+
+    const animateScroll = (from: number, to: number, duration: number) => {
+      const diff = to - from;
+      const start = performance.now();
+      const step = (now: number) => {
+        const t = Math.min((now - start) / duration, 1);
+        window.scrollTo(0, from + diff * easeInOutCubic(t));
+        if (t < 1) rafId = requestAnimationFrame(step);
+        else snapping = false;
+      };
+      rafId = requestAnimationFrame(step);
+    };
+
+    const snapTo = (fromIndex: number, toIndex: number) => {
+      const range = getRange();
+      if (range <= 0) return;
+      cancelAnimationFrame(rafId);
+      snapping = true;
+      const distance = Math.abs(STOPS[toIndex] - STOPS[fromIndex]);
+      // ~5s for a full 0→1 scroll, proportional to distance, min 800ms
+      const duration = Math.max(800, distance * 5000);
+      const targetY = container.offsetTop + STOPS[toIndex] * range;
+      animateScroll(window.scrollY, targetY, duration);
+    };
+
+    // --- Wheel (mouse / trackpad) ---
+    const onWheel = (e: WheelEvent) => {
+      const range = getRange();
+      if (range <= 0) return;
+      const progress = (window.scrollY - container.offsetTop) / range;
+
+      // Only intercept inside the animation range
+      if (progress < -0.05 || progress > 1.02) return;
+
+      e.preventDefault();
+      if (snapping) return;
+
+      // Any directional scroll triggers a snap — cooldown prevents repeats
+      if (e.deltaY === 0) return;
+
+      const cur = getClosestStopIndex();
+      const next = e.deltaY > 0 ? cur + 1 : cur - 1;
+      if (next < 0 || next >= STOPS.length) return;
+
+      snapTo(cur, next);
+    };
+
+    // --- Touch (mobile swipe) ---
+    let touchStartY = 0;
+
+    const onTouchStart = (e: TouchEvent) => {
+      touchStartY = e.touches[0].clientY;
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      const range = getRange();
+      if (range <= 0) return;
+      const progress = (window.scrollY - container.offsetTop) / range;
+      if (progress < -0.05 || progress > 1.02) return;
+      e.preventDefault(); // stop native scroll inside animation
+    };
+
+    const onTouchEnd = (e: TouchEvent) => {
+      if (snapping) return;
+      const range = getRange();
+      if (range <= 0) return;
+      const progress = (window.scrollY - container.offsetTop) / range;
+      if (progress < -0.05 || progress > 1.02) return;
+
+      const deltaY = touchStartY - e.changedTouches[0].clientY;
+      if (Math.abs(deltaY) < 30) return; // ignore tiny taps
+
+      const cur = getClosestStopIndex();
+      const next = deltaY > 0 ? cur + 1 : cur - 1; // swipe up → scroll down
+      if (next < 0 || next >= STOPS.length) return;
+
+      snapTo(cur, next);
+    };
+
+    window.addEventListener('wheel', onWheel, { passive: false });
+    window.addEventListener('touchstart', onTouchStart, { passive: true });
+    window.addEventListener('touchmove', onTouchMove, { passive: false });
+    window.addEventListener('touchend', onTouchEnd, { passive: true });
+
+    return () => {
+      cancelAnimationFrame(rafId);
+      window.removeEventListener('wheel', onWheel);
+      window.removeEventListener('touchstart', onTouchStart);
+      window.removeEventListener('touchmove', onTouchMove);
+      window.removeEventListener('touchend', onTouchEnd);
+    };
   }, []);
 
   // =============================================
@@ -356,6 +438,13 @@ export function HeroScrollAnimation() {
                     <span className="ml-1.5 text-[10px] text-fd-muted-foreground md:text-xs">
                       Terminal
                     </span>
+                    <button
+                      onClick={handleCopy}
+                      className="ml-auto rounded-md p-1 text-fd-muted-foreground transition-colors hover:bg-fd-accent hover:text-fd-accent-foreground"
+                      aria-label="Copy commands"
+                    >
+                      {copied ? <Check className="h-3 w-3 md:h-4 md:w-4" /> : <Copy className="h-3 w-3 md:h-4 md:w-4" />}
+                    </button>
                   </div>
                   <pre className="select-text p-3 text-[10px] leading-relaxed md:p-4 md:text-sm">
                     <code>
@@ -526,7 +615,7 @@ export function HeroScrollAnimation() {
         {/* Text layer — positioned below logo, not centered, so gap is
              consistent regardless of title line count */}
         <div
-          className="absolute inset-0 z-20 flex flex-col items-center"
+          className="pointer-events-none absolute inset-0 z-20 flex flex-col items-center"
           style={{ paddingTop: textTopOffset != null ? `${textTopOffset}px` : 'calc(50vh - 98px)' }}
         >
           <motion.div
@@ -552,7 +641,7 @@ export function HeroScrollAnimation() {
 
               <motion.div
                 style={{ opacity: buttonsOpacity }}
-                className="flex gap-4"
+                className="pointer-events-auto flex gap-4"
               >
                 <Link
                   href="/docs"

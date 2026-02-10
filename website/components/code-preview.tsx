@@ -1,4 +1,20 @@
+'use client';
+
+import { useState } from 'react';
+import { Check, Copy } from 'lucide-react';
+
+const commands = 'npx expo-air init\nnpx expo-air fly';
+
 export function CodePreview() {
+  const [copied, setCopied] = useState(false);
+
+  function handleCopy() {
+    navigator.clipboard.writeText(commands).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
   return (
     <section className="border-t border-fd-border px-6 py-24">
       <div className="mx-auto max-w-3xl text-center">
@@ -14,6 +30,13 @@ export function CodePreview() {
             <span className="ml-2 text-sm text-fd-muted-foreground">
               Terminal
             </span>
+            <button
+              onClick={handleCopy}
+              className="ml-auto rounded-md p-1.5 text-fd-muted-foreground transition-colors hover:bg-fd-accent hover:text-fd-accent-foreground"
+              aria-label="Copy commands"
+            >
+              {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+            </button>
           </div>
           <pre className="p-6 text-sm leading-relaxed">
             <code>

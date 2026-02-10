@@ -12,32 +12,27 @@ description: Add expo-air to your Expo project
 ## Install
 
 ```bash
-npx expo install @10play/expo-air
-```
-
-## Initialize
-
-```bash
 npx expo-air init
 ```
 
 This will:
 
-1. Create a `.expo-air.json` configuration file with default settings
-2. Add the expo-air config plugin to your `app.json`
-3. Update `.gitignore` to exclude `.expo-air.local.json`
-4. Run `expo prebuild` to apply native changes
+1. Install expo-air
+2. Create a `.expo-air.json` configuration file with default settings
+3. Add the expo-air config plugin to your `app.json`
+4. Update `.gitignore` to exclude `.expo-air.local.json`
+5. Run `expo prebuild` to apply native changes
 
 ### Flags
 
-| Flag | Description |
-| --- | --- |
-| `--force` | Overwrite existing configuration |
-| `--skip-prebuild` | Skip the `expo prebuild` step |
+| Flag              | Description                      |
+| ----------------- | -------------------------------- |
+| `--force`         | Overwrite existing configuration |
+| `--skip-prebuild` | Skip the `expo prebuild` step    |
 
-## What the config plugin does
+## What the plugin config does
 
-The Expo config plugin runs during prebuild and handles:
+The Expo plugin config runs during prebuild and handles:
 
 - **AppDelegate patching** — Enables tunnel URL support for the app bundle in DEBUG mode
 - **HMR reconnect injection** — Auto-imports the WebSocket reconnect module into your app entry point
