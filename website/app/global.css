@@ -26,9 +26,13 @@
 .logo-shape {
   stroke: transparent;
   stroke-width: 0.8px;
+  transition: stroke 0.3s ease;
 }
 .dark .logo-shape {
   stroke: rgba(255, 255, 255, 0.3);
+}
+.logo-svg.no-border .logo-shape {
+  stroke: transparent !important;
 }
 .dark .logo-sm .logo-shape {
   stroke: rgba(255, 255, 255, 0.3);
@@ -39,6 +43,7 @@
 }
 .logo-svg {
   filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.06));
+  transition: filter 0.3s ease;
 }
 .dark .logo-svg {
   filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.5));

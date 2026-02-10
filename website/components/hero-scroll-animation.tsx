@@ -47,6 +47,10 @@ export function HeroScrollAnimation() {
   const [showTypingDots, setShowTypingDots] = useState(false);
   const [headerBlue, setHeaderBlue] = useState(false);
   const [logoDotBlue, setLogoDotBlue] = useState(false);
+  const [logoNoShadow, setLogoNoShadow] = useState(false);
+  const [phoneWidth, setPhoneWidth] = useState<number | null>(null);
+  const [textTopOffset, setTextTopOffset] = useState<number | null>(null);
+  const [logoInitialOffset, setLogoInitialOffset] = useState(-150);
 
   const { scrollYProgress } = useScroll({
     target: containerRef,
@@ -58,14 +62,51 @@ export function HeroScrollAnimation() {
     const updateTarget = () => {
       const vh = window.innerHeight;
       const isMobile = window.innerWidth < 768;
-      const phoneHeight = isMobile
-        ? Math.min(vh * 0.55, 500)
-        : Math.min(vh * 0.7, 700);
+
+      // On mobile, fit the phone by whichever dimension is tighter:
+      // max width = viewport - 24px (12px each side)
+      // max height = 88% of viewport height
+      // Pick the smaller of the two to ensure the frame fits fully.
+      const PHONE_ASPECT = 430 / 884; // width / height
+      let phoneHeight: number;
+      const HEADER_H = 56; // fixed navbar height (h-14)
+      if (isMobile) {
+        const maxW = window.innerWidth - 24;
+        const maxH = (vh - HEADER_H) * 0.92;
+        const w = Math.min(maxW, maxH * PHONE_ASPECT);
+        setPhoneWidth(w);
+        phoneHeight = w / PHONE_ASPECT;
+      } else {
+        setPhoneWidth(null);
+        phoneHeight = Math.min(vh * 0.7, 700);
+      }
 
       const diBottomFromPhoneTop = phoneHeight * (58 / 884);
       const targetOffset = -phoneHeight / 2 + diBottomFromPhoneTop + 5;
       setLogoTargetY(targetOffset);
-      setLogoFinalScale(isMobile ? 0.25 : 0.38);
+      setLogoFinalScale(0.38);
+
+      // Center the entire content block (logo + title + subtitle + buttons)
+      // in the usable area between the header and the scroll-down arrow.
+      // usable = vh - HEADER_H - ARROW_AREA
+      // offset = (HEADER_H - ARROW_AREA)/2 + logoHalfH - estContentH/2
+      // Since HEADER_H (56) ≈ ARROW_AREA (52), this simplifies to
+      // ≈ 34 - estContentH/2, independent of viewport height.
+      const ARROW_AREA = 52; // bottom-6 (24px) + arrow svg (28px)
+      let logoOffset: number;
+      if (isMobile) {
+        // Estimated total content block: logo (64px) + gap + title + subtitle + buttons.
+        // Varies by width due to text wrapping: narrower screens → more lines.
+        const estContentH = window.innerWidth < 375 ? 400 : 330;
+        logoOffset = Math.round((HEADER_H - ARROW_AREA) / 2 + 32 - estContentH / 2);
+      } else {
+        logoOffset = -150;
+      }
+      setLogoInitialOffset(logoOffset);
+
+      // Position text below the logo with a consistent gap.
+      const gap = isMobile ? 12 : 20;
+      setTextTopOffset(Math.round(Math.max(0, vh / 2 + logoOffset + 32 + gap)));
     };
 
     if (window.scrollY > 100) {
@@ -144,20 +185,21 @@ export function HeroScrollAnimation() {
   const iphoneScale = useTransform(scrollYProgress, [0.06, 0.22], [0.85, 1]);
 
   // --- Phase 1: Logo shrinks to DI ---
-  const LOGO_INITIAL_OFFSET = -150;
   const logoScale = useTransform(scrollYProgress, [0.10, 0.26], [1, logoFinalScale]);
   const logoY = useTransform(
     scrollYProgress,
     [0.10, 0.26],
-    [LOGO_INITIAL_OFFSET, logoTargetY]
+    [logoInitialOffset, logoTargetY]
   );
 
   // --- Logo visibility: hidden while widget is open ---
+  // Aligned with widgetOpacity: logo stays until widget snaps on at 0.36,
+  // and reappears when widget snaps off at 0.66.
   const logoOpacityCalc = useTransform(scrollYProgress, (p) => {
-    if (p < 0.34) return 1;
-    if (p < 0.355) return 1 - (p - 0.34) / 0.015; // quick hide as widget clip expands past hat
-    if (p < 0.665) return 0; // hidden during widget
-    if (p < 0.68) return (p - 0.665) / 0.015; // quick show as widget collapses back to hat
+    if (p < 0.36) return 1;
+    if (p < 0.375) return 1 - (p - 0.36) / 0.015; // quick hide after widget appears
+    if (p < 0.66) return 0; // hidden during widget
+    if (p < 0.675) return (p - 0.66) / 0.015; // quick show as widget hides
     return 1;
   });
 
@@ -208,12 +250,13 @@ export function HeroScrollAnimation() {
     return 0;
   });
 
-  // Widget visibility (fully hidden when clip is a dot)
+  // Widget visibility — delay past collapsed-pill state to avoid iOS Safari
+  // clip-path artifact (shadow around tiny pill). Show only once clip has opened enough.
   const widgetOpacity = useTransform(scrollYProgress, (p) => {
-    if (p < 0.34) return 0;
-    if (p < 0.345) return 1; // snap on
-    if (p < 0.675) return 1;
-    if (p < 0.68) return 0; // snap off
+    if (p < 0.36) return 0;    // hidden while clip is still a small pill
+    if (p < 0.365) return 1;   // snap on once clip is ~1/3 open
+    if (p < 0.66) return 1;
+    if (p < 0.665) return 0;   // snap off before clip collapses back to pill
     return 0;
   });
 
@@ -230,6 +273,12 @@ export function HeroScrollAnimation() {
     setSent(isSent);
     setShowTypingDots(isSent);
     setHeaderBlue(isSent);
+  });
+
+  // --- Phase 3c: Logo shadow removal as it docks onto Dynamic Island ---
+  const logoShadowProgress = useTransform(scrollYProgress, [0.18, 0.22], [0, 1]);
+  useMotionValueEvent(logoShadowProgress, 'change', (v) => {
+    setLogoNoShadow(v > 0.5);
   });
 
   // --- Phase 4: Logo returns with blue dot ---
@@ -263,7 +312,7 @@ export function HeroScrollAnimation() {
 
   return (
     <section ref={containerRef} className="relative h-[500vh]">
-      <div className="sticky top-0 h-screen overflow-hidden">
+      <div className="sticky top-0 h-screen overflow-hidden" style={{ height: '100svh' }}>
         {/* Background glow */}
         <motion.div
           style={{ opacity: glowOpacity }}
@@ -282,7 +331,10 @@ export function HeroScrollAnimation() {
           className="absolute inset-0 z-10 flex items-center justify-center"
         >
           <div className="relative">
-            <IPhoneFrame className="h-[55vh] max-h-[500px] w-auto md:h-[70vh] md:max-h-[700px]" />
+            <IPhoneFrame
+              className="h-auto md:h-[70vh] md:max-h-[700px] md:w-auto"
+              style={phoneWidth != null ? { width: phoneWidth } : undefined}
+            />
 
             {/* ===== Screen 1: Terminal (vertically centered) ===== */}
             <motion.div
@@ -290,10 +342,10 @@ export function HeroScrollAnimation() {
               className="absolute inset-x-[8%] inset-y-[8%] flex flex-col items-center justify-center"
             >
               <div className="w-full">
-                <h2 className="mb-1 text-center text-sm font-bold md:mb-2 md:text-xl">
+                <h2 className="mb-1 text-center text-sm font-bold text-black md:mb-2 md:text-xl">
                   Get started in minutes
                 </h2>
-                <p className="mb-2 text-center text-[10px] text-fd-muted-foreground md:mb-4 md:text-sm">
+                <p className="mb-2 text-center text-[10px] text-gray-500 md:mb-4 md:text-sm">
                   Two commands. That&apos;s all it takes.
                 </p>
                 <div className="overflow-hidden rounded-lg border border-fd-border bg-fd-card text-left">
@@ -322,14 +374,15 @@ export function HeroScrollAnimation() {
               style={{
                 opacity: widgetOpacity,
                 clipPath: widgetClip,
-                top: '8%', left: '2%', right: '2%', bottom: '2%',
+                WebkitBackfaceVisibility: 'hidden' as const,
+                top: '8%', left: '6%', right: '6%', bottom: '6%',
               }}
               className="absolute flex flex-col overflow-hidden"
             >
               <div className="flex h-full flex-col rounded-[20px] bg-black md:rounded-[32px]">
                 <motion.div className="flex h-full flex-col" style={{ opacity: widgetContentOpacity }}>
                 {/* Header */}
-                <div className="flex items-center px-3 py-2 md:px-4 md:py-3">
+                <div className="flex items-center px-4 py-3 md:px-5 md:py-4">
                   <div className="flex h-5 w-5 items-center justify-center rounded-full bg-[rgba(255,255,255,0.15)] md:h-[30px] md:w-[30px]">
                     <svg width="8" height="8" viewBox="0 0 10 10" fill="none" className="md:h-[10px] md:w-[10px]">
                       <path d="M1 1L9 9M9 1L1 9" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
@@ -346,7 +399,7 @@ export function HeroScrollAnimation() {
                 </div>
 
                 {/* Tabs */}
-                <div className="flex items-center border-b border-[rgba(255,255,255,0.08)] px-3 md:px-4">
+                <div className="flex items-center border-b border-[rgba(255,255,255,0.08)] px-4 md:px-5">
                   <span className="border-b-2 border-white pb-1.5 text-[10px] font-semibold text-white md:pb-2 md:text-[14px]">
                     Chat
                   </span>
@@ -360,7 +413,7 @@ export function HeroScrollAnimation() {
                 </div>
 
                 {/* Chat body */}
-                <div className="flex flex-1 flex-col items-center justify-center px-3 md:px-4">
+                <div className="flex flex-1 flex-col items-center justify-center px-4 md:px-5">
                   {!sent ? (
                     <p className="text-center text-[9px] text-[rgba(255,255,255,0.4)] md:text-[14px]">
                       Send a prompt to start coding with Claude
@@ -386,7 +439,7 @@ export function HeroScrollAnimation() {
                 </div>
 
                 {/* Input footer */}
-                <div className="flex items-center gap-1.5 px-3 py-2 md:gap-2 md:px-4 md:py-3">
+                <div className="flex items-center gap-1.5 px-4 py-3 md:gap-2 md:px-5 md:py-4">
                   <div className="flex h-5 w-5 items-center justify-center md:h-7 md:w-7">
                     <svg width="12" height="12" viewBox="0 0 16 16" fill="none" className="md:h-4 md:w-4">
                       <path d="M8 1V15M1 8H15" stroke="rgba(255,255,255,0.6)" strokeWidth="1.5" strokeLinecap="round" />
@@ -423,7 +476,7 @@ export function HeroScrollAnimation() {
 
             {/* ===== Screen 3: Features (builds progressively) ===== */}
             <motion.div
-              style={{ opacity: featuresOpacity, top: '8%', left: '2%', right: '2%', bottom: '2%' }}
+              style={{ opacity: featuresOpacity, top: '8%', left: '6%', right: '6%', bottom: '6%' }}
               className="absolute flex flex-col overflow-hidden rounded-[20px] bg-white md:rounded-[32px]"
             >
               <div className="flex h-full flex-col px-3 py-4 md:px-5 md:py-6">
@@ -461,16 +514,21 @@ export function HeroScrollAnimation() {
           >
             <motion.div style={{ scale: logoScale, y: logoY, opacity: logoOpacityCalc }}>
               <Logo
-                className="h-16 w-auto"
+                className={`h-16 w-auto${logoNoShadow ? ' no-border' : ''}`}
                 animated
                 dotColor={logoDotBlue ? '#007AFF' : undefined}
+                style={logoNoShadow ? { filter: 'drop-shadow(0 0 0 transparent)' } : undefined}
               />
             </motion.div>
           </motion.div>
         </div>
 
-        {/* Text layer — absolute centered, fades out */}
-        <div className="absolute inset-0 z-20 flex items-center justify-center">
+        {/* Text layer — positioned below logo, not centered, so gap is
+             consistent regardless of title line count */}
+        <div
+          className="absolute inset-0 z-20 flex flex-col items-center"
+          style={{ paddingTop: textTopOffset != null ? `${textTopOffset}px` : 'calc(50vh - 98px)' }}
+        >
           <motion.div
             initial={mountInitial}
             animate={mountAnimate}
@@ -478,16 +536,16 @@ export function HeroScrollAnimation() {
           >
             <motion.div
               style={{ opacity: textOpacity, y: textY }}
-              className="flex flex-col items-center px-6 pt-28 text-center"
+              className="flex flex-col items-center px-6 text-center"
             >
-              <h1 className="mb-4 max-w-3xl text-5xl font-bold tracking-tight md:text-6xl">
+              <h1 className="mb-2 max-w-3xl text-4xl font-bold tracking-tight sm:text-5xl md:mb-4 md:text-6xl">
                 Vibing everywhere with{' '}
                 <span className="bg-gradient-to-r from-[#4CD964] to-[#4ade80] bg-clip-text text-transparent">
                   expo
                 </span>
               </h1>
 
-              <p className="mb-8 max-w-xl text-lg text-fd-muted-foreground">
+              <p className="mb-4 max-w-xl text-lg text-fd-muted-foreground md:mb-8">
                 Keep working on your app everywhere, send prompts to your AI
                 tool while on the go, test in real time, commit and create a pr.
               </p>
@@ -516,17 +574,19 @@ export function HeroScrollAnimation() {
         </div>
         {/* Scroll-down arrow */}
         <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.6, delay: 0.8 }}
-          style={{ opacity: buttonsOpacity }}
-          className="absolute bottom-24 left-1/2 z-30 -translate-x-1/2"
+          style={{ opacity: buttonsOpacity, bottom: 'calc(4svh + 30px)' }}
+          className="absolute left-1/2 z-30 -translate-x-1/2"
         >
-          <div className="scroll-arrow flex flex-col items-center gap-0.5">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.6, delay: 0.8 }}
+            className="scroll-arrow flex flex-col items-center gap-0.5"
+          >
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" className="text-fd-foreground/40">
               <path d="M7 10L12 15L17 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
-          </div>
+          </motion.div>
         </motion.div>
       </div>
     </section>
