@@ -13,17 +13,17 @@ export const metadata: Metadata = {
   },
   description:
     'AI-powered on-device development SDK for React Native/Expo. Send prompts to Claude directly from your iOS device.',
-  metadataBase: new URL('https://expo-air.dev'),
+  metadataBase: new URL('https://expo-air.10play.dev'),
   openGraph: {
     title: 'expo-air - Vibe Coding for React Native',
     description:
       'AI-powered on-device development SDK for React Native/Expo.',
     siteName: 'expo-air',
-    url: 'https://expo-air.dev',
+    url: 'https://expo-air.10play.dev',
     type: 'website',
     images: [
       {
-        url: 'https://expo-air.dev/og-image.png',
+        url: 'https://expo-air.10play.dev/og-image.png',
         width: 1200,
         height: 630,
         type: 'image/png',
@@ -35,7 +35,7 @@ export const metadata: Metadata = {
     title: 'expo-air - Vibe Coding for React Native',
     description:
       'AI-powered on-device development SDK for React Native/Expo.',
-    images: ['https://expo-air.dev/og-image.png'],
+    images: ['https://expo-air.10play.dev/og-image.png'],
   },
 };
 
