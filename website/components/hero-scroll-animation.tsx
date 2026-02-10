@@ -134,8 +134,9 @@ export function HeroScrollAnimation() {
     if (!container) return;
 
     // Fixed stop points — scroll progress values where the animation pauses.
+    // 0.20 = connect device, 0.28 = terminal commands,
     // 0.56 = typing complete, 0.60 = message sent + typing dots
-    const STOPS = [0, 0.28, 0.56, 0.60, 0.85];
+    const STOPS = [0, 0.20, 0.28, 0.56, 0.60, 0.85];
 
     let snapping = false;
     let rafId = 0;
@@ -262,15 +263,17 @@ export function HeroScrollAnimation() {
   const buttonsOpacity = useTransform(scrollYProgress, [0, 0.08], [1, 0]);
 
   // --- Phase 1: iPhone frame rises ---
-  const iphoneY = useTransform(scrollYProgress, [0.06, 0.22], [600, 0]);
+  // Completes by 0.18 so phone + logo are both docked before connect screen at 0.20
+  const iphoneY = useTransform(scrollYProgress, [0.06, 0.18], [600, 0]);
   const iphoneOpacity = useTransform(scrollYProgress, [0.06, 0.12], [0, 1]);
-  const iphoneScale = useTransform(scrollYProgress, [0.06, 0.22], [0.85, 1]);
+  const iphoneScale = useTransform(scrollYProgress, [0.06, 0.18], [0.85, 1]);
 
   // --- Phase 1: Logo shrinks to DI ---
-  const logoScale = useTransform(scrollYProgress, [0.10, 0.26], [1, logoFinalScale]);
+  // Completes by 0.18 so it's docked before the connect screen appears
+  const logoScale = useTransform(scrollYProgress, [0.10, 0.18], [1, logoFinalScale]);
   const logoY = useTransform(
     scrollYProgress,
-    [0.10, 0.26],
+    [0.10, 0.18],
     [logoInitialOffset, logoTargetY]
   );
 
@@ -287,6 +290,14 @@ export function HeroScrollAnimation() {
 
   // --- Phase 1: Background glow ---
   const glowOpacity = useTransform(scrollYProgress, [0, 0.16], [1, 0]);
+
+  // --- Phase 1b: "Connect device" screen (before terminal) ---
+  const connectFadeIn = useTransform(scrollYProgress, [0.16, 0.20], [0, 1]);
+  const connectFadeOut = useTransform(scrollYProgress, [0.22, 0.26], [1, 0]);
+  const connectOpacity = useTransform(
+    [connectFadeIn, connectFadeOut],
+    ([a, b]) => Math.min(a as number, b as number)
+  );
 
   // --- Phase 2: Terminal screen (fade in, then out) ---
   const terminalFadeIn = useTransform(scrollYProgress, [0.22, 0.28], [0, 1]);
@@ -358,7 +369,7 @@ export function HeroScrollAnimation() {
   });
 
   // --- Phase 3c: Logo shadow removal as it docks onto Dynamic Island ---
-  const logoShadowProgress = useTransform(scrollYProgress, [0.18, 0.22], [0, 1]);
+  const logoShadowProgress = useTransform(scrollYProgress, [0.12, 0.16], [0, 1]);
   useMotionValueEvent(logoShadowProgress, 'change', (v) => {
     setLogoNoShadow(v > 0.5);
   });
@@ -417,6 +428,45 @@ export function HeroScrollAnimation() {
               className="h-auto md:h-[70vh] md:max-h-[700px] md:w-auto"
               style={phoneWidth != null ? { width: phoneWidth } : undefined}
             />
+
+            {/* ===== Screen 0: Connect device ===== */}
+            <motion.div
+              style={{ opacity: connectOpacity }}
+              className="absolute inset-x-[8%] inset-y-[8%] flex flex-col items-center justify-center"
+            >
+              <div className="flex flex-col items-center gap-3 md:gap-5">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#F2F2F7] md:h-16 md:w-16">
+                  <Smartphone className="h-6 w-6 text-[#4CD964] md:h-8 md:w-8" />
+                </div>
+                <h2 className="text-center text-sm font-bold text-black md:text-xl">
+                  Connect your device
+                </h2>
+                <p className="max-w-[200px] text-center text-[10px] leading-snug text-gray-500 md:max-w-[280px] md:text-sm">
+                  Plug your iPhone into your computer to get started.
+                </p>
+              </div>
+            </motion.div>
+
+            {/* ===== Cable: plugs into bottom of phone ===== */}
+            <motion.div
+              style={{ opacity: connectOpacity }}
+              className="absolute -bottom-[160px] left-1/2 -translate-x-1/2"
+            >
+              <svg
+                width="24"
+                height="160"
+                viewBox="0 0 24 160"
+                fill="none"
+              >
+                {/* Connector housing */}
+                <rect x="4" y="0" width="16" height="18" rx="4" fill="#aaa" />
+                <rect x="6" y="2" width="12" height="14" rx="3" fill="#d4d4d4" />
+                {/* Connector pins */}
+                <rect x="9" y="4" width="6" height="4" rx="1" fill="#999" />
+                {/* Cable */}
+                <path d="M12 18 C12 40, 12 80, 12 160" stroke="#666" strokeWidth="5" strokeLinecap="round" />
+              </svg>
+            </motion.div>
 
             {/* ===== Screen 1: Terminal (vertically centered) ===== */}
             <motion.div
