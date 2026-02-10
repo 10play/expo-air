@@ -100,10 +100,21 @@ jobs:
       - name: Commit, tag and push
         if: steps.check-release.outputs.skip != 'true'
         run: |
+          # Pull latest main to avoid push rejection if main moved during the run
+          git fetch origin main
+          git rebase origin/main
+
           git add package.json package-lock.json cli/package.json cli/package-lock.json packages/expo-air/package.json
           git commit -m "chore: release ${{ steps.version.outputs.version }}"
-          git tag ${{ steps.version.outputs.version }}
-          git push origin main --tags
+
+          # Push branch first (before tagging) to avoid orphaned tags on failure
+          git push origin main
+
+          # Only tag after successful branch push
+          # Delete any orphaned remote tag from a previous failed run
+          git push origin :refs/tags/${{ steps.version.outputs.version }} 2>/dev/null || true
+          git tag -f ${{ steps.version.outputs.version }}
+          git push origin --tags
 
       - name: Publish @10play/expo-air to npm (org/scoped)
         if: steps.check-release.outputs.skip != 'true'
