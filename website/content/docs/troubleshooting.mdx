@@ -30,7 +30,7 @@ Cloudflare may rate-limit tunnel creation if you restart frequently in a short p
 - Wait a few minutes before restarting
 - Use `--no-tunnel` for local-only development:
   ```bash
-  npx expo-air start --no-tunnel
+  npx expo-air@latest start --no-tunnel
   ```
 - The CLI automatically falls back to localtunnel or bore if Cloudflare is unavailable
 
@@ -49,7 +49,7 @@ This runs a clean prebuild that reapplies all config plugin changes. The `--clea
 If a default port is already in use, specify different ports:
 
 ```bash
-npx expo-air start \
+npx expo-air@latest start \
   --port 4000 \
   --widget-port 8083 \
   --metro-port 8082
@@ -65,5 +65,5 @@ If the widget appears but shows a blank or loading state:
 - Check that `.expo-air.local.json` has the correct `widgetMetroUrl`
 - Try setting the URL manually via environment variable:
   ```bash
-  EXPO_AIR_METRO_URL=http://localhost:8082 npx expo-air start
+  EXPO_AIR_METRO_URL=http://localhost:8082 npx expo-air@latest start
   ```
