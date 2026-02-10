@@ -118,7 +118,7 @@ class ExpoAirReactActivityLifecycleListener : ReactActivityLifecycleListener {
     private data class BubbleConfig(
         var autoShow: Boolean = true,
         var bubbleSize: Float = 60f,
-        var bubbleColor: String = "#007AFF",
+        var bubbleColor: String = "#000000",
         var serverUrl: String = "",
         var widgetMetroUrl: String = ""
     )

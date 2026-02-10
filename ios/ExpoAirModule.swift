@@ -2,7 +2,7 @@ import ExpoModulesCore
 
 struct ShowBubbleOptions: Record {
   @Field var size: Double = 60
-  @Field var color: String = "#007AFF"
+  @Field var color: String = "#000000"
 }
 
 public class ExpoAirModule: Module {

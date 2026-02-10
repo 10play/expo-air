@@ -184,7 +184,7 @@ const withAndroidManifestConfig: ConfigPlugin = (config) => {
     const metaData: Record<string, string> = {
       "expo.modules.expoair.AUTO_SHOW": String(expoAirConfig.autoShow ?? true),
       "expo.modules.expoair.BUBBLE_SIZE": String(expoAirConfig.ui?.bubbleSize ?? 60),
-      "expo.modules.expoair.BUBBLE_COLOR": expoAirConfig.ui?.bubbleColor ?? "#007AFF",
+      "expo.modules.expoair.BUBBLE_COLOR": expoAirConfig.ui?.bubbleColor ?? "#000000",
       "expo.modules.expoair.SERVER_URL": expoAirConfig.serverUrl ?? "",
       "expo.modules.expoair.WIDGET_METRO_URL": expoAirConfig.widgetMetroUrl ?? "",
       "expo.modules.expoair.APP_METRO_URL": expoAirConfig.appMetroUrl ?? "",
@@ -279,7 +279,7 @@ const withExpoAir: ConfigPlugin = (config) => {
     config.modResults.ExpoAir = {
       autoShow: expoAirConfig.autoShow ?? true,
       bubbleSize: expoAirConfig.ui?.bubbleSize ?? 60,
-      bubbleColor: expoAirConfig.ui?.bubbleColor ?? "#007AFF",
+      bubbleColor: expoAirConfig.ui?.bubbleColor ?? "#000000",
       serverUrl: expoAirConfig.serverUrl ?? "",
       widgetMetroUrl: expoAirConfig.widgetMetroUrl ?? "",
       appMetroUrl: expoAirConfig.appMetroUrl ?? "",

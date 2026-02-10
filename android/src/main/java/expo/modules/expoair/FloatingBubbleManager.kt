@@ -27,7 +27,7 @@ object FloatingBubbleManager {
     fun show(
         activity: Activity,
         size: Float = 60f,
-        color: String = "#007AFF",
+        color: String = "#000000",
         bundleURL: String? = null,
         serverUrl: String? = null
     ) {

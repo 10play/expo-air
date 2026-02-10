@@ -46,7 +46,11 @@ export async function initCommand(options: InitOptions): Promise<void> {
     ...packageJson.devDependencies,
   };
 
-  if (!allDeps["@10play/expo-air"]) {
+  const moduleExists = fs.existsSync(
+    path.join(projectRoot, "node_modules", "@10play", "expo-air"),
+  );
+
+  if (!allDeps["@10play/expo-air"] || !moduleExists) {
     console.log(chalk.gray("  Installing @10play/expo-air...\n"));
     const cmd =
       fs.existsSync(path.join(projectRoot, "bun.lockb")) ||
