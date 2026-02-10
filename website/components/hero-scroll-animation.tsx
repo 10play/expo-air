@@ -447,24 +447,33 @@ export function HeroScrollAnimation() {
               </div>
             </motion.div>
 
-            {/* ===== Cable: plugs into bottom of phone ===== */}
+            {/* ===== Lightning cable: plugs into bottom of phone ===== */}
             <motion.div
               style={{ opacity: connectOpacity }}
-              className="absolute -bottom-[160px] left-1/2 -translate-x-1/2"
+              className="absolute -bottom-[120px] left-1/2 -translate-x-1/2 md:-bottom-[200px]"
             >
               <svg
-                width="24"
-                height="160"
-                viewBox="0 0 24 160"
+                viewBox="0 0 30 160"
                 fill="none"
+                className="h-[120px] w-[30px] md:h-[200px] md:w-[36px]"
+                preserveAspectRatio="xMidYMin meet"
               >
-                {/* Connector housing */}
-                <rect x="4" y="0" width="16" height="18" rx="4" fill="#aaa" />
-                <rect x="6" y="2" width="12" height="14" rx="3" fill="#d4d4d4" />
-                {/* Connector pins */}
-                <rect x="9" y="4" width="6" height="4" rx="1" fill="#999" />
-                {/* Cable */}
-                <path d="M12 18 C12 40, 12 80, 12 160" stroke="#666" strokeWidth="5" strokeLinecap="round" />
+                {/* Lightning connector — metal tip */}
+                <rect x="8" y="0" width="14" height="8" rx="2" fill="#b8b8b8" />
+                <rect x="8.5" y="0.5" width="13" height="7" rx="1.5" fill="#d4d4d4" />
+                {/* Metal pin dots */}
+                <rect x="11" y="2" width="1.5" height="4" rx="0.5" fill="#a0a0a0" />
+                <rect x="14.25" y="2" width="1.5" height="4" rx="0.5" fill="#a0a0a0" />
+                <rect x="17.5" y="2" width="1.5" height="4" rx="0.5" fill="#a0a0a0" />
+                {/* Connector body — white plastic housing */}
+                <rect x="5" y="8" width="20" height="22" rx="4" fill="#e8e8e8" />
+                <rect x="5.5" y="8.5" width="19" height="21" rx="3.5" fill="#f5f5f5" />
+                {/* Strain relief — tapered section */}
+                <path d="M9 30 Q9 38 11 44 L19 44 Q21 38 21 30" fill="#f0f0f0" />
+                {/* Cable — white rubber */}
+                <line x1="15" y1="44" x2="15" y2="160" stroke="#e0e0e0" strokeWidth="5" strokeLinecap="round" />
+                {/* Cable highlight — subtle shine */}
+                <line x1="13.5" y1="44" x2="13.5" y2="160" stroke="#f5f5f5" strokeWidth="1.5" />
               </svg>
             </motion.div>
 
