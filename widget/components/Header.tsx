@@ -10,6 +10,19 @@ const AnimatedView = Animated.View as React.ComponentClass<Animated.AnimatedProp
 // ExpoAir is the main app's module (fallback)
 const { WidgetBridge, ExpoAir } = NativeModules;
 
+function handleReload() {
+  try {
+    if (WidgetBridge?.reloadMainApp) {
+      console.log("[expo-air] Triggering main app reload");
+      WidgetBridge.reloadMainApp();
+    } else {
+      console.warn("[expo-air] No reloadMainApp method available");
+    }
+  } catch (e) {
+    console.warn("[expo-air] Failed to reload main app:", e);
+  }
+}
+
 function handleCollapse() {
   try {
     // Try WidgetBridge first (widget runtime), then ExpoAir (main app)
@@ -42,7 +55,7 @@ export function Header({ status, branchName, onBranchPress }: HeaderProps) {
 
   return (
     <View style={styles.header}>
-      <TouchableOpacity onPress={handleCollapse} style={styles.closeButton}>
+      <TouchableOpacity onPress={handleCollapse} onLongPress={handleReload} delayLongPress={500} style={styles.closeButton}>
         <Text style={styles.closeButtonText}>✕</Text>
       </TouchableOpacity>
 
@@ -59,7 +72,15 @@ export function Header({ status, branchName, onBranchPress }: HeaderProps) {
         )}
       </TouchableOpacity>
 
-      <View style={[styles.statusDot, { backgroundColor: statusColors[status] }]} />
+      <TouchableOpacity
+        onLongPress={handleReload}
+        delayLongPress={500}
+        activeOpacity={0.6}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        style={styles.statusDotTouchable}
+      >
+        <View style={[styles.statusDot, { backgroundColor: statusColors[status] }]} />
+      </TouchableOpacity>
     </View>
   );
 }
@@ -196,7 +217,11 @@ const styles = StyleSheet.create({
     width: SIZES.STATUS_DOT,
     height: SIZES.STATUS_DOT,
     borderRadius: SIZES.STATUS_DOT / 2,
-    marginLeft: SPACING.MD, // Match the closeButton marginRight for visual balance
+    marginLeft: SPACING.MD,
+  },
+  statusDotTouchable: {
+    marginLeft: SPACING.MD,
+    padding: 10,
   },
   collapsedPill: {
     width: 100,

@@ -3,6 +3,7 @@
 #import <UIKit/UIKit.h>
 #import <PhotosUI/PhotosUI.h>
 #import <objc/runtime.h>
+#import <React/RCTReloadCommand.h>
 
 static NSString *saveImageToTemp(UIImage *image, CGFloat quality) {
     NSData *data = UIImageJPEGRepresentation(image, quality);
@@ -108,6 +109,12 @@ RCT_EXPORT_METHOD(collapse) {
 #pragma clang diagnostic pop
             }
         }
+    });
+}
+
+RCT_EXPORT_METHOD(reloadMainApp) {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        RCTTriggerReloadCommandListeners(@"expo-air force reload");
     });
 }
 
