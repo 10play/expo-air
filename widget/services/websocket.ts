@@ -351,7 +351,7 @@ export class WebSocketClient {
     this.setStatus("disconnected");
   }
 
-  sendPrompt(content: string, imagePaths?: string[]): void {
+  async sendPrompt(content: string, imagePaths?: string[]): Promise<void> {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       this.options.onError(new Error("Not connected"));
       return;
@@ -364,11 +364,51 @@ export class WebSocketClient {
     };
 
     if (imagePaths && imagePaths.length > 0) {
-      message.imagePaths = imagePaths;
+      try {
+        const serverPaths = await this.uploadImages(imagePaths);
+        if (serverPaths.length > 0) {
+          message.imagePaths = serverPaths;
+        }
+      } catch (error) {
+        console.warn("[expo-air] Image upload failed:", error);
+      }
     }
 
     this.ws.send(JSON.stringify(message));
     this.setStatus("sending");
+  }
+
+  private async uploadImages(localPaths: string[]): Promise<string[]> {
+    // Convert ws:// URL to http:// for the upload endpoint
+    const httpUrl = this.options.url
+      .replace(/^ws:\/\//, "http://")
+      .replace(/^wss:\/\//, "https://");
+    const urlObj = new URL(httpUrl);
+    const uploadUrl = `${urlObj.origin}/upload?secret=${urlObj.searchParams.get("secret") || ""}`;
+
+    const formData = new FormData();
+    for (const path of localPaths) {
+      const uri = path.startsWith("file://") ? path : `file://${path}`;
+      const ext = path.split(".").pop()?.toLowerCase() || "jpg";
+      const mimeType = ext === "png" ? "image/png" : "image/jpeg";
+      formData.append("images", {
+        uri,
+        type: mimeType,
+        name: `image.${ext}`,
+      } as unknown as Blob);
+    }
+
+    const response = await fetch(uploadUrl, {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Upload failed: ${response.status}`);
+    }
+
+    const result = await response.json();
+    return result.paths || [];
   }
 
   requestNewSession(): void {
