@@ -8,7 +8,7 @@ public class ExpoAirAppDelegateSubscriber: ExpoAppDelegateSubscriber {
 
     // Config with defaults (localhost fallbacks only used in SDK development)
     private var bubbleSize: CGFloat = 60
-    private var bubbleColor: String = "#007AFF"
+    private var bubbleColor: String = "#000000"
     private var autoShow: Bool = true
     private var serverUrl: String = ""
     private var widgetMetroUrl: String = ""

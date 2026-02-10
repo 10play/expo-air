@@ -90,7 +90,7 @@ Configuration file created by `expo-air init`:
   "autoShow": true,
   "ui": {
     "bubbleSize": 60,
-    "bubbleColor": "#007AFF"
+    "bubbleColor": "#000000"
   }
 }
 ```
@@ -99,7 +99,7 @@ Configuration file created by `expo-air init`:
 |--------|------|---------|-------------|
 | `autoShow` | boolean | `true` | Auto-show widget on app launch |
 | `ui.bubbleSize` | number | `60` | Size of the floating bubble |
-| `ui.bubbleColor` | string | `"#007AFF"` | Color of the floating bubble |
+| `ui.bubbleColor` | string | `"#000000"` | Color of the floating bubble |
 
 ### .expo-air.local.json (gitignored)
 

@@ -11,7 +11,7 @@ import expo.modules.kotlin.records.Record
 
 class ShowBubbleOptions : Record {
     @Field var size: Double = 60.0
-    @Field var color: String = "#007AFF"
+    @Field var color: String = "#000000"
 }
 
 class ExpoAirModule : Module() {
