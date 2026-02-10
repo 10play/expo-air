@@ -259,8 +259,7 @@ export function useWebSocketMessages({ serverUrl, onGitMessage }: UseWebSocketMe
     currentPromptIdRef.current = null;
     setCurrentParts([]);
 
-    // Send prompt immediately with local file paths
-    // The server runs on the same machine and can read simulator temp files directly
+    // Upload images to the server first, then send the prompt with server-side paths
     const imagePaths = images && images.length > 0
       ? images.map((img) => img.uri)
       : undefined;

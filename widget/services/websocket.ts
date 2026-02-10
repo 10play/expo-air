@@ -351,7 +351,7 @@ export class WebSocketClient {
     this.setStatus("disconnected");
   }
 
-  sendPrompt(content: string, imagePaths?: string[]): void {
+  async sendPrompt(content: string, imagePaths?: string[]): Promise<void> {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       this.options.onError(new Error("Not connected"));
       return;
@@ -364,11 +364,62 @@ export class WebSocketClient {
     };
 
     if (imagePaths && imagePaths.length > 0) {
-      message.imagePaths = imagePaths;
+      try {
+        console.log("[expo-air] Uploading", imagePaths.length, "image(s) to:", this.getUploadUrl());
+        const serverPaths = await this.uploadImages(imagePaths);
+        console.log("[expo-air] Upload returned paths:", serverPaths);
+        if (serverPaths.length > 0) {
+          message.imagePaths = serverPaths;
+        }
+      } catch (error) {
+        console.error("[expo-air] Image upload failed:", error);
+      }
     }
 
     this.ws.send(JSON.stringify(message));
     this.setStatus("sending");
+  }
+
+  private getUploadUrl(): string {
+    let url = this.options.url;
+    // ws:// → http://, wss:// → https://
+    if (url.startsWith("wss://")) url = "https://" + url.slice(6);
+    else if (url.startsWith("ws://")) url = "http://" + url.slice(5);
+    // Insert /upload before the query string
+    const qIndex = url.indexOf("?");
+    if (qIndex >= 0) {
+      return url.slice(0, qIndex) + "/upload" + url.slice(qIndex);
+    }
+    return url + "/upload";
+  }
+
+  private async uploadImages(localPaths: string[]): Promise<string[]> {
+    const uploadUrl = this.getUploadUrl();
+
+    const formData = new FormData();
+    for (const path of localPaths) {
+      const uri = path.startsWith("file://") ? path : `file://${path}`;
+      const ext = path.split(".").pop()?.toLowerCase() || "jpg";
+      const mimeType = ext === "png" ? "image/png" : "image/jpeg";
+      formData.append("images", {
+        uri,
+        type: mimeType,
+        name: `image.${ext}`,
+      } as unknown as Blob);
+    }
+
+    const response = await fetch(uploadUrl, {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const text = await response.text().catch(() => "");
+      throw new Error(`Upload failed: ${response.status} ${text}`);
+    }
+
+    const result = await response.json();
+    return result.paths || [];
   }
 
   requestNewSession(): void {
