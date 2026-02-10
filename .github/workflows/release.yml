@@ -97,13 +97,21 @@ jobs:
         if: steps.check-release.outputs.skip != 'true'
         run: npm run version:sync
 
-      - name: Commit, tag and push
+      - name: Commit and push
         if: steps.check-release.outputs.skip != 'true'
         run: |
           git add package.json package-lock.json cli/package.json cli/package-lock.json packages/expo-air/package.json
           git commit -m "chore: release ${{ steps.version.outputs.version }}"
+
+          # Push branch first (without tags) to prevent orphaned tags if main moved forward
+          git push origin main
+
+      - name: Tag and push tag
+        if: steps.check-release.outputs.skip != 'true'
+        run: |
+          # Only tag after successful branch push to avoid orphaned tags
           git tag ${{ steps.version.outputs.version }}
-          git push origin main --tags
+          git push origin ${{ steps.version.outputs.version }}
 
       - name: Publish @10play/expo-air to npm (org/scoped)
         if: steps.check-release.outputs.skip != 'true'
