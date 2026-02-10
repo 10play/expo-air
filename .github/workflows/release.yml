@@ -93,19 +93,27 @@ jobs:
           cd cli
           npm version ${{ steps.version.outputs.version }} --no-git-tag-version --allow-same-version
 
+      - name: Sync alias package version
+        if: steps.check-release.outputs.skip != 'true'
+        run: npm run version:sync
+
       - name: Commit, tag and push
         if: steps.check-release.outputs.skip != 'true'
         run: |
-          git add package.json package-lock.json cli/package.json cli/package-lock.json
+          git add package.json package-lock.json cli/package.json cli/package-lock.json packages/expo-air/package.json
           git commit -m "chore: release ${{ steps.version.outputs.version }}"
           git tag ${{ steps.version.outputs.version }}
           git push origin main --tags
 
-      - name: Publish to npm
+      - name: Publish @10play/expo-air to npm (org/scoped)
         if: steps.check-release.outputs.skip != 'true'
-        # Uses OIDC trusted publishing - no token needed
-        # Configured at: https://www.npmjs.com/package/@10play/expo-air/access
+        # OIDC trusted publishing configured at: https://www.npmjs.com/package/@10play/expo-air/access
         run: npm publish --access public
+
+      - name: Publish expo-air alias to npm (personal/unscoped)
+        if: steps.check-release.outputs.skip != 'true'
+        # OIDC trusted publishing configured at: https://www.npmjs.com/package/expo-air/access
+        run: npm run publish:alias
 
       - name: Create GitHub Release
         if: steps.check-release.outputs.skip != 'true'
