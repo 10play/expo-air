@@ -52,7 +52,7 @@ export function IPhoneFrame({ className, ...props }: IPhoneFrameProps) {
         height="37"
         rx="18.5"
         ry="18.5"
-        fill="#1C1C1E"
+        fill="black"
       />
     </svg>
   );
