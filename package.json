@@ -79,10 +79,7 @@
     "localtunnel": "^2.0.2",
     "plist": "^3.1.0",
     "tree-kill": "^1.2.2",
-    "ws": "^8.18.0",
-    "expo": "~54.0.32",
-    "react": "19.1.0",
-    "react-native": "0.81.5"
+    "ws": "^8.18.0"
   },
   "devDependencies": {
     "@types/localtunnel": "^2.0.4",
