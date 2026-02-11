@@ -118,57 +118,124 @@ export function HeroScrollAnimation() {
     return () => window.removeEventListener('resize', updateTarget);
   }, []);
 
-  // Scroll "no-stop zones": entering a zone forces you to the exit in your scroll direction
+  // Scroll snap — each scroll gesture advances exactly one "page"
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
-    // [zoneStart, zoneEnd] — scroll progress ranges that push you through
-    const ZONES: [number, number][] = [
-      [0, 0.27],    // hero fade → connect device fully visible
-      [0.31, 0.39], // connect fade → terminal fully visible
-    ];
+    // Progress-based snap points within the hero section.
+    // One extra virtual page at the end scrolls to the page bottom (footer).
+    const SNAP_PROGRESS = [0, 0.27, 0.39, 0.48, 0.62, 0.88];
+    const TOTAL_PAGES = SNAP_PROGRESS.length + 1; // +1 for footer
 
-    let prevY = window.scrollY;
-    let dir: 'down' | 'up' = 'down';
-    let dirConfirmed = false;
-    let snapping = false;
+    let currentSnap = 0;
+    let isAnimating = false;
 
-    const handler = () => {
-      if (snapping) return;
-      const y = window.scrollY;
-      const delta = y - prevY;
-      if (delta === 0) return;
-      // Only confirm direction for meaningful scroll (ignore trackpad bounce)
-      if (Math.abs(delta) > 4) {
-        dir = delta > 0 ? 'down' : 'up';
-        dirConfirmed = true;
+    const getRange = () => container.offsetHeight - window.innerHeight;
+    const getProgress = () => {
+      const range = getRange();
+      if (range <= 0) return 0;
+      return (window.scrollY - container.offsetTop) / range;
+    };
+
+    const findNearestSnap = () => {
+      const progress = getProgress();
+      // Past the section → footer
+      if (progress > 1.0) return SNAP_PROGRESS.length;
+      let nearest = 0;
+      let minDist = Infinity;
+      for (let i = 0; i < SNAP_PROGRESS.length; i++) {
+        const dist = Math.abs(progress - SNAP_PROGRESS[i]);
+        if (dist < minDist) {
+          minDist = dist;
+          nearest = i;
+        }
       }
-      prevY = y;
+      return nearest;
+    };
 
-      if (!dirConfirmed) return;
+    const snapTo = (index: number) => {
+      if (index < 0 || index >= TOTAL_PAGES) return;
+      currentSnap = index;
+      isAnimating = true;
+      let top: number;
+      if (index >= SNAP_PROGRESS.length) {
+        // Footer — scroll to page bottom
+        top = document.documentElement.scrollHeight - window.innerHeight;
+      } else {
+        const range = getRange();
+        top = container.offsetTop + SNAP_PROGRESS[index] * range;
+      }
+      window.scrollTo({ top, behavior: 'smooth' });
+      setTimeout(() => { isAnimating = false; }, 1000);
+    };
 
-      const range = container.offsetHeight - window.innerHeight;
-      if (range <= 0) return;
-      const progress = (y - container.offsetTop) / range;
+    // Desktop: intercept wheel events
+    const wheelHandler = (e: WheelEvent) => {
+      e.preventDefault();
+      if (isAnimating) return;
+      if (Math.abs(e.deltaY) < 2) return;
+      currentSnap = findNearestSnap();
+      if (e.deltaY > 0 && currentSnap < TOTAL_PAGES - 1) {
+        snapTo(currentSnap + 1);
+      } else if (e.deltaY < 0 && currentSnap > 0) {
+        snapTo(currentSnap - 1);
+      }
+    };
 
-      for (const [start, end] of ZONES) {
-        if (progress > start && progress < end) {
-          snapping = true;
-          dirConfirmed = false; // require fresh direction after snap
-          const target = dir === 'down' ? end : start;
-          window.scrollTo({
-            top: container.offsetTop + target * range,
-            behavior: 'smooth',
-          });
-          setTimeout(() => { snapping = false; }, 1200);
-          break;
+    // Mobile: intercept touch events
+    let touchStartY = 0;
+    const touchStartHandler = (e: TouchEvent) => {
+      touchStartY = e.touches[0].clientY;
+    };
+    const touchMoveHandler = (e: TouchEvent) => {
+      if (Math.abs(touchStartY - e.touches[0].clientY) > 10) {
+        e.preventDefault();
+      }
+    };
+    const touchEndHandler = (e: TouchEvent) => {
+      if (isAnimating) return;
+      const deltaY = touchStartY - e.changedTouches[0].clientY;
+      if (Math.abs(deltaY) < 30) return;
+      currentSnap = findNearestSnap();
+      if (deltaY > 0 && currentSnap < TOTAL_PAGES - 1) {
+        snapTo(currentSnap + 1);
+      } else if (deltaY < 0 && currentSnap > 0) {
+        snapTo(currentSnap - 1);
+      }
+    };
+
+    // Keyboard: arrow keys, space, page up/down
+    const keyHandler = (e: KeyboardEvent) => {
+      if (isAnimating) return;
+      let dir: number | null = null;
+      if (e.key === 'ArrowDown' || e.key === 'PageDown' || (e.key === ' ' && !e.shiftKey)) {
+        dir = 1;
+      } else if (e.key === 'ArrowUp' || e.key === 'PageUp' || (e.key === ' ' && e.shiftKey)) {
+        dir = -1;
+      }
+      if (dir !== null) {
+        e.preventDefault();
+        currentSnap = findNearestSnap();
+        const next = currentSnap + dir;
+        if (next >= 0 && next < TOTAL_PAGES) {
+          snapTo(next);
         }
       }
     };
 
-    window.addEventListener('scroll', handler, { passive: true });
-    return () => window.removeEventListener('scroll', handler);
+    window.addEventListener('wheel', wheelHandler, { passive: false });
+    window.addEventListener('touchstart', touchStartHandler, { passive: true });
+    window.addEventListener('touchmove', touchMoveHandler, { passive: false });
+    window.addEventListener('touchend', touchEndHandler, { passive: true });
+    window.addEventListener('keydown', keyHandler);
+    return () => {
+      window.removeEventListener('wheel', wheelHandler);
+      window.removeEventListener('touchstart', touchStartHandler);
+      window.removeEventListener('touchmove', touchMoveHandler);
+      window.removeEventListener('touchend', touchEndHandler);
+      window.removeEventListener('keydown', keyHandler);
+    };
   }, []);
 
   // =============================================
