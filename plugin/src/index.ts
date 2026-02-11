@@ -39,8 +39,8 @@ const withAppDelegatePatch: ConfigPlugin = (config) => {
 
       let content = fs.readFileSync(appDelegatePath, "utf-8");
 
-      // Check if already patched (both patches must be present)
-      if (content.includes("ExpoAirBundleURL") && content.includes("ExpoAirSourceURL")) {
+      // Check if already patched (all patches must be present)
+      if (content.includes("ExpoAirBundleURL") && content.includes("ExpoAirSourceURL") && content.includes("ExpoAirProvider")) {
         return config;
       }
 
@@ -98,6 +98,34 @@ const withAppDelegatePatch: ConfigPlugin = (config) => {
       if (sourceURLPattern.test(content)) {
         content = content.replace(sourceURLPattern, patchedSourceURL);
         console.log("[expo-air] Patched sourceURL(for:) for tunnel support");
+      }
+
+      // Patch application(didFinishLaunchingWithOptions:) to configure RCTBundleURLProvider
+      // BEFORE the dev launcher starts. The dev launcher completely bypasses AppDelegate's
+      // sourceURL/bundleURL and uses RCTBundleURLProvider directly, so we must configure
+      // it early in the app lifecycle.
+      const didFinishPattern =
+        /let delegate = ReactNativeDelegate\(\)/;
+
+      const providerPatch = `// ExpoAirProvider: Configure RCTBundleURLProvider for tunnel before dev launcher starts.
+    #if DEBUG
+    if let expoAir = Bundle.main.object(forInfoDictionaryKey: "ExpoAir") as? [String: Any],
+       let appMetroUrl = expoAir["appMetroUrl"] as? String,
+       !appMetroUrl.isEmpty,
+       let url = URL(string: appMetroUrl),
+       let host = url.host {
+      let provider = RCTBundleURLProvider.sharedSettings()
+      provider.jsLocation = "\\(host):443"
+      provider.packagerScheme = "https"
+      print("[expo-air] Early RCTBundleURLProvider config for tunnel: \\(host)")
+    }
+    #endif
+
+    let delegate = ReactNativeDelegate()`;
+
+      if (didFinishPattern.test(content)) {
+        content = content.replace(didFinishPattern, providerPatch);
+        console.log("[expo-air] Patched didFinishLaunchingWithOptions for early provider config");
       }
 
       fs.writeFileSync(appDelegatePath, content);
