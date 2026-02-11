@@ -24,7 +24,7 @@ export async function startCommand(options: StartOptions): Promise<void> {
     tunnel: options.tunnel,
     server: options.server,
     // runWidgetMetro: auto-detect (default behavior)
-    metroCommand: "npm", // start uses npm start
+    metroCommand: "run-script", // start uses the project's start script
   });
 
   // Allocate ports

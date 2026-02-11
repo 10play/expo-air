@@ -2,6 +2,7 @@ import chalk from "chalk";
 import { execSync, spawn } from "child_process";
 import * as path from "path";
 import * as fs from "fs";
+import { detectPackageManager, getInstallCommand, getExecCommand } from "../utils/common.js";
 interface InitOptions {
   force?: boolean;
   skipPrebuild?: boolean;
@@ -50,17 +51,11 @@ export async function initCommand(options: InitOptions): Promise<void> {
     path.join(projectRoot, "node_modules", "@10play", "expo-air"),
   );
 
+  const pm = detectPackageManager(projectRoot);
+
   if (!allDeps["@10play/expo-air"] || !moduleExists) {
     console.log(chalk.gray("  Installing @10play/expo-air...\n"));
-    const cmd =
-      fs.existsSync(path.join(projectRoot, "bun.lockb")) ||
-      fs.existsSync(path.join(projectRoot, "bun.lock"))
-        ? "bun add @10play/expo-air"
-        : fs.existsSync(path.join(projectRoot, "pnpm-lock.yaml"))
-          ? "pnpm add @10play/expo-air"
-          : fs.existsSync(path.join(projectRoot, "yarn.lock"))
-            ? "yarn add @10play/expo-air"
-            : "npm install @10play/expo-air";
+    const cmd = getInstallCommand(pm, "@10play/expo-air");
 
     try {
       execSync(cmd, { cwd: projectRoot, stdio: "inherit" });
@@ -158,9 +153,12 @@ export async function initCommand(options: InitOptions): Promise<void> {
       ),
     );
 
+    const exec = getExecCommand(pm);
+    const prebuildCmd = [...exec.args, "expo", "prebuild", "--clean"];
+
     try {
       await new Promise<void>((resolve, reject) => {
-        const prebuild = spawn("npx", ["expo", "prebuild", "--clean"], {
+        const prebuild = spawn(exec.cmd, prebuildCmd, {
           cwd: projectRoot,
           stdio: "inherit",
           shell: true,
@@ -184,21 +182,23 @@ export async function initCommand(options: InitOptions): Promise<void> {
       const message = err instanceof Error ? err.message : String(err);
       console.log(chalk.red(`\n  Prebuild failed: ${message}`));
       console.log(
-        chalk.gray("  You can run it manually: npx expo prebuild --clean\n"),
+        chalk.gray(`  You can run it manually: ${exec.cmd} ${prebuildCmd.join(" ")}\n`),
       );
       process.exit(1);
     }
   } else {
+    const exec = getExecCommand(pm);
     console.log(chalk.yellow("\n  Skipped prebuild (--skip-prebuild)"));
-    console.log(chalk.gray("  Run manually: npx expo prebuild --clean\n"));
+    console.log(chalk.gray(`  Run manually: ${exec.cmd} ${[...exec.args, "expo", "prebuild", "--clean"].join(" ")}\n`));
   }
 
   // Success message
+  const exec = getExecCommand(pm);
   console.log(chalk.blue("\n  expo-air initialized!\n"));
   console.log(chalk.gray("  Next steps:"));
   console.log(
     chalk.white("    1. Connect your iOS or Android device via cable"),
   );
-  console.log(chalk.white("    2. Run: npx expo-air fly"));
+  console.log(chalk.white(`    2. Run: ${exec.cmd} ${[...exec.args, "expo-air", "fly"].join(" ")}`));
   console.log(chalk.white("    3. The widget will appear on your device\n"));
 }

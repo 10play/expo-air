@@ -1,6 +1,6 @@
 import chalk from "chalk";
 import { spawn, ChildProcess } from "child_process";
-import { waitForPort } from "./common.js";
+import { waitForPort, detectPackageManager, getExecCommand, getRunScriptCommand } from "./common.js";
 
 export interface MetroProcess {
   process: ChildProcess;
@@ -8,13 +8,13 @@ export interface MetroProcess {
   name: string;
 }
 
-export type MetroCommand = "npm" | "npx";
+export type MetroCommand = "run-script" | "exec";
 
 export interface StartMetroOptions {
   name: string;
   cwd: string;
   port: number;
-  /** Use 'npm' for `npm start -- --port`, 'npx' for `npx expo start --port` */
+  /** Use 'run-script' for `<pm> start --port`, 'exec' for `<pm-exec> expo start --port` */
   command?: MetroCommand;
   /** Timeout for waiting for port to be ready (default: 30000ms) */
   timeout?: number;
@@ -24,19 +24,23 @@ export interface StartMetroOptions {
  * Start a Metro bundler server
  */
 export async function startMetro(options: StartMetroOptions): Promise<ChildProcess | null> {
-  const { name, cwd, port, command = "npm", timeout = 30000 } = options;
+  const { name, cwd, port, command = "run-script", timeout = 30000 } = options;
+
+  const pm = detectPackageManager(cwd);
 
   try {
     let proc: ChildProcess;
 
-    if (command === "npm") {
-      proc = spawn("npm", ["start", "--", "--port", String(port)], {
+    if (command === "run-script") {
+      const run = getRunScriptCommand(pm, "start", ["--port", String(port)]);
+      proc = spawn(run.cmd, run.args, {
         cwd,
         stdio: ["ignore", "pipe", "pipe"],
         env: { ...process.env, FORCE_COLOR: "1" },
       });
     } else {
-      proc = spawn("npx", ["expo", "start", "--port", String(port)], {
+      const exec = getExecCommand(pm);
+      proc = spawn(exec.cmd, [...exec.args, "expo", "start", "--port", String(port)], {
         cwd,
         stdio: ["ignore", "pipe", "pipe"],
         env: {

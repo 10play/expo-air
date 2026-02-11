@@ -57,9 +57,9 @@ export interface DevEnvironmentOptions {
   tunnel?: boolean;
   /** Enable prompt server (default: true) */
   server?: boolean;
-  /** Run widget Metro server (default: auto-detect based on npm install) */
+  /** Run widget Metro server (default: auto-detect based on install) */
   runWidgetMetro?: boolean;
-  /** Metro command to use: 'npm' or 'npx' (default: 'npm') */
+  /** Metro command to use: 'run-script' or 'exec' (default: 'run-script') */
   metroCommand?: MetroCommand;
   /** Watch prompt server files and restart on changes (default: false) */
   watchServer?: boolean;
@@ -130,7 +130,7 @@ export class DevEnvironment {
       tunnel: options.tunnel ?? true,
       server: options.server ?? true,
       runWidgetMetro: shouldRunWidgetMetro,
-      metroCommand: options.metroCommand ?? "npm",
+      metroCommand: options.metroCommand ?? "run-script",
       watchServer: options.watchServer ?? false,
     } as Required<DevEnvironmentOptions>;
 
