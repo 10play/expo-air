@@ -128,7 +128,7 @@ export function resolveProjectRoot(projectOption?: string): string {
 
   if (!projectOption && fs.existsSync(path.join(exampleDir, "app.json"))) {
     // Check if we're in the package root (not in example already)
-    if (!fs.existsSync(path.join(projectRoot, "app.json"))) {
+    if (!validateExpoProject(projectRoot)) {
       projectRoot = exampleDir;
     }
   }
@@ -142,7 +142,8 @@ export function resolveProjectRoot(projectOption?: string): string {
 export function validateExpoProject(projectRoot: string): boolean {
   return (
     fs.existsSync(path.join(projectRoot, "app.json")) ||
-    fs.existsSync(path.join(projectRoot, "app.config.js"))
+    fs.existsSync(path.join(projectRoot, "app.config.js")) ||
+    fs.existsSync(path.join(projectRoot, "app.config.ts"))
   );
 }
 
