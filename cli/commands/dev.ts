@@ -3,7 +3,7 @@ import { spawn, execSync, type ChildProcess } from "child_process";
 import { existsSync, unlinkSync } from "fs";
 import { join } from "path";
 import { DevEnvironment, killProcessTree } from "../runner/devEnvironment.js";
-import { writeLocalConfig, updateInfoPlist, updateAndroidManifest, getPackageRoot, appendSecret, resolveAndroidJavaHome } from "../utils/common.js";
+import { writeLocalConfig, updateInfoPlist, updateAndroidManifest, getPackageRoot, appendSecret, resolveAndroidJavaHome, detectPackageManager, getExecCommand } from "../utils/common.js";
 
 export interface DevOptions {
   port: string;
@@ -26,7 +26,7 @@ export async function devCommand(options: DevOptions): Promise<void> {
     tunnel: false,
     server: true,
     runWidgetMetro: true,
-    metroCommand: "npm",
+    metroCommand: "run-script",
     watchServer: true,
   });
 
@@ -174,9 +174,12 @@ export async function devCommand(options: DevOptions): Promise<void> {
     }
   }
 
+  const pm = detectPackageManager(projectRoot);
+  const exec = getExecCommand(pm);
+
   buildProcess = spawn(
-    "npx",
-    runArgs,
+    exec.cmd,
+    [...exec.args, ...runArgs],
     {
       cwd: projectRoot,
       stdio: "inherit",

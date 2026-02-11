@@ -2,7 +2,7 @@ import chalk from "chalk";
 import { spawn } from "child_process";
 import { DevEnvironment } from "../runner/devEnvironment.js";
 import { detectAllDevices, selectDevice, ConnectedDevice } from "../utils/devices.js";
-import { getGitBranchSuffix, maskSecret, resolveAndroidJavaHome } from "../utils/common.js";
+import { getGitBranchSuffix, maskSecret, resolveAndroidJavaHome, detectPackageManager, getExecCommand } from "../utils/common.js";
 
 export interface FlyOptions {
   port: string;
@@ -59,7 +59,7 @@ export async function flyCommand(options: FlyOptions): Promise<void> {
     tunnel: options.tunnel,
     server: true, // fly always has server
     runWidgetMetro: options.dev ?? false, // Only in dev mode
-    metroCommand: "npx", // fly uses npx expo start
+    metroCommand: "exec", // fly uses <pm-exec> expo start
     watchServer: options.dev ?? false, // Watch prompt server in dev mode
   });
 
@@ -167,7 +167,10 @@ export async function flyCommand(options: FlyOptions): Promise<void> {
         String(ports.appMetro),
       ];
 
-  const buildProcess = spawn("npx", buildArgs, {
+  const pm = detectPackageManager(projectRoot);
+  const exec = getExecCommand(pm);
+
+  const buildProcess = spawn(exec.cmd, [...exec.args, ...buildArgs], {
     cwd: projectRoot,
     stdio: "inherit",
     env: buildEnv,
