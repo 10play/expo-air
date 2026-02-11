@@ -31,11 +31,12 @@ export async function initCommand(options: InitOptions): Promise<void> {
 
   // Step 1: Validate this is an Expo project
   const appJsonPath = path.join(projectRoot, "app.json");
-  const appConfigPath = path.join(projectRoot, "app.config.js");
+  const appConfigJsPath = path.join(projectRoot, "app.config.js");
+  const appConfigTsPath = path.join(projectRoot, "app.config.ts");
 
-  if (!fs.existsSync(appJsonPath) && !fs.existsSync(appConfigPath)) {
+  if (!fs.existsSync(appJsonPath) && !fs.existsSync(appConfigJsPath) && !fs.existsSync(appConfigTsPath)) {
     console.log(chalk.red("  Error: No Expo app found in current directory"));
-    console.log(chalk.gray("    Expected app.json or app.config.js\n"));
+    console.log(chalk.gray("    Expected app.json, app.config.js, or app.config.ts\n"));
     process.exit(1);
   }
 
@@ -116,7 +117,7 @@ export async function initCommand(options: InitOptions): Promise<void> {
     }
   } else {
     console.log(
-      chalk.yellow("  app.config.js detected - please add plugin manually:"),
+      chalk.yellow("  app.config.js/ts detected - please add plugin manually:"),
     );
     console.log(chalk.gray('    plugins: ["@10play/expo-air"]\n'));
   }
