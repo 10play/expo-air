@@ -440,17 +440,27 @@ export type PackageManager = "npm" | "yarn" | "pnpm" | "bun";
  * Detect the package manager used in a project by checking lock files.
  */
 export function detectPackageManager(projectRoot: string): PackageManager {
-  if (
-    fs.existsSync(path.join(projectRoot, "bun.lockb")) ||
-    fs.existsSync(path.join(projectRoot, "bun.lock"))
-  ) {
-    return "bun";
-  }
-  if (fs.existsSync(path.join(projectRoot, "pnpm-lock.yaml"))) {
-    return "pnpm";
-  }
-  if (fs.existsSync(path.join(projectRoot, "yarn.lock"))) {
-    return "yarn";
+  let dir = projectRoot;
+  while (true) {
+    if (
+      fs.existsSync(path.join(dir, "bun.lockb")) ||
+      fs.existsSync(path.join(dir, "bun.lock"))
+    ) {
+      return "bun";
+    }
+    if (fs.existsSync(path.join(dir, "pnpm-lock.yaml"))) {
+      return "pnpm";
+    }
+    if (fs.existsSync(path.join(dir, "yarn.lock"))) {
+      return "yarn";
+    }
+    if (fs.existsSync(path.join(dir, "package-lock.json"))) {
+      return "npm";
+    }
+
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
   }
   return "npm";
 }
