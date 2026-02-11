@@ -142,7 +142,8 @@ export function resolveProjectRoot(projectOption?: string): string {
 export function validateExpoProject(projectRoot: string): boolean {
   return (
     fs.existsSync(path.join(projectRoot, "app.json")) ||
-    fs.existsSync(path.join(projectRoot, "app.config.js"))
+    fs.existsSync(path.join(projectRoot, "app.config.js")) ||
+    fs.existsSync(path.join(projectRoot, "app.config.ts"))
   );
 }
 
