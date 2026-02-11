@@ -125,7 +125,8 @@ export function HeroScrollAnimation() {
 
     // [zoneStart, zoneEnd] — scroll progress ranges that push you through
     const ZONES: [number, number][] = [
-      [0, 0.28], // hero fade → install fully visible
+      [0, 0.27],    // hero fade → connect device fully visible
+      [0.31, 0.39], // connect fade → terminal fully visible
     ];
 
     let prevY = window.scrollY;
@@ -180,24 +181,24 @@ export function HeroScrollAnimation() {
   const buttonsOpacity = useTransform(scrollYProgress, [0, 0.08], [1, 0]);
 
   // --- Phase 1: iPhone frame rises ---
-  const iphoneY = useTransform(scrollYProgress, [0.06, 0.22], [600, 0]);
+  const iphoneY = useTransform(scrollYProgress, [0.06, 0.20], [600, 0]);
   const iphoneOpacity = useTransform(scrollYProgress, [0.06, 0.12], [0, 1]);
-  const iphoneScale = useTransform(scrollYProgress, [0.06, 0.22], [0.85, 1]);
+  const iphoneScale = useTransform(scrollYProgress, [0.06, 0.20], [0.85, 1]);
 
   // --- Phase 1: Logo shrinks to DI ---
-  const logoScale = useTransform(scrollYProgress, [0.10, 0.26], [1, logoFinalScale]);
+  const logoScale = useTransform(scrollYProgress, [0.10, 0.24], [1, logoFinalScale]);
   const logoY = useTransform(
     scrollYProgress,
-    [0.10, 0.26],
+    [0.10, 0.24],
     [logoInitialOffset, logoTargetY]
   );
 
   // --- Logo visibility: hidden while widget is open ---
-  // Aligned with widgetOpacity: logo stays until widget snaps on at 0.36,
+  // Aligned with widgetOpacity: logo stays until widget snaps on at 0.44,
   // and reappears when widget snaps off at 0.66.
   const logoOpacityCalc = useTransform(scrollYProgress, (p) => {
-    if (p < 0.36) return 1;
-    if (p < 0.375) return 1 - (p - 0.36) / 0.015; // quick hide after widget appears
+    if (p < 0.44) return 1;
+    if (p < 0.455) return 1 - (p - 0.44) / 0.015; // quick hide after widget appears
     if (p < 0.66) return 0; // hidden during widget
     if (p < 0.675) return (p - 0.66) / 0.015; // quick show as widget hides
     return 1;
@@ -206,9 +207,22 @@ export function HeroScrollAnimation() {
   // --- Phase 1: Background glow ---
   const glowOpacity = useTransform(scrollYProgress, [0, 0.16], [1, 0]);
 
+  // --- Phase 1b: Connect device screen (fade in, then out) ---
+  const connectFadeIn = useTransform(scrollYProgress, [0.20, 0.25], [0, 1]);
+  const connectFadeOut = useTransform(scrollYProgress, [0.30, 0.34], [1, 0]);
+  const connectOpacity = useTransform(
+    [connectFadeIn, connectFadeOut],
+    ([a, b]) => Math.min(a as number, b as number)
+  );
+
+  // Cable animation: draws cable and moves connector down as user scrolls
+  const cableProgress = useTransform(scrollYProgress, [0.22, 0.27], [0, 1]);
+  const cableDashOffset = useTransform(cableProgress, [0, 1], [120, 0]);
+  const connectorY = useTransform(cableProgress, [0, 1], [110, 0]);
+
   // --- Phase 2: Terminal screen (fade in, then out) ---
-  const terminalFadeIn = useTransform(scrollYProgress, [0.22, 0.28], [0, 1]);
-  const terminalFadeOut = useTransform(scrollYProgress, [0.32, 0.36], [1, 0]);
+  const terminalFadeIn = useTransform(scrollYProgress, [0.32, 0.37], [0, 1]);
+  const terminalFadeOut = useTransform(scrollYProgress, [0.40, 0.44], [1, 0]);
   const terminalOpacity = useTransform(
     [terminalFadeIn, terminalFadeOut],
     ([a, b]) => Math.min(a as number, b as number)
@@ -224,8 +238,8 @@ export function HeroScrollAnimation() {
     const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
     let t: number;
-    if (p < 0.34) t = 0; // fully collapsed
-    else if (p < 0.40) t = (p - 0.34) / 0.06; // opening
+    if (p < 0.42) t = 0; // fully collapsed
+    else if (p < 0.48) t = (p - 0.42) / 0.06; // opening
     else if (p < 0.64) t = 1; // fully open
     else if (p < 0.68) t = 1 - (p - 0.64) / 0.04; // closing
     else t = 0; // fully collapsed
@@ -243,8 +257,8 @@ export function HeroScrollAnimation() {
 
   // Widget internal content fades in once the clip is mostly open
   const widgetContentOpacity = useTransform(scrollYProgress, (p) => {
-    if (p < 0.37) return 0;
-    if (p < 0.40) return (p - 0.37) / 0.03;
+    if (p < 0.45) return 0;
+    if (p < 0.48) return (p - 0.45) / 0.03;
     if (p < 0.64) return 1;
     if (p < 0.66) return 1 - (p - 0.64) / 0.02;
     return 0;
@@ -253,21 +267,21 @@ export function HeroScrollAnimation() {
   // Widget visibility — delay past collapsed-pill state to avoid iOS Safari
   // clip-path artifact (shadow around tiny pill). Show only once clip has opened enough.
   const widgetOpacity = useTransform(scrollYProgress, (p) => {
-    if (p < 0.36) return 0;    // hidden while clip is still a small pill
-    if (p < 0.365) return 1;   // snap on once clip is ~1/3 open
+    if (p < 0.44) return 0;    // hidden while clip is still a small pill
+    if (p < 0.445) return 1;   // snap on once clip is ~1/3 open
     if (p < 0.66) return 1;
     if (p < 0.665) return 0;   // snap off before clip collapses back to pill
     return 0;
   });
 
   // --- Phase 3a: Typing animation ---
-  const typingProgress = useTransform(scrollYProgress, [0.40, 0.56], [0, 1]);
+  const typingProgress = useTransform(scrollYProgress, [0.48, 0.58], [0, 1]);
   useMotionValueEvent(typingProgress, 'change', (v) => {
     setTypedChars(Math.floor(v * PROMPT_MESSAGE.length));
   });
 
   // --- Phase 3b: Send + 3-dot + header blue ---
-  const sendProgress = useTransform(scrollYProgress, [0.56, 0.60], [0, 1]);
+  const sendProgress = useTransform(scrollYProgress, [0.58, 0.62], [0, 1]);
   useMotionValueEvent(sendProgress, 'change', (v) => {
     const isSent = v > 0.5;
     setSent(isSent);
@@ -276,32 +290,32 @@ export function HeroScrollAnimation() {
   });
 
   // --- Phase 3c: Logo shadow removal as it docks onto Dynamic Island ---
-  const logoShadowProgress = useTransform(scrollYProgress, [0.18, 0.22], [0, 1]);
+  const logoShadowProgress = useTransform(scrollYProgress, [0.16, 0.20], [0, 1]);
   useMotionValueEvent(logoShadowProgress, 'change', (v) => {
     setLogoNoShadow(v > 0.5);
   });
 
   // --- Phase 4: Logo returns with blue dot ---
-  const logoDotProgress = useTransform(scrollYProgress, [0.68, 0.88], [0, 1]);
+  const logoDotProgress = useTransform(scrollYProgress, [0.70, 0.90], [0, 1]);
   useMotionValueEvent(logoDotProgress, 'change', (v) => {
     // Blue while building (v < ~0.85 of the range), green when done
     setLogoDotBlue(v > 0 && v < 0.85);
   });
 
   // --- Phase 5: Features build progressively ---
-  const featuresOpacity = useTransform(scrollYProgress, [0.70, 0.74], [0, 1]);
+  const featuresOpacity = useTransform(scrollYProgress, [0.72, 0.76], [0, 1]);
   // Individual card reveals (staggered)
-  const card1Opacity = useTransform(scrollYProgress, [0.72, 0.76], [0, 1]);
-  const card2Opacity = useTransform(scrollYProgress, [0.75, 0.79], [0, 1]);
-  const card3Opacity = useTransform(scrollYProgress, [0.78, 0.82], [0, 1]);
-  const card4Opacity = useTransform(scrollYProgress, [0.81, 0.85], [0, 1]);
+  const card1Opacity = useTransform(scrollYProgress, [0.74, 0.78], [0, 1]);
+  const card2Opacity = useTransform(scrollYProgress, [0.77, 0.81], [0, 1]);
+  const card3Opacity = useTransform(scrollYProgress, [0.80, 0.84], [0, 1]);
+  const card4Opacity = useTransform(scrollYProgress, [0.83, 0.87], [0, 1]);
   const cardOpacities = [card1Opacity, card2Opacity, card3Opacity, card4Opacity];
 
   // Card Y offsets (slide up as they appear)
-  const card1Y = useTransform(scrollYProgress, [0.72, 0.76], [20, 0]);
-  const card2Y = useTransform(scrollYProgress, [0.75, 0.79], [20, 0]);
-  const card3Y = useTransform(scrollYProgress, [0.78, 0.82], [20, 0]);
-  const card4Y = useTransform(scrollYProgress, [0.81, 0.85], [20, 0]);
+  const card1Y = useTransform(scrollYProgress, [0.74, 0.78], [20, 0]);
+  const card2Y = useTransform(scrollYProgress, [0.77, 0.81], [20, 0]);
+  const card3Y = useTransform(scrollYProgress, [0.80, 0.84], [20, 0]);
+  const card4Y = useTransform(scrollYProgress, [0.83, 0.87], [20, 0]);
   const cardYs = [card1Y, card2Y, card3Y, card4Y];
 
   const mountInitial = skipMountAnimation ? false : { opacity: 0, y: 20 };
@@ -336,6 +350,43 @@ export function HeroScrollAnimation() {
               style={phoneWidth != null ? { width: phoneWidth } : undefined}
             />
 
+            {/* ===== Screen 0: Connect Device ===== */}
+            <motion.div
+              style={{ opacity: connectOpacity }}
+              className="absolute inset-x-[8%] inset-y-[8%] flex flex-col items-center justify-center"
+            >
+              <div className="flex flex-col items-center">
+                <span className="mb-1 text-[9px] font-semibold uppercase tracking-widest text-[#4CD964] md:mb-2 md:text-xs">
+                  Step 1
+                </span>
+                <h2 className="mb-2 text-center text-sm font-bold text-black md:mb-4 md:text-xl">
+                  Connect your device
+                </h2>
+                {/* Laptop illustration */}
+                <svg
+                  viewBox="0 0 130 80"
+                  fill="none"
+                  className="h-12 w-auto md:h-20"
+                >
+                  {/* Screen lid */}
+                  <rect x="18" y="2" width="94" height="58" rx="4" fill="#F3F4F6" stroke="#BFBFBF" strokeWidth="1.2" />
+                  {/* Display */}
+                  <rect x="23" y="6" width="84" height="48" rx="2" fill="#E5E7EB" />
+                  {/* Webcam dot */}
+                  <circle cx="65" cy="4" r="0.8" fill="#C0C0C0" />
+                  {/* Hinge */}
+                  <rect x="30" y="60" width="70" height="2.5" rx="1" fill="#D0D0D0" />
+                  {/* Base / keyboard deck */}
+                  <path d="M5 62.5 L125 62.5 L128 76 Q128 78, 126 78 L4 78 Q2 78, 2 76 Z" fill="#E8E8E8" stroke="#D0D0D0" strokeWidth="0.8" />
+                  {/* Front lip indent */}
+                  <path d="M55 78 Q65 75.5, 75 78" stroke="#C0C0C0" strokeWidth="0.6" fill="none" />
+                </svg>
+                <p className="text-center text-[10px] text-gray-500 md:text-sm">
+                  Plug in your iPhone via USB
+                </p>
+              </div>
+            </motion.div>
+
             {/* ===== Screen 1: Terminal (vertically centered) ===== */}
             <motion.div
               style={{ opacity: terminalOpacity }}
@@ -360,9 +411,9 @@ export function HeroScrollAnimation() {
                   <pre className="select-text p-3 text-[10px] leading-relaxed md:p-4 md:text-sm">
                     <code>
                       <span className="text-fd-muted-foreground">$</span>{' '}
-                      <span className="text-fd-primary">npx expo-air</span> init{'\n'}
+                      <span className="text-fd-primary">npx expo-air@latest</span> init{'\n'}
                       <span className="text-fd-muted-foreground">$</span>{' '}
-                      <span className="text-fd-primary">npx expo-air</span> fly
+                      <span className="text-fd-primary">npx expo-air@latest</span> fly
                     </code>
                   </pre>
                 </div>
@@ -501,6 +552,46 @@ export function HeroScrollAnimation() {
                   ))}
                 </div>
               </div>
+            </motion.div>
+
+            {/* ===== Cable below phone — plugs into bottom port ===== */}
+            <motion.div
+              style={{ opacity: connectOpacity }}
+              className="absolute left-1/2 top-full -translate-x-1/2"
+            >
+              <svg viewBox="0 0 40 130" fill="none" className="h-32 w-12 md:h-52 md:w-16">
+                {/* Cable body — draws from bottom to top */}
+                <motion.path
+                  d="M20 130 C20 95, 19 55, 20 20"
+                  stroke="#D4D4D4"
+                  strokeWidth="5"
+                  strokeLinecap="round"
+                  strokeDasharray="120"
+                  style={{ strokeDashoffset: cableDashOffset }}
+                />
+                {/* Cable highlight for 3D effect */}
+                <motion.path
+                  d="M18.5 130 C18.5 95, 17.5 55, 18.5 20"
+                  stroke="#ECECEC"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeDasharray="120"
+                  style={{ strokeDashoffset: cableDashOffset }}
+                />
+                {/* Connector group — slides up with cable */}
+                <motion.g style={{ y: connectorY }}>
+                  {/* Strain relief — tapered piece connecting cable to housing */}
+                  <path d="M16 20 C18 23, 22 23, 24 20 L23 16 C21 17, 19 17, 17 16 Z" fill="#C8C8C8" />
+                  {/* Connector housing */}
+                  <rect x="13" y="4" width="14" height="12" rx="3" fill="#E0E0E0" stroke="#BEBEBE" strokeWidth="0.7" />
+                  {/* Housing seam line */}
+                  <line x1="14" y1="10" x2="26" y2="10" stroke="#D0D0D0" strokeWidth="0.5" />
+                  {/* USB-C metal tip */}
+                  <rect x="15" y="-3" width="10" height="7" rx="2.5" fill="#B0B0B0" stroke="#999" strokeWidth="0.5" />
+                  {/* USB-C port opening */}
+                  <rect x="17" y="-1" width="6" height="3" rx="1.5" fill="#808080" />
+                </motion.g>
+              </svg>
             </motion.div>
           </div>
         </motion.div>

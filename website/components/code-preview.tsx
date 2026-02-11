@@ -18,9 +18,9 @@ export function CodePreview() {
           <pre className="p-6 text-sm leading-relaxed">
             <code>
               <span className="text-fd-muted-foreground">$</span>{' '}
-              <span className="text-fd-primary">npx expo-air</span> init{'\n'}
+              <span className="text-fd-primary">npx expo-air@latest</span> init{'\n'}
               <span className="text-fd-muted-foreground">$</span>{' '}
-              <span className="text-fd-primary">npx expo-air</span> fly
+              <span className="text-fd-primary">npx expo-air@latest</span> fly
             </code>
           </pre>
         </div>
