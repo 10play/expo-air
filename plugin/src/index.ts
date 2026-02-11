@@ -54,9 +54,18 @@ const withAppDelegatePatch: ConfigPlugin = (config) => {
     if let expoAir = Bundle.main.object(forInfoDictionaryKey: "ExpoAir") as? [String: Any],
        let appMetroUrl = expoAir["appMetroUrl"] as? String,
        !appMetroUrl.isEmpty,
-       let tunnelURL = URL(string: "\\(appMetroUrl)/.expo/.virtual-metro-entry.bundle?platform=ios&dev=true") {
-      print("[expo-air] Using tunnel URL for main app: \\(tunnelURL)")
-      return tunnelURL
+       let url = URL(string: appMetroUrl),
+       let host = url.host {
+      // Configure RCTBundleURLProvider so expo-dev-client also uses the tunnel.
+      // The dev client bypasses sourceURL/bundleURL and reads from the provider directly.
+      let provider = RCTBundleURLProvider.sharedSettings()
+      provider.jsLocation = "\\(host):443"
+      provider.packagerScheme = "https"
+      print("[expo-air] Configured RCTBundleURLProvider for tunnel: \\(host)")
+
+      if let tunnelURL = URL(string: "\\(appMetroUrl)/.expo/.virtual-metro-entry.bundle?platform=ios&dev=true") {
+        return tunnelURL
+      }
     }
     return RCTBundleURLProvider.sharedSettings().jsBundleURL(forBundleRoot: ".expo/.virtual-metro-entry")
 #else
