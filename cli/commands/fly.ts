@@ -1,8 +1,8 @@
 import chalk from "chalk";
-import { spawn } from "child_process";
+import { spawn, execFileSync } from "child_process";
 import { DevEnvironment } from "../runner/devEnvironment.js";
 import { detectAllDevices, selectDevice, ConnectedDevice } from "../utils/devices.js";
-import { getGitBranchSuffix, maskSecret, resolveAndroidJavaHome, detectPackageManager, getExecCommand } from "../utils/common.js";
+import { getGitBranchSuffix, maskSecret, resolveAndroidJavaHome, detectPackageManager, getExecCommand, getAppBundleId } from "../utils/common.js";
 
 export interface FlyOptions {
   port: string;
@@ -41,7 +41,7 @@ export async function flyCommand(options: FlyOptions): Promise<void> {
   });
 
   // Select device
-  const selectedDevice = selectDevice(devices, options.device) as ConnectedDevice;
+  const selectedDevice = await selectDevice(devices, options.device) as ConnectedDevice;
   if (options.device && selectedDevice.udid !== options.device && !selectedDevice.name.toLowerCase().includes(options.device.toLowerCase())) {
     console.log(chalk.yellow(`\n  ⚠ Device "${options.device}" not found, using ${selectedDevice.name}`));
   }
@@ -69,13 +69,9 @@ export async function flyCommand(options: FlyOptions): Promise<void> {
   // Resolve project directory (exit on error for fly command)
   env.resolveProject({ exitOnError: true });
 
-  // Start Metro servers
-  await env.startMetroServers();
-
-  // Start prompt server
-  await env.startPromptServer();
-
-  // Start tunnels
+  // Start tunnels BEFORE Metro so we can pass EXPO_PACKAGER_PROXY_URL.
+  // This ensures Metro constructs bundle URLs using the tunnel hostname
+  // without appending the local port (which Cloudflare tunnels can't serve).
   const tunnelsOk = await env.startTunnels();
   if (!tunnelsOk) {
     env.showRateLimitWarning(true); // Exit on rate limit for fly
@@ -87,8 +83,22 @@ export async function flyCommand(options: FlyOptions): Promise<void> {
     env.showRateLimitWarning(true);
   }
 
-  // Update config files
+  // Update config files (needs tunnel URLs)
   env.updateConfigFiles();
+
+  // Build Metro env with tunnel proxy URL if available
+  const currentTunnelUrls = env.getTunnelUrls();
+  const metroExtraEnv: Record<string, string> = {};
+  if (currentTunnelUrls.appMetro) {
+    metroExtraEnv.EXPO_PACKAGER_PROXY_URL = currentTunnelUrls.appMetro;
+    console.log(chalk.gray(`  Using tunnel as Metro proxy: ${currentTunnelUrls.appMetro}`));
+  }
+
+  // Start Metro servers (with tunnel proxy URL if available)
+  await env.startMetroServers(metroExtraEnv);
+
+  // Start prompt server
+  await env.startPromptServer();
 
   // Update env file with extra tunnel URLs
   env.writeEnvFileWithTunnelUrls();
@@ -128,6 +138,8 @@ export async function flyCommand(options: FlyOptions): Promise<void> {
     ...process.env as Record<string, string>,
     FORCE_COLOR: "1",
     CI: "1",
+    // Pass tunnel proxy URL so expo run:ios/android uses it if it starts Metro
+    ...metroExtraEnv,
   };
 
   // Add branch suffix env vars in dev mode
@@ -170,13 +182,57 @@ export async function flyCommand(options: FlyOptions): Promise<void> {
   const pm = detectPackageManager(projectRoot);
   const exec = getExecCommand(pm);
 
+  const tunnelUrls = env.getTunnelUrls();
+
+  // Detect bundle ID for relaunch with --initialUrl
+  const bundleId = isAndroid ? null : getAppBundleId(projectRoot);
+  let relaunchedWithTunnel = false;
+
   const buildProcess = spawn(exec.cmd, [...exec.args, ...buildArgs], {
     cwd: projectRoot,
-    stdio: "inherit",
+    stdio: ["ignore", "pipe", "pipe"],
     env: buildEnv,
   });
 
-  // Wait for build to complete
+  // Forward build output to console and watch for install completion
+  const handleOutput = (data: Buffer) => {
+    const str = data.toString();
+    process.stdout.write(str);
+
+    // Detect when the app has been installed and launched on the device.
+    // After install, relaunch with --initialUrl so the dev client auto-connects to the tunnel.
+    if (
+      !relaunchedWithTunnel &&
+      tunnelUrls.appMetro &&
+      bundleId &&
+      selectedDevice.platform === "ios" &&
+      (str.includes("Installing") || str.includes("Launching"))
+    ) {
+      relaunchedWithTunnel = true;
+      // Wait a few seconds for the app to finish launching, then relaunch with tunnel URL
+      setTimeout(() => {
+        console.log(chalk.gray(`\n  Relaunching with tunnel URL...`));
+        try {
+          execFileSync("xcrun", [
+            "devicectl", "device", "process", "launch",
+            "--device", selectedDevice.udid,
+            "--terminate-existing",
+            bundleId,
+            "--", "--initialUrl", tunnelUrls.appMetro!,
+          ], { stdio: "pipe", timeout: 30000 });
+          console.log(chalk.green(`  ✓ App connected via tunnel`));
+        } catch {
+          console.log(chalk.yellow(`  ⚠ Could not auto-launch with tunnel URL`));
+          console.log(chalk.white(`    Enter this URL in the dev client: ${tunnelUrls.appMetro}`));
+        }
+      }, 5000);
+    }
+  };
+
+  buildProcess.stdout?.on("data", handleOutput);
+  buildProcess.stderr?.on("data", handleOutput);
+
+  // Wait for build to complete (may never resolve if expo run:ios keeps running)
   await new Promise<void>((resolve, reject) => {
     buildProcess.on("close", (code) => {
       if (code === 0) {
@@ -189,9 +245,8 @@ export async function flyCommand(options: FlyOptions): Promise<void> {
     buildProcess.on("error", reject);
   });
 
-  // Build succeeded!
+  // Build process exited (may not reach here if expo run:ios keeps running)
   const state = env.getState();
-  const tunnelUrls = env.getTunnelUrls();
 
   console.log(chalk.green("\n  ✈️  Takeoff successful!\n"));
   console.log(chalk.gray("  ─────────────────────────────────────────────"));

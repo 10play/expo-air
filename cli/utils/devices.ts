@@ -1,4 +1,5 @@
 import { execSync } from "child_process";
+import * as readline from "readline";
 
 export interface ConnectedDevice {
   udid: string;
@@ -135,25 +136,52 @@ export function detectAllDevices(): ConnectedDevice[] {
 }
 
 /**
- * Select a device from the list by UDID or name
+ * Select a device from the list by UDID or name.
+ * If multiple devices are found and no option is given, prompts the user to choose.
  */
-export function selectDevice(
+export async function selectDevice(
   devices: ConnectedDevice[],
   deviceOption?: string
-): ConnectedDevice | null {
+): Promise<ConnectedDevice | null> {
   if (devices.length === 0) {
     return null;
   }
 
-  if (!deviceOption) {
+  if (deviceOption) {
+    const found = devices.find(
+      (d) =>
+        d.udid === deviceOption ||
+        d.name.toLowerCase().includes(deviceOption.toLowerCase())
+    );
+    return found || devices[0];
+  }
+
+  if (devices.length === 1) {
     return devices[0];
   }
 
-  const found = devices.find(
-    (d) =>
-      d.udid === deviceOption ||
-      d.name.toLowerCase().includes(deviceOption.toLowerCase())
-  );
+  // Multiple devices — prompt user to choose
+  console.log("");
+  devices.forEach((device, i) => {
+    const platformIcon = device.platform === "ios" ? "🍎" : "🤖";
+    console.log(`    ${i + 1}) ${platformIcon} ${device.name} (${device.udid.slice(0, 8)}...)`);
+  });
 
-  return found || devices[0];
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+
+  const answer = await new Promise<string>((resolve) => {
+    rl.question(`\n  Select device [1-${devices.length}]: `, resolve);
+  });
+  rl.close();
+
+  const index = parseInt(answer, 10) - 1;
+  if (index >= 0 && index < devices.length) {
+    return devices[index];
+  }
+
+  console.log(`  Using device 1 by default.`);
+  return devices[0];
 }

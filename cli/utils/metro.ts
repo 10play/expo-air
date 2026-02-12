@@ -18,13 +18,15 @@ export interface StartMetroOptions {
   command?: MetroCommand;
   /** Timeout for waiting for port to be ready (default: 30000ms) */
   timeout?: number;
+  /** Extra environment variables to pass to the Metro process */
+  extraEnv?: Record<string, string>;
 }
 
 /**
  * Start a Metro bundler server
  */
 export async function startMetro(options: StartMetroOptions): Promise<ChildProcess | null> {
-  const { name, cwd, port, command = "run-script", timeout = 30000 } = options;
+  const { name, cwd, port, command = "run-script", timeout = 30000, extraEnv = {} } = options;
 
   const pm = detectPackageManager(cwd);
 
@@ -36,7 +38,7 @@ export async function startMetro(options: StartMetroOptions): Promise<ChildProce
       proc = spawn(run.cmd, run.args, {
         cwd,
         stdio: ["ignore", "pipe", "pipe"],
-        env: { ...process.env, FORCE_COLOR: "1" },
+        env: { ...process.env, FORCE_COLOR: "1", ...extraEnv },
       });
     } else {
       const exec = getExecCommand(pm);
@@ -47,6 +49,7 @@ export async function startMetro(options: StartMetroOptions): Promise<ChildProce
           ...process.env,
           FORCE_COLOR: "1",
           PATH: process.env.PATH || "/usr/local/bin:/usr/bin:/bin",
+          ...extraEnv,
         },
       });
     }

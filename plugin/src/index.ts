@@ -38,17 +38,19 @@ const withAppDelegatePatch: ConfigPlugin = (config) => {
       }
 
       let content = fs.readFileSync(appDelegatePath, "utf-8");
+      let modified = false;
 
-      // Check if already patched
-      if (content.includes("ExpoAirBundleURL")) {
+      // Check if already fully patched (both bundleURL and sourceURL)
+      if (content.includes("ExpoAirBundleURL") && content.includes("ExpoAirSourceURL")) {
         return config;
       }
 
-      // Find the bundleURL() method and patch it
-      const bundleURLPattern =
-        /override func bundleURL\(\) -> URL\? \{[\s\S]*?#if DEBUG[\s\S]*?return RCTBundleURLProvider[\s\S]*?#else[\s\S]*?#endif[\s\S]*?\}/;
+      // Patch bundleURL() to use tunnel URL from Info.plist
+      if (!content.includes("ExpoAirBundleURL")) {
+        const bundleURLPattern =
+          /override func bundleURL\(\) -> URL\? \{[\s\S]*?#if DEBUG[\s\S]*?return RCTBundleURLProvider[\s\S]*?#else[\s\S]*?#endif[\s\S]*?\}/;
 
-      const patchedBundleURL = `override func bundleURL() -> URL? {
+        const patchedBundleURL = `override func bundleURL() -> URL? {
 #if DEBUG
     // ExpoAirBundleURL: Check for tunnel URL from Info.plist
     if let expoAir = Bundle.main.object(forInfoDictionaryKey: "ExpoAir") as? [String: Any],
@@ -64,10 +66,39 @@ const withAppDelegatePatch: ConfigPlugin = (config) => {
 #endif
   }`;
 
-      if (bundleURLPattern.test(content)) {
-        content = content.replace(bundleURLPattern, patchedBundleURL);
+        if (bundleURLPattern.test(content)) {
+          content = content.replace(bundleURLPattern, patchedBundleURL);
+          modified = true;
+          console.log("[expo-air] Patched bundleURL() for tunnel support");
+        }
+      }
+
+      // Patch sourceURL(for:) to bypass dev-client's bridge.bundleURL when tunnel is configured.
+      // Without this, expo-dev-client sets bridge.bundleURL which takes priority over bundleURL(),
+      // often constructing a malformed URL (tunnel hostname + local port).
+      if (!content.includes("ExpoAirSourceURL")) {
+        const sourceURLPattern =
+          /override func sourceURL\(for bridge: RCTBridge\) -> URL\? \{[\s\S]*?bridge\.bundleURL[\s\S]*?\}/;
+
+        const patchedSourceURL = `override func sourceURL(for bridge: RCTBridge) -> URL? {
+    // ExpoAirSourceURL: Use tunnel URL when configured, otherwise fall back to dev-client behavior.
+    if let expoAir = Bundle.main.object(forInfoDictionaryKey: "ExpoAir") as? [String: Any],
+       let appMetroUrl = expoAir["appMetroUrl"] as? String,
+       !appMetroUrl.isEmpty {
+      return bundleURL()
+    }
+    return bridge.bundleURL ?? bundleURL()
+  }`;
+
+        if (sourceURLPattern.test(content)) {
+          content = content.replace(sourceURLPattern, patchedSourceURL);
+          modified = true;
+          console.log("[expo-air] Patched sourceURL(for:) for tunnel support");
+        }
+      }
+
+      if (modified) {
         fs.writeFileSync(appDelegatePath, content);
-        console.log("[expo-air] Patched AppDelegate for tunnel support");
       }
 
       // Patch bridging header to expose RCTBridge to Swift.
