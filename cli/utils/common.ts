@@ -5,7 +5,7 @@ import { platform } from "os";
 import chalk from "chalk";
 import plist from "plist";
 import { fileURLToPath } from "url";
-import { execSync } from "child_process";
+import { execSync, execFileSync } from "child_process";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -543,7 +543,9 @@ export function getGitBranchSuffix(cwd?: string): string | null {
 }
 
 /**
- * Get the app's bundle identifier from the Xcode project or app.json.
+ * Get the app's bundle identifier from the Xcode project or Expo config.
+ * Tries pbxproj first, then resolves the Expo config (app.json, app.config.js, app.config.ts)
+ * via `npx expo config`.
  */
 export function getAppBundleId(projectRoot: string): string | null {
   // Try pbxproj first (most reliable for built apps)
@@ -564,15 +566,19 @@ export function getAppBundleId(projectRoot: string): string | null {
     }
   }
 
-  // Try app.json
-  const appJsonPath = path.join(projectRoot, "app.json");
-  if (fs.existsSync(appJsonPath)) {
-    try {
-      const appJson = JSON.parse(fs.readFileSync(appJsonPath, "utf-8"));
-      const bundleId = appJson?.expo?.ios?.bundleIdentifier;
-      if (bundleId) return bundleId;
-    } catch {}
-  }
+  // Try resolving via Expo config (handles app.json, app.config.js, app.config.ts)
+  try {
+    const pm = detectPackageManager(projectRoot);
+    const exec = getExecCommand(pm);
+    const output = execFileSync(exec.cmd, [...exec.args, "expo", "config", "--json", "--type", "public"], {
+      cwd: projectRoot,
+      stdio: ["pipe", "pipe", "pipe"],
+      timeout: 15000,
+    });
+    const config = JSON.parse(output.toString());
+    const bundleId = config?.ios?.bundleIdentifier;
+    if (bundleId) return bundleId;
+  } catch {}
 
   return null;
 }
