@@ -24,7 +24,6 @@ import {
   updateEnvFile,
   maskSecret,
   appendSecret,
-  patchAppDelegate,
 } from "../utils/common.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -564,9 +563,6 @@ export class DevEnvironment {
 
     // Update Info.plist (iOS)
     const plistUpdated = updateInfoPlist(this.state.projectRoot, localConfig, { silent: true });
-
-    // Patch AppDelegate.swift for tunnel support (idempotent, only patches once)
-    patchAppDelegate(this.state.projectRoot, { silent: true });
 
     // Update AndroidManifest.xml (Android)
     const manifestUpdated = updateAndroidManifest(this.state.projectRoot, localConfig, { silent: true });
