@@ -1,6 +1,48 @@
 import * as net from "net";
 
 /**
+ * Check if a port is listening (service is ready)
+ */
+export function waitForPort(port: number, timeout = 30000): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const startTime = Date.now();
+
+    const tryConnect = () => {
+      const socket = new net.Socket();
+
+      socket.setTimeout(1000);
+
+      socket.on("connect", () => {
+        socket.destroy();
+        resolve();
+      });
+
+      socket.on("timeout", () => {
+        socket.destroy();
+        if (Date.now() - startTime > timeout) {
+          reject(new Error(`Timeout waiting for port ${port}`));
+        } else {
+          setTimeout(tryConnect, 500);
+        }
+      });
+
+      socket.on("error", () => {
+        socket.destroy();
+        if (Date.now() - startTime > timeout) {
+          reject(new Error(`Timeout waiting for port ${port}`));
+        } else {
+          setTimeout(tryConnect, 500);
+        }
+      });
+
+      socket.connect(port, "127.0.0.1");
+    };
+
+    tryConnect();
+  });
+}
+
+/**
  * Check if a port is available (not in use)
  */
 export function isPortAvailable(port: number): Promise<boolean> {
