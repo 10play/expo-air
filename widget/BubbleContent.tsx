@@ -121,7 +121,7 @@ export function BubbleContent({
           <GitChangesTab changes={git.gitChanges} onDiscard={git.handleDiscard} />
         )}
       </View>
-      {activeTab === "chat" && status !== "disconnected" && (
+      {activeTab === "chat" && (
         <PromptInput
           ref={promptInputRef}
           onSubmit={handleSubmit}

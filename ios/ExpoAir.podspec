@@ -32,7 +32,7 @@ Pod::Spec.new do |s|
   s.pod_target_xcconfig = {
     'DEFINES_MODULE' => 'YES',
     'CLANG_CXX_LANGUAGE_STANDARD' => 'c++20',
-    'HEADER_SEARCH_PATHS' => '"$(PODS_ROOT)/Headers/Public/React-RCTAppDelegate" "$(PODS_ROOT)/Headers/Public/ReactAppDependencyProvider" "$(PODS_ROOT)/Headers/Public/React-defaultsnativemodule" "$(PODS_ROOT)/Headers/Public/ReactCommon" "$(PODS_ROOT)/Headers/Public/React-NativeModulesApple" "$(PODS_ROOT)/Headers/Public/React-callinvoker"',
+    'HEADER_SEARCH_PATHS' => '"$(PODS_ROOT)/Headers/Public/React-RCTAppDelegate" "$(PODS_ROOT)/Headers/Public/ReactAppDependencyProvider" "$(PODS_ROOT)/Headers/Public/React-defaultsnativemodule" "$(PODS_ROOT)/Headers/Public/ReactCommon" "$(PODS_ROOT)/Headers/Public/React-NativeModulesApple" "$(PODS_ROOT)/Headers/Public/React-callinvoker" "$(PODS_ROOT)/Headers/Public/React-featureflags"',
   }
 
   s.source_files = "**/*.{h,m,mm,swift,hpp,cpp}"

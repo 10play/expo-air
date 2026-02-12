@@ -936,15 +936,19 @@ export class PromptServer {
           abortController: this.abortController,
           includePartialMessages: true,
           permissionMode: "bypassPermissions", // YOLO mode - bypass all permission prompts
-          systemPrompt: `You are Claude, running as part of Expo Flow - an AI-powered development tool that runs on the developer's local machine and developer runs the app on their phone with a widget that help him develop the app on the go.
+          settingSources: ["project"], // Load CLAUDE.md files from the project
+          systemPrompt: {
+            type: "preset",
+            preset: "claude_code",
+            append: `You are running as part of Expo Flow - an AI-powered development tool that runs on the developer's local machine. The developer runs the app on their phone with a widget that helps them develop the app on the go.
 
 IMPORTANT CONSTRAINTS:
 - This environment uses Expo's Over-The-Air (OTA) updates for rapid iteration
 - DO NOT add new npm/yarn packages unless the user EXPLICITLY asks for it
 - Adding new packages requires the developer to completely reset and rebuild the native app, which is a slow and disruptive process
 - If a feature could be implemented with existing packages or vanilla JavaScript/TypeScript, prefer that approach
-- If a new package is truly necessary, clearly warn the user that adding it will require a full app rebuild
-`,
+- If a new package is truly necessary, clearly warn the user that adding it will require a full app rebuild`,
+          },
           tools: {
             type: "preset",
             preset: "claude_code",

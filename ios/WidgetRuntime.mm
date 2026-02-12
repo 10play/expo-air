@@ -13,6 +13,32 @@
 #import <react/nativemodule/defaults/DefaultTurboModules.h>
 #import <React/RCTBridge+Private.h>
 #import <objc/runtime.h>
+#import <react/featureflags/ReactNativeFeatureFlags.h>
+#import <react/featureflags/ReactNativeFeatureFlagsDefaults.h>
+
+// ---------------------------------------------------------------------------
+// Feature flags provider that ensures microtasks are enabled for the widget's
+// Hermes runtime. The main app may use old architecture (bridge mode) which
+// leaves enableBridgelessArchitecture=false, but our widget always needs
+// bridgeless + microtasks to function with React 19.
+// ---------------------------------------------------------------------------
+namespace {
+class WidgetFeatureFlagsProvider : public facebook::react::ReactNativeFeatureFlagsDefaults {
+ public:
+  bool enableBridgelessArchitecture() override { return true; }
+};
+} // namespace
+
+static void ensureBridgelessFeatureFlags(void) {
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        if (!facebook::react::ReactNativeFeatureFlags::enableBridgelessArchitecture()) {
+            facebook::react::ReactNativeFeatureFlags::dangerouslyForceOverride(
+                std::make_unique<WidgetFeatureFlagsProvider>());
+            NSLog(@"[WidgetRuntime] Force-enabled bridgeless feature flags for widget microtask support");
+        }
+    });
+}
 
 // ---------------------------------------------------------------------------
 // Swizzle RCTHost's didReceiveReloadCommand so the widget host can opt out
@@ -69,6 +95,10 @@ static void swizzleReloadOnce(void) {
     if (_viewFactory) return;
 
     NSLog(@"[WidgetRuntime] Starting with bundle URL: %@", _bundleURL);
+
+    // Ensure bridgeless feature flags are enabled so Hermes creates
+    // its runtime with microtask support (required by React 19).
+    ensureBridgelessFeatureFlags();
 
     // Swizzle before the factory creates the RCTHost
     swizzleReloadOnce();

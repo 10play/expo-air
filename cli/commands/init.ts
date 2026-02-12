@@ -122,27 +122,27 @@ export async function initCommand(options: InitOptions): Promise<void> {
     console.log(chalk.gray('    plugins: ["@10play/expo-air"]\n'));
   }
 
-  // Step 5: Add .expo-air.local.json to .gitignore
+  // Step 5: Add expo-air entries to .gitignore
   const gitignorePath = path.join(projectRoot, ".gitignore");
-  const gitignoreEntry = ".expo-air.local.json";
+  const gitignoreEntries = [
+    { entry: ".expo-air.local.json", comment: "# expo-air local config (tunnel URLs)" },
+    { entry: ".expo-air-images/", comment: "# expo-air temp images" },
+  ];
 
   if (fs.existsSync(gitignorePath)) {
     const gitignoreContent = fs.readFileSync(gitignorePath, "utf-8");
-    if (!gitignoreContent.includes(gitignoreEntry)) {
-      fs.appendFileSync(
-        gitignorePath,
-        `\n# expo-air local config (tunnel URLs)\n${gitignoreEntry}\n`,
-      );
-      console.log(chalk.green("  Added .expo-air.local.json to .gitignore"));
+    const missing = gitignoreEntries.filter(({ entry }) => !gitignoreContent.includes(entry));
+    if (missing.length > 0) {
+      const append = missing.map(({ entry, comment }) => `${comment}\n${entry}`).join("\n");
+      fs.appendFileSync(gitignorePath, `\n${append}\n`);
+      console.log(chalk.green(`  Added ${missing.map(({ entry }) => entry).join(", ")} to .gitignore`));
     } else {
-      console.log(chalk.yellow("  .expo-air.local.json already in .gitignore"));
+      console.log(chalk.yellow("  expo-air entries already in .gitignore"));
     }
   } else {
-    fs.writeFileSync(
-      gitignorePath,
-      `# expo-air local config (tunnel URLs)\n${gitignoreEntry}\n`,
-    );
-    console.log(chalk.green("  Created .gitignore with .expo-air.local.json"));
+    const content = gitignoreEntries.map(({ entry, comment }) => `${comment}\n${entry}`).join("\n");
+    fs.writeFileSync(gitignorePath, `${content}\n`);
+    console.log(chalk.green("  Created .gitignore with expo-air entries"));
   }
 
   // Step 6: Run expo prebuild (unless --skip-prebuild)
