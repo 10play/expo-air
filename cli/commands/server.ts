@@ -32,7 +32,7 @@ export async function serverCommand(options: ServerOptions): Promise<void> {
   }
 
   // Start prompt server with authentication secret
-  const secret = randomBytes(32).toString("hex");
+  const secret = process.env.EXPO_FLOW_SECRET || randomBytes(32).toString("hex");
   const { PromptServer } = await import("../server/promptServer.js");
   const server = new PromptServer(port, projectRoot, secret);
   await server.start();

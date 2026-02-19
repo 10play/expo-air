@@ -157,7 +157,7 @@ export class DevEnvironment {
       extraTunnels: [],
       envFile: null,
       serverWatcher: null,
-      serverSecret: this.options.server ? randomBytes(32).toString("hex") : null,
+      serverSecret: this.options.server ? (process.env.EXPO_FLOW_SECRET || randomBytes(32).toString("hex")) : null,
     };
   }
 
