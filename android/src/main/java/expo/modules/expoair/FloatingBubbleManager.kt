@@ -19,6 +19,11 @@ object FloatingBubbleManager {
     private var widgetRuntime: WidgetRuntime? = null
     private var activityRef: WeakReference<Activity>? = null
 
+    private var currentSize: Double = 60.0
+    private var currentColor: String = "#000000"
+    private var currentExpanded: Boolean = false
+    private var currentServerUrl: String? = null
+
     var onPress: (() -> Unit)? = null
     var onExpand: (() -> Unit)? = null
     var onCollapse: (() -> Unit)? = null
@@ -40,13 +45,20 @@ object FloatingBubbleManager {
 
             Log.d(TAG, "show() bundleURL=$bundleURL serverUrl=$serverUrl")
 
+            currentSize = size.toDouble()
+            currentColor = color
+            currentExpanded = false
+            currentServerUrl = serverUrl
+
             val bubble = FloatingBubbleView(activity)
             bubble.onPress = { onPress?.invoke() }
             bubble.onExpand = {
+                currentExpanded = true
                 onExpand?.invoke()
                 widgetRuntime?.emitExpandCollapse(true)
             }
             bubble.onCollapse = {
+                currentExpanded = false
                 onCollapse?.invoke()
                 widgetRuntime?.emitExpandCollapse(false)
             }
@@ -58,12 +70,7 @@ object FloatingBubbleManager {
                     widgetRuntime?.start()
                 }
 
-                val initialProps = Bundle().apply {
-                    putDouble("size", size.toDouble())
-                    putString("color", color)
-                    putBoolean("expanded", false)
-                    if (serverUrl != null) putString("serverUrl", serverUrl)
-                }
+                val initialProps = buildSurfaceProps()
 
                 // Use async surface creation — bundle may still be downloading from Metro
                 // Pass Activity context for Fabric's ThemedReactContext (needed for native view mounting)
@@ -110,13 +117,19 @@ object FloatingBubbleManager {
     fun updateServerUrl(serverUrl: String) {
         val activity = activityRef?.get() ?: return
         activity.runOnUiThread {
-            widgetRuntime?.updateSurfaceProps(android.os.Bundle().apply {
-                putString("serverUrl", serverUrl)
-            })
+            currentServerUrl = serverUrl
+            widgetRuntime?.updateSurfaceProps(buildSurfaceProps())
             android.preference.PreferenceManager.getDefaultSharedPreferences(activity)
                 .edit()
                 .putString("expo-air-server-url", serverUrl)
                 .apply()
         }
+    }
+
+    private fun buildSurfaceProps(): Bundle = Bundle().apply {
+        putDouble("size", currentSize)
+        putString("color", currentColor)
+        putBoolean("expanded", currentExpanded)
+        currentServerUrl?.let { putString("serverUrl", it) }
     }
 }
