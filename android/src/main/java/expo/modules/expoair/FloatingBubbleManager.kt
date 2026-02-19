@@ -106,4 +106,17 @@ object FloatingBubbleManager {
             bubbleView?.collapse()
         }
     }
+
+    fun updateServerUrl(serverUrl: String) {
+        val activity = activityRef?.get() ?: return
+        activity.runOnUiThread {
+            widgetRuntime?.updateSurfaceProps(android.os.Bundle().apply {
+                putString("serverUrl", serverUrl)
+            })
+            android.preference.PreferenceManager.getDefaultSharedPreferences(activity)
+                .edit()
+                .putString("expo-air-server-url", serverUrl)
+                .apply()
+        }
+    }
 }

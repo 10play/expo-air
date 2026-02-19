@@ -10,6 +10,7 @@ declare class ExpoAirModule extends NativeModule<ExpoAirModuleEvents> {
   hide(): void;
   expand(): void;
   collapse(): void;
+  setServerUrl(url: string): void;
   getServerUrl(): string;
 }
 

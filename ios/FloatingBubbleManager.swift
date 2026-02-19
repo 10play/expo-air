@@ -406,7 +406,7 @@ class FloatingBubbleViewController: UIViewController, UIGestureRecognizerDelegat
         onCollapse?()
     }
 
-    private func updateSurfaceProps() {
+    func updateSurfaceProps() {
         guard let surfaceView = reactSurfaceView as? RCTSurfaceHostingProxyRootView else { return }
         var props: [String: Any] = [
             "size": bubbleSize,
@@ -642,6 +642,14 @@ class FloatingBubbleManager {
     func collapse() {
         DispatchQueue.main.async {
             self.bubbleVC?.collapse()
+        }
+    }
+
+    func updateServerUrl(_ url: String) {
+        DispatchQueue.main.async {
+            self.bubbleVC?.serverUrl = url
+            self.bubbleVC?.updateSurfaceProps()
+            UserDefaults.standard.set(url, forKey: "expo-air-server-url")
         }
     }
 }

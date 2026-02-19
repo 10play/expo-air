@@ -2,6 +2,7 @@ import "@10play/expo-air/build/hmrReconnect";
 import ExpoAir from "@10play/expo-air";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  Alert,
   Animated,
   Button,
   Dimensions,
@@ -11,6 +12,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 
@@ -1998,6 +2000,8 @@ const pixelStyles = StyleSheet.create({
 
 export default function App() {
   const [events, setEvents] = useState<string[]>([]);
+  const [serverUrl, setServerUrl] = useState("ws://localhost:3847");
+  const [secret, setSecret] = useState("");
   const addEventRef = useRef((name: string, data?: Record<string, unknown>) => {
     const entry = data ? `${name}: ${JSON.stringify(data)}` : name;
     setEvents((prev) => [entry, ...prev].slice(0, 10));
@@ -2046,6 +2050,42 @@ export default function App() {
           <View style={styles.buttonRow}>
             <Button title="Expand" onPress={() => ExpoAir.expand()} />
             <Button title="Collapse" onPress={() => ExpoAir.collapse()} />
+          </View>
+          <View style={styles.urlSection}>
+            <Text style={styles.urlSectionTitle}>Dynamic Server URL</Text>
+            <TextInput
+              style={styles.urlInput}
+              value={serverUrl}
+              onChangeText={setServerUrl}
+              placeholder="ws://localhost:3847"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <TextInput
+              style={styles.urlInput}
+              value={secret}
+              onChangeText={setSecret}
+              placeholder="Secret (optional)"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <Button
+              title="Set Server URL"
+              onPress={() => {
+                const url = secret
+                  ? `${serverUrl}?secret=${secret}`
+                  : serverUrl;
+                ExpoAir.setServerUrl(url);
+                addEventRef.current("setServerUrl", { url });
+              }}
+            />
+            <Button
+              title="Get Current URL"
+              onPress={() => {
+                const url = ExpoAir.getServerUrl();
+                Alert.alert("Current Server URL", url || "(empty)");
+              }}
+            />
           </View>
           {events.length > 0 && (
             <View style={styles.eventLog}>
@@ -2118,5 +2158,22 @@ const styles = {
     fontSize: 12,
     color: "#555",
     marginBottom: 2,
+  },
+  urlSection: {
+    marginTop: 16,
+    gap: 8,
+  },
+  urlSectionTitle: {
+    fontWeight: "600" as const,
+    fontSize: 14,
+    marginBottom: 4,
+  },
+  urlInput: {
+    borderWidth: 1,
+    borderColor: "#ccc",
+    borderRadius: 8,
+    padding: 10,
+    fontSize: 14,
+    backgroundColor: "#fafafa",
   },
 };

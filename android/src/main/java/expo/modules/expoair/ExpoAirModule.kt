@@ -103,6 +103,10 @@ class ExpoAirModule : Module() {
             FloatingBubbleManager.collapse()
         }
 
+        Function("setServerUrl") { url: String ->
+            FloatingBubbleManager.updateServerUrl(url)
+        }
+
         Function("getServerUrl") {
             val context = appContext.reactContext ?: return@Function ""
 

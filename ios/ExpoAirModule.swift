@@ -90,6 +90,10 @@ public class ExpoAirModule: Module {
       FloatingBubbleManager.shared.collapse()
     }
 
+    Function("setServerUrl") { (url: String) in
+      FloatingBubbleManager.shared.updateServerUrl(url)
+    }
+
     Function("getServerUrl") { () -> String in
       // Check UserDefaults first (may be set by CLI)
       if let cached = UserDefaults.standard.string(forKey: "expo-air-server-url"), !cached.isEmpty {

@@ -207,6 +207,12 @@ class WidgetRuntime(
         return surfaceView
     }
 
+    fun updateSurfaceProps(props: Bundle) {
+        val currentSurface = surface as? ReactSurfaceImpl ?: return
+        currentSurface.updateInitProps(props)
+        Log.d(TAG, "Updated surface props: $props")
+    }
+
     fun emitExpandCollapse(expanded: Boolean) {
         widgetBridge?.emitExpandCollapse(expanded)
     }
