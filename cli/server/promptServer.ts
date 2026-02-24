@@ -953,7 +953,12 @@ IMPORTANT CONSTRAINTS:
 - DO NOT add new npm/yarn packages unless the user EXPLICITLY asks for it
 - Adding new packages requires the developer to completely reset and rebuild the native app, which is a slow and disruptive process
 - If a feature could be implemented with existing packages or vanilla JavaScript/TypeScript, prefer that approach
-- If a new package is truly necessary, clearly warn the user that adding it will require a full app rebuild`,
+- If a new package is truly necessary, clearly warn the user that adding it will require a full app rebuild
+
+METRO BUNDLER LOGS:
+- Recent Metro bundler logs are written to .expo-air-metro.log in the project root
+- Use the Read tool to view this file when diagnosing build errors, bundle failures, or runtime issues
+- The file is cleared periodically so it only contains recent output`,
           },
           tools: {
             type: "preset",
