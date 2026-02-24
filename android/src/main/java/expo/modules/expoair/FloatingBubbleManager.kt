@@ -28,6 +28,9 @@ object FloatingBubbleManager {
     var onExpand: (() -> Unit)? = null
     var onCollapse: (() -> Unit)? = null
     var onDragEnd: ((Float, Float) -> Unit)? = null
+    var onActionPress: (() -> Unit)? = null
+
+    private var currentAction: Bundle? = null
 
     fun show(
         activity: Activity,
@@ -126,10 +129,34 @@ object FloatingBubbleManager {
         }
     }
 
+    fun updateAction(config: Map<String, Any>?) {
+        android.util.Log.d("FloatingBubbleManager", "updateAction called with config: $config")
+        val activity = activityRef?.get()
+        if (config != null) {
+            currentAction = Bundle().apply {
+                putString("label", config["label"] as? String ?: "")
+                @Suppress("UNCHECKED_CAST")
+                val textStyle = config["textStyle"] as? Map<String, Any>
+                if (textStyle != null) {
+                    putBundle("textStyle", Bundle().apply {
+                        (textStyle["color"] as? String)?.let { putString("color", it) }
+                        (textStyle["fontWeight"] as? String)?.let { putString("fontWeight", it) }
+                    })
+                }
+            }
+        } else {
+            currentAction = null
+        }
+        activity?.runOnUiThread {
+            widgetRuntime?.updateSurfaceProps(buildSurfaceProps())
+        }
+    }
+
     private fun buildSurfaceProps(): Bundle = Bundle().apply {
         putDouble("size", currentSize)
         putString("color", currentColor)
         putBoolean("expanded", currentExpanded)
         currentServerUrl?.let { putString("serverUrl", it) }
+        currentAction?.let { putBundle("action", it) }
     }
 }

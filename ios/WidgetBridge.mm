@@ -88,26 +88,9 @@ RCT_EXPORT_MODULE();
 }
 
 RCT_EXPORT_METHOD(collapse) {
-    NSLog(@"[WidgetBridge] collapse called");
+    NSLog(@"[WidgetBridge] collapse called, posting notification");
     dispatch_async(dispatch_get_main_queue(), ^{
-        // Use runtime to call FloatingBubbleManager.shared.collapse()
-        Class managerClass = NSClassFromString(@"ExpoFlow.FloatingBubbleManager");
-        if (!managerClass) {
-            managerClass = NSClassFromString(@"FloatingBubbleManager");
-        }
-        if (managerClass) {
-            SEL sharedSel = NSSelectorFromString(@"shared");
-            SEL collapseSel = NSSelectorFromString(@"collapse");
-            if ([managerClass respondsToSelector:sharedSel]) {
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
-                id manager = [managerClass performSelector:sharedSel];
-                if (manager && [manager respondsToSelector:collapseSel]) {
-                    [manager performSelector:collapseSel];
-                }
-#pragma clang diagnostic pop
-            }
-        }
+        [[NSNotificationCenter defaultCenter] postNotificationName:@"ExpoAirCollapse" object:nil];
     });
 }
 
@@ -118,26 +101,16 @@ RCT_EXPORT_METHOD(reloadMainApp) {
 }
 
 RCT_EXPORT_METHOD(expand) {
-    NSLog(@"[WidgetBridge] expand called");
+    NSLog(@"[WidgetBridge] expand called, posting notification");
     dispatch_async(dispatch_get_main_queue(), ^{
-        // Use runtime to call FloatingBubbleManager.shared.expand()
-        Class managerClass = NSClassFromString(@"ExpoFlow.FloatingBubbleManager");
-        if (!managerClass) {
-            managerClass = NSClassFromString(@"FloatingBubbleManager");
-        }
-        if (managerClass) {
-            SEL sharedSel = NSSelectorFromString(@"shared");
-            SEL expandSel = NSSelectorFromString(@"expand");
-            if ([managerClass respondsToSelector:sharedSel]) {
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
-                id manager = [managerClass performSelector:sharedSel];
-                if (manager && [manager respondsToSelector:expandSel]) {
-                    [manager performSelector:expandSel];
-                }
-#pragma clang diagnostic pop
-            }
-        }
+        [[NSNotificationCenter defaultCenter] postNotificationName:@"ExpoAirExpand" object:nil];
+    });
+}
+
+RCT_EXPORT_METHOD(onActionPress) {
+    NSLog(@"[WidgetBridge] onActionPress called, posting notification");
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [[NSNotificationCenter defaultCenter] postNotificationName:@"ExpoAirActionPress" object:nil];
     });
 }
 
