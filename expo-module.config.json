@@ -2,7 +2,8 @@
   "platforms": ["apple", "android", "web"],
   "apple": {
     "modules": ["ExpoAirModule"],
-    "appDelegateSubscribers": ["ExpoAirAppDelegateSubscriber"]
+    "appDelegateSubscribers": ["ExpoAirAppDelegateSubscriber"],
+    "podspecPath": "./ios/ExpoAir.podspec"
   },
   "android": {
     "modules": ["expo.modules.expoair.ExpoAirModule"]
