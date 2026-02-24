@@ -1,6 +1,6 @@
 {
   "name": "expo-air",
-  "version": "0.13.10",
+  "version": "0.13.11",
   "description": "Alias package for @10play/expo-air - Vibe Coding for React-Native",
   "bin": {
     "expo-air": "./bin/expo-air.js"
@@ -25,6 +25,6 @@
   "license": "MIT",
   "homepage": "https://github.com/10play/expo-air#readme",
   "dependencies": {
-    "@10play/expo-air": "^0.13.10"
+    "@10play/expo-air": "^0.13.11"
   }
 }
