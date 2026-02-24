@@ -195,28 +195,6 @@ class FloatingBubbleViewController: UIViewController, UIGestureRecognizerDelegat
         reactSurfaceView = surfaceView
     }
 
-    var surfaceViewTypeName: String {
-        guard let v = reactSurfaceView else { return "nil" }
-        return String(describing: type(of: v))
-    }
-
-    func replaceSurfaceView(_ newView: UIView) {
-        let oldAddr = reactSurfaceView.map { String(format: "%p", UInt(bitPattern: ObjectIdentifier($0))) } ?? "nil"
-        let newAddr = String(format: "%p", UInt(bitPattern: ObjectIdentifier(newView)))
-        NSLog("[ExpoAir] replaceSurfaceView: old=\(oldAddr)(\(type(of: reactSurfaceView))) new=\(newAddr)(\(type(of: newView)))")
-        reactSurfaceView?.removeFromSuperview()
-        newView.frame = bubbleContainer.bounds
-        newView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-        newView.backgroundColor = .clear
-        // Insert below nativeCloseButton so it stays on top
-        if let closeBtn = nativeCloseButton {
-            bubbleContainer.insertSubview(newView, belowSubview: closeBtn)
-        } else {
-            bubbleContainer.addSubview(newView)
-        }
-        reactSurfaceView = newView
-    }
-
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .clear
@@ -429,10 +407,7 @@ class FloatingBubbleViewController: UIViewController, UIGestureRecognizerDelegat
     }
 
     func updateSurfaceProps() {
-        guard let surfaceView = reactSurfaceView as? RCTSurfaceHostingProxyRootView else {
-            NSLog("[ExpoAir] updateSurfaceProps: cast FAILED, type=\(type(of: reactSurfaceView))")
-            return
-        }
+        guard let surfaceView = reactSurfaceView as? RCTSurfaceHostingProxyRootView else { return }
         var props: [String: Any] = [
             "size": bubbleSize,
             "color": bubbleColor,
@@ -441,7 +416,6 @@ class FloatingBubbleViewController: UIViewController, UIGestureRecognizerDelegat
         if let serverUrl = serverUrl {
             props["serverUrl"] = serverUrl
         }
-        NSLog("[ExpoAir] updateSurfaceProps: setting serverUrl=\(serverUrl ?? "nil")")
         surfaceView.appProperties = props
     }
 
@@ -673,51 +647,9 @@ class FloatingBubbleManager {
 
     func updateServerUrl(_ url: String) {
         DispatchQueue.main.async {
-            guard let bubbleVC = self.bubbleVC else { return }
-            bubbleVC.serverUrl = url
-            bubbleVC.updateSurfaceProps()
+            self.bubbleVC?.serverUrl = url
+            self.bubbleVC?.updateSurfaceProps()
             UserDefaults.standard.set(url, forKey: "expo-air-server-url")
-        }
-    }
-
-    func reloadWidget(bundleURL: URL, serverUrl: String) {
-        DispatchQueue.main.async {
-            NSLog("[ExpoAir] reloadWidget bundleURL=%@", bundleURL.absoluteString)
-
-            // Tear down the old runtime and create a fresh one from the new bundle URL
-            self.widgetRuntime?.invalidate()
-            self.widgetRuntime = nil
-
-            guard let runtime = WidgetRuntime(bundleURL: bundleURL) else {
-                NSLog("[ExpoAir] reloadWidget: failed to create WidgetRuntime")
-                return
-            }
-            runtime.start()
-            self.widgetRuntime = runtime
-
-            UserDefaults.standard.set(serverUrl, forKey: "expo-air-server-url")
-
-            guard let bubbleVC = self.bubbleVC else {
-                NSLog("[ExpoAir] reloadWidget: no bubbleVC yet, runtime ready but no surface")
-                return
-            }
-            bubbleVC.serverUrl = serverUrl
-
-            let initialProps: [String: Any] = [
-                "size": Double(bubbleVC.bubbleSize),
-                "color": bubbleVC.bubbleColor,
-                "expanded": bubbleVC.isExpanded,
-                "serverUrl": serverUrl,
-            ]
-
-            if let newSurface = runtime.createSurfaceView(
-                withModuleName: "ExpoAirBubble",
-                initialProperties: initialProps
-            ) {
-                bubbleVC.replaceSurfaceView(newSurface)
-            } else {
-                NSLog("[ExpoAir] reloadWidget: createSurfaceView returned nil")
-            }
         }
     }
 }

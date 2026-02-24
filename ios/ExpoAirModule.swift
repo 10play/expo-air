@@ -94,11 +94,6 @@ public class ExpoAirModule: Module {
       FloatingBubbleManager.shared.updateServerUrl(url)
     }
 
-    Function("reloadWidget") { (bundleUrlString: String, serverUrlString: String) in
-      guard let bundleUrl = URL(string: bundleUrlString) else { return }
-      FloatingBubbleManager.shared.reloadWidget(bundleURL: bundleUrl, serverUrl: serverUrlString)
-    }
-
     Function("getServerUrl") { () -> String in
       // Check UserDefaults first (may be set by CLI)
       if let cached = UserDefaults.standard.string(forKey: "expo-air-server-url"), !cached.isEmpty {

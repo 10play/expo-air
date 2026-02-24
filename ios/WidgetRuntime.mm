@@ -130,7 +130,7 @@ static void swizzleReloadOnce(void) {
     }
     UIView *view = [_viewFactory viewWithModuleName:moduleName
                                   initialProperties:properties ?: @{}];
-    NSLog(@"[WidgetRuntime] Created view: %@ class: %@", view, NSStringFromClass([view class]));
+    NSLog(@"[WidgetRuntime] Created view: %@", view);
     view.backgroundColor = [UIColor clearColor];
 
     // Mark the widget's RCTHost so it ignores global reload commands
