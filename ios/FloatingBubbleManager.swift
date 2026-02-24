@@ -141,6 +141,7 @@ class FloatingBubbleViewController: UIViewController, UIGestureRecognizerDelegat
     var bubbleColor: String = "#000000"
     var isExpanded: Bool = false
     var serverUrl: String?
+    var action: [String: Any]?
 
     var onPress: (() -> Void)?
     var onExpand: (() -> Void)?
@@ -416,6 +417,9 @@ class FloatingBubbleViewController: UIViewController, UIGestureRecognizerDelegat
         if let serverUrl = serverUrl {
             props["serverUrl"] = serverUrl
         }
+        if let action = action {
+            props["action"] = action
+        }
         surfaceView.appProperties = props
     }
 
@@ -540,8 +544,41 @@ class FloatingBubbleManager {
     var onExpand: (() -> Void)?
     var onCollapse: (() -> Void)?
     var onDragEnd: ((_ x: CGFloat, _ y: CGFloat) -> Void)?
+    var onActionPress: (() -> Void)?
 
-    private init() {}
+    private var currentAction: [String: Any]?
+
+    // Observation tokens for NotificationCenter
+    private var collapseObserver: Any?
+    private var expandObserver: Any?
+    private var actionPressObserver: Any?
+
+    private init() {
+        // Listen for notifications from WidgetBridge (runs in the widget's isolated RN runtime).
+        // WidgetBridge is ObjC and can't directly reference this Swift class,
+        // so we use NotificationCenter as the bridge.
+        collapseObserver = NotificationCenter.default.addObserver(
+            forName: NSNotification.Name("ExpoAirCollapse"),
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.collapse()
+        }
+        expandObserver = NotificationCenter.default.addObserver(
+            forName: NSNotification.Name("ExpoAirExpand"),
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.expand()
+        }
+        actionPressObserver = NotificationCenter.default.addObserver(
+            forName: NSNotification.Name("ExpoAirActionPress"),
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.handleActionPress()
+        }
+    }
 
     func show(size: CGFloat, color: String, bundleURL: URL?, serverUrl: String? = nil) {
         DispatchQueue.main.async {
@@ -573,6 +610,7 @@ class FloatingBubbleManager {
             vc.bubbleSize = size
             vc.bubbleColor = color
             vc.serverUrl = serverUrl
+            vc.action = self.currentAction
 
             // Create the widget runtime and surface view if we have a bundle URL
             NSLog("[FloatingBubbleManager] bundleURL = %@", bundleURL?.absoluteString ?? "nil")
@@ -591,6 +629,9 @@ class FloatingBubbleManager {
                 ]
                 if let serverUrl = serverUrl {
                     initialProps["serverUrl"] = serverUrl
+                }
+                if let action = self.currentAction {
+                    initialProps["action"] = action
                 }
 
                 if let surfaceView = self.widgetRuntime?.createSurfaceView(
@@ -651,5 +692,19 @@ class FloatingBubbleManager {
             self.bubbleVC?.updateSurfaceProps()
             UserDefaults.standard.set(url, forKey: "expo-air-server-url")
         }
+    }
+
+    func updateAction(_ config: [String: Any]?) {
+        NSLog("[FloatingBubbleManager] updateAction called with config: %@", config?.description ?? "nil")
+        DispatchQueue.main.async {
+            self.currentAction = config
+            self.bubbleVC?.action = config
+            self.bubbleVC?.updateSurfaceProps()
+        }
+    }
+
+    func handleActionPress() {
+        NSLog("[FloatingBubbleManager] handleActionPress called, onActionPress callback set: %@", self.onActionPress != nil ? "YES" : "NO")
+        self.onActionPress?()
     }
 }

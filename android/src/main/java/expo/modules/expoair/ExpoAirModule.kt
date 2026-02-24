@@ -60,6 +60,10 @@ class ExpoAirModule : Module() {
         FloatingBubbleManager.onDragEnd = { x, y ->
             sendEvent("onDragEnd", mapOf("x" to x, "y" to y))
         }
+        FloatingBubbleManager.onActionPress = {
+            android.util.Log.d("ExpoAirModule", "onActionPress callback fired, sending event to host JS")
+            sendEvent("onActionPress", mapOf<String, Any>())
+        }
     }
 
     override fun definition() = ModuleDefinition {
@@ -69,7 +73,7 @@ class ExpoAirModule : Module() {
             Math.PI
         }
 
-        Events("onChange", "onPress", "onExpand", "onCollapse", "onDragEnd")
+        Events("onChange", "onPress", "onExpand", "onCollapse", "onDragEnd", "onActionPress")
 
         Function("hello") {
             "Hello world!"
@@ -105,6 +109,11 @@ class ExpoAirModule : Module() {
 
         Function("setServerUrl") { url: String ->
             FloatingBubbleManager.updateServerUrl(url)
+        }
+
+        Function("setAction") { config: Map<String, Any>? ->
+            android.util.Log.d("ExpoAirModule", "setAction called with config: $config")
+            FloatingBubbleManager.updateAction(config)
         }
 
         Function("getServerUrl") {

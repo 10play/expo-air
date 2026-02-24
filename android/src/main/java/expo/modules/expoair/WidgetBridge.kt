@@ -45,6 +45,14 @@ class WidgetBridge(private val reactContext: ReactApplicationContext) : ReactCon
     fun removeListeners(@Suppress("UNUSED_PARAMETER") count: Int) {}
 
     @ReactMethod
+    fun onActionPress() {
+        Log.d(TAG, "onActionPress called")
+        android.os.Handler(android.os.Looper.getMainLooper()).post {
+            FloatingBubbleManager.onActionPress?.invoke()
+        }
+    }
+
+    @ReactMethod
     fun reloadMainApp() {
         try {
             val app = reactContext.applicationContext as? ReactApplication

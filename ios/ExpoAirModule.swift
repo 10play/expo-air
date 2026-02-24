@@ -48,6 +48,10 @@ public class ExpoAirModule: Module {
     manager.onDragEnd = { [weak self] x, y in
       self?.sendEvent("onDragEnd", ["x": x, "y": y])
     }
+    manager.onActionPress = { [weak self] in
+      NSLog("[ExpoAirModule] onActionPress callback fired, sending event to host JS")
+      self?.sendEvent("onActionPress", [:])
+    }
   }
 
   public func definition() -> ModuleDefinition {
@@ -57,7 +61,7 @@ public class ExpoAirModule: Module {
       Double.pi
     }
 
-    Events("onChange", "onPress", "onExpand", "onCollapse", "onDragEnd")
+    Events("onChange", "onPress", "onExpand", "onCollapse", "onDragEnd", "onActionPress")
 
     Function("hello") {
       return "Hello world!"
@@ -92,6 +96,11 @@ public class ExpoAirModule: Module {
 
     Function("setServerUrl") { (url: String) in
       FloatingBubbleManager.shared.updateServerUrl(url)
+    }
+
+    Function("setAction") { (config: [String: Any]?) in
+      NSLog("[ExpoAirModule] setAction called with config: %@", config?.description ?? "nil")
+      FloatingBubbleManager.shared.updateAction(config)
     }
 
     Function("getServerUrl") { () -> String in

@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from "react";
-import { View, Text, StyleSheet, NativeModules, TouchableOpacity, Animated, Easing, type TextProps, type ViewProps } from "react-native";
+import { View, Text, StyleSheet, NativeModules, TouchableOpacity, Animated, Easing, type TextStyle, type ViewProps } from "react-native";
 import type { ConnectionStatus } from "../services/websocket";
 import { SPACING, LAYOUT, COLORS, TYPOGRAPHY, SIZES } from "../constants/design";
 
@@ -38,13 +38,20 @@ function handleCollapse() {
   }
 }
 
+interface ActionConfig {
+  label: string;
+  textStyle?: TextStyle;
+}
+
 interface HeaderProps {
   status: ConnectionStatus;
   branchName: string;
   onBranchPress: () => void;
+  action?: ActionConfig;
+  onActionPress?: () => void;
 }
 
-export function Header({ status, branchName, onBranchPress }: HeaderProps) {
+export function Header({ status, branchName, onBranchPress, action, onActionPress }: HeaderProps) {
   const statusColors: Record<ConnectionStatus, string> = {
     disconnected: COLORS.STATUS_ERROR,
     connecting: COLORS.STATUS_INFO,
@@ -71,6 +78,18 @@ export function Header({ status, branchName, onBranchPress }: HeaderProps) {
           <View style={styles.branchLoadingBar} />
         )}
       </TouchableOpacity>
+
+      {action && (
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={onActionPress}
+          activeOpacity={0.7}
+        >
+          <Text style={[styles.actionButtonText, action.textStyle]} numberOfLines={1}>
+            {action.label}
+          </Text>
+        </TouchableOpacity>
+      )}
 
       <TouchableOpacity
         onLongPress={handleReload}
@@ -212,6 +231,18 @@ const styles = StyleSheet.create({
     height: 12,
     borderRadius: 6,
     backgroundColor: "rgba(255,255,255,0.08)",
+  },
+  actionButton: {
+    backgroundColor: COLORS.BACKGROUND_INTERACTIVE,
+    borderRadius: LAYOUT.BORDER_RADIUS_MD,
+    paddingHorizontal: SIZES.CTA_PADDING_H,
+    paddingVertical: SIZES.CTA_PADDING_V,
+    marginLeft: SPACING.SM,
+  },
+  actionButtonText: {
+    color: COLORS.TEXT_SECONDARY,
+    fontSize: TYPOGRAPHY.SIZE_SM,
+    fontWeight: TYPOGRAPHY.WEIGHT_MEDIUM,
   },
   statusDot: {
     width: SIZES.STATUS_DOT,

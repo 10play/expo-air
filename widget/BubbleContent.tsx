@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { View, Text, StyleSheet, NativeModules, NativeEventEmitter, Platform, TouchableOpacity } from "react-native";
+import { View, Text, StyleSheet, NativeModules, NativeEventEmitter, Platform, TouchableOpacity, type TextStyle } from "react-native";
 
 import { PromptInput, type PromptInputHandle } from "./components/PromptInput";
 import { ResponseArea } from "./components/ResponseArea";
@@ -14,11 +14,17 @@ import { LAYOUT, COLORS, SPACING, TYPOGRAPHY } from "./constants/design";
 
 const { WidgetBridge } = NativeModules;
 
+interface ActionConfig {
+  label: string;
+  textStyle?: TextStyle;
+}
+
 interface BubbleContentProps {
   size?: number;
   color?: string;
   expanded?: boolean;
   serverUrl?: string;
+  action?: ActionConfig;
 }
 
 export function BubbleContent({
@@ -26,6 +32,7 @@ export function BubbleContent({
   color = "#000000",  // Black to match Dynamic Island
   expanded: initialExpanded = false,
   serverUrl = "ws://localhost:3847",
+  action,
 }: BubbleContentProps) {
   const [activeTab, setActiveTab] = useState<TabType>("chat");
   const promptInputRef = useRef<PromptInputHandle>(null);
@@ -75,6 +82,16 @@ export function BubbleContent({
   // will be set before any git messages arrive
   gitMessageHandlerRef.current = git.handleGitMessage;
 
+  const handleActionPress = useCallback(() => {
+    try {
+      if (WidgetBridge?.onActionPress) {
+        WidgetBridge.onActionPress();
+      }
+    } catch (e) {
+      console.warn("[expo-air] Failed to emit action press:", e);
+    }
+  }, []);
+
   // Auto-focus input when widget expands
   useEffect(() => {
     if (expanded && activeTab === "chat") {
@@ -99,6 +116,8 @@ export function BubbleContent({
         status={status}
         branchName={git.branchName}
         onBranchPress={git.handleBranchPress}
+        action={action}
+        onActionPress={handleActionPress}
       />
       <TabBar
         activeTab={activeTab}

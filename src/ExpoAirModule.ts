@@ -1,6 +1,6 @@
 import { NativeModule, requireNativeModule } from "expo";
 
-import { ExpoAirModuleEvents } from "./ExpoAir.types";
+import { ActionConfig, ExpoAirModuleEvents } from "./ExpoAir.types";
 
 declare class ExpoAirModule extends NativeModule<ExpoAirModuleEvents> {
   PI: number;
@@ -12,6 +12,7 @@ declare class ExpoAirModule extends NativeModule<ExpoAirModuleEvents> {
   collapse(): void;
   setServerUrl(url: string): void;
   getServerUrl(): string;
+  setAction(config: ActionConfig | null): void;
 }
 
 // This call loads the native module object from the JSI.
